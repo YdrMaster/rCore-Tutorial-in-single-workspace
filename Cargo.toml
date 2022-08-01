@@ -1,0 +1,3 @@
+[workspace]
+members = ["xtask", "ch1"]
+default-members = ["xtask"]
