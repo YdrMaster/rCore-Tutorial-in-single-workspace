@@ -1,0 +1,10 @@
+[package]
+name = "user_lib"
+version = "0.0.1"
+edition = "2021"
+authors = ["YdrMaster <ydrml@hotmail.com>"]
+
+[dependencies]
+r0 = "1"
+riscv = "0.8"
+output = { path = "../output" }

@@ -1,6 +1,6 @@
 **/.*/*
+!**/.cargo/*
 !/.github/*
-!/.cargo/*
 !/.vscode/settings.json
 
 /target

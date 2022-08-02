@@ -1,3 +1,7 @@
 [workspace]
-members = ["xtask", "ch1", "ch1-lab", "output"]
+members = ["xtask", "ch1", "ch1-lab", "output", "user"]
 default-members = ["xtask"]
+
+[profile.release]
+opt-level = "s"
+debug = true

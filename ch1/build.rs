@@ -20,7 +20,13 @@ SECTIONS {
         *(.rodata .rodata.*)
         *(.srodata .srodata.*)
     }
+    .data : {
+        *(.data .data.*)
+        *(.sdata .sdata.*)
+    }
     .bss : {
         *(.bss.uninit)
+        *(.bss .bss.*)
+        *(.sbss .sbss.*)
     }
 }";
