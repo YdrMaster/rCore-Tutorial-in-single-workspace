@@ -24,16 +24,21 @@ enum Commands {
 fn main() {
     use Commands::*;
     match Cli::parse().command {
-        Make(args) => args.make(),
+        Make(args) => {
+            let _ = args.make();
+        }
         Qemu(args) => args.run(),
     }
 }
 
 #[derive(Args, Default)]
 struct BuildArgs {
-    /// With supervisor.
+    /// Character.
     #[clap(short, long)]
     ch: u8,
+    /// Lab?
+    #[clap(long)]
+    lab: bool,
     /// Build in debug mode.
     #[clap(long)]
     debug: bool,
@@ -50,8 +55,12 @@ impl BuildArgs {
             .join(if self.debug { "debug" } else { "release" })
     }
 
-    fn make(&self) {
-        let package = format!("ch{}", self.ch);
+    fn make(&self) -> PathBuf {
+        let package = if self.lab {
+            format!("ch{}-lab", self.ch)
+        } else {
+            format!("ch{}", self.ch)
+        };
         // 生成
         Cargo::build()
             .package(&package)
@@ -61,15 +70,17 @@ impl BuildArgs {
             .target(TARGET)
             .invoke();
         // 裁剪
-        let target = self.dir().join(package);
+        let elf = self.dir().join(package);
+        let bin = elf.with_extension("bin");
         BinUtil::objcopy()
             .arg("--binary-architecture=riscv64")
-            .arg(&target)
+            .arg(elf)
             .arg("--strip-all")
             .arg("-O")
             .arg("binary")
-            .arg(target.with_extension("bin"))
+            .arg(&bin)
             .invoke();
+        bin
     }
 }
 
@@ -90,16 +101,16 @@ struct QemuArgs {
 
 impl QemuArgs {
     fn run(self) {
-        self.build.make();
+        let bin = self.build.make();
         if let Some(p) = &self.qemu_dir {
             Qemu::search_at(p);
         }
         Qemu::system("riscv64")
             .args(&["-machine", "virt"])
-            .args(&["-bios", "default"])
+            .args(&["-bios", "rustsbi-qemu.bin"])
             .arg("-kernel")
-            .arg(self.build.dir().join("ch1.bin"))
-            .args(&["-smp", &self.smp.unwrap_or(8).to_string()])
+            .arg(bin)
+            .args(&["-smp", &self.smp.unwrap_or(1).to_string()])
             .args(&["-serial", "mon:stdio"])
             .arg("-nographic")
             .optional(&self.gdb, |qemu, gdb| {
