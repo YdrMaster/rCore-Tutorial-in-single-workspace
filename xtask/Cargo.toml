@@ -9,3 +9,4 @@ authors = ["YdrMaster <ydrml@hotmail.com>"]
 [dependencies]
 clap = { version = "3.2", features = ["derive"] }
 command-ext = { git = "https://github.com/YdrMaster/command-ext.git", rev = "f25befb" }
+once_cell = "1.13.0"

@@ -3,9 +3,12 @@ extern crate clap;
 
 use clap::Parser;
 use command_ext::{BinUtil, Cargo, CommandExt, Qemu};
+use once_cell::sync::Lazy;
 use std::path::{Path, PathBuf};
 
 const TARGET: &str = "riscv64imac-unknown-none-elf";
+static PROJECT: Lazy<&'static Path> =
+    Lazy::new(|| Path::new(std::env!("CARGO_MANIFEST_DIR")).parent().unwrap());
 
 #[derive(Parser)]
 #[clap(name = "rCore-Tutorial")]
@@ -47,9 +50,7 @@ struct BuildArgs {
 impl BuildArgs {
     /// Returns the dir of target files.
     fn dir(&self) -> PathBuf {
-        Path::new(std::env!("CARGO_MANIFEST_DIR"))
-            .parent()
-            .unwrap()
+        PROJECT
             .join("target")
             .join(TARGET)
             .join(if self.debug { "debug" } else { "release" })
@@ -107,7 +108,8 @@ impl QemuArgs {
         }
         Qemu::system("riscv64")
             .args(&["-machine", "virt"])
-            .args(&["-bios", "rustsbi-qemu.bin"])
+            .arg("-bios")
+            .arg(PROJECT.join("rustsbi-qemu.bin"))
             .arg("-kernel")
             .arg(bin)
             .args(&["-smp", &self.smp.unwrap_or(1).to_string()])
