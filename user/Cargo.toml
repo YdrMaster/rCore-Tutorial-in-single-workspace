@@ -8,3 +8,4 @@ authors = ["YdrMaster <ydrml@hotmail.com>"]
 r0 = "1"
 riscv = "0.8"
 output = { path = "../output" }
+syscall = { path = "../syscall", features = ["user"] }
