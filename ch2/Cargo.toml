@@ -1,0 +1,9 @@
+[package]
+name = "ch2"
+version = "0.0.1"
+edition = "2021"
+authors = ["YdrMaster <ydrml@hotmail.com>"]
+
+[dependencies]
+sbi-rt = { git = "https://github.com/rustsbi/sbi-rt", branch = "dev" }
+syscall = { path = "../syscall", features = ["kernel"] }
