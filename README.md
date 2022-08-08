@@ -8,12 +8,14 @@
 
 ## 目录
 
-- [宗旨](#宗旨)
-  - [史书的另一种形态](#史书的另一种形态)
-  - [协作政策](#协作政策)
-- [命令参考](#命令参考)
-- [设计说明](#设计说明)
-- [进度](#进度)
+- [模块化的 rCore-Tutorial](#模块化的-rcore-tutorial)
+  - [目录](#目录)
+  - [宗旨](#宗旨)
+    - [史书的另一种形态](#史书的另一种形态)
+    - [协作政策](#协作政策)
+  - [命令参考](#命令参考)
+  - [设计说明](#设计说明)
+  - [进度计划](#进度计划)
 
 ## 宗旨
 
@@ -101,6 +103,19 @@ rCore-Tutorial-v3 的教材部分别出心裁地为每一章取了一种古生�
 
     普通的 lib crate。如果对同一功能可能有多种实现，可能使用 cfg feature 或抽象出接口库。
 
-## 进度
+## 进度计划
 
-完成第一章。
+- [x] 完成第一章的crated os
+- [ ] 阅读[Theseus OS Intro Doc](https://www.theseus-os.com/Theseus/book/index.html)，了解Theseus OS的基本想法和设计/实践方法
+- [ ] 阅读[Theseus OS API Doc](https://www.theseus-os.com/Theseus/doc/___Theseus_Crates___/index.html)，了解一个OS中的各个crates基本功能和接口
+- [ ] 完成第一章的crated os
+- [ ] 完成第二章的crated os
+- [ ] 完成第三章的crated os
+- [ ] 完成第四章的crated os
+- [ ] 完成第五章的crated os
+- [ ] 完成第六章的crated os
+- [ ] 完成第七章的crated os
+- [ ] 完成第八章的crated os
+- [ ] 完成第九章的crated os
+
+注：鼓励分析其他同学的代码，提出自己的想法，相互学习讨论。
