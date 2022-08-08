@@ -62,6 +62,7 @@ dependencies = [
 name = "ch2"
 version = "0.0.1"
 dependencies = [
+ "output",
  "sbi-rt",
  "syscall",
 ]

@@ -1,14 +1,24 @@
+#![feature(path_file_prefix)]
+
+mod user;
+
 #[macro_use]
 extern crate clap;
 
 use clap::Parser;
 use command_ext::{BinUtil, Cargo, CommandExt, Qemu};
 use once_cell::sync::Lazy;
-use std::path::{Path, PathBuf};
+use std::{
+    collections::HashMap,
+    path::{Path, PathBuf},
+};
 
-const TARGET: &str = "riscv64imac-unknown-none-elf";
+const TARGET_ARCH: &str = "riscv64imac-unknown-none-elf";
+
 static PROJECT: Lazy<&'static Path> =
     Lazy::new(|| Path::new(std::env!("CARGO_MANIFEST_DIR")).parent().unwrap());
+
+static TARGET: Lazy<PathBuf> = Lazy::new(|| PROJECT.join("target").join(TARGET_ARCH));
 
 #[derive(Parser)]
 #[clap(name = "rCore-Tutorial")]
@@ -44,44 +54,49 @@ struct BuildArgs {
     lab: bool,
     /// Build in debug mode.
     #[clap(long)]
-    debug: bool,
+    release: bool,
 }
 
 impl BuildArgs {
-    /// Returns the dir of target files.
-    fn dir(&self) -> PathBuf {
-        PROJECT
-            .join("target")
-            .join(TARGET)
-            .join(if self.debug { "debug" } else { "release" })
-    }
-
     fn make(&self) -> PathBuf {
         let package = if self.lab {
             format!("ch{}-lab", self.ch)
         } else {
             format!("ch{}", self.ch)
         };
+        let mut env = HashMap::new();
+        match self.ch {
+            1 => {}
+            2 => {
+                user::build_for(2, false);
+                env.insert(
+                    "APP_ASM",
+                    TARGET
+                        .join("debug")
+                        .join("app.asm")
+                        .as_os_str()
+                        .to_os_string(),
+                );
+            }
+            _ => unreachable!(),
+        };
         // 生成
-        Cargo::build()
+        let mut build = Cargo::build();
+        build
             .package(&package)
-            .conditional(!self.debug, |sbi| {
+            .conditional(self.release, |sbi| {
                 sbi.release();
             })
-            .target(TARGET)
-            .invoke();
+            .target(TARGET_ARCH);
+        for (key, value) in env {
+            build.env(key, value);
+        }
+        build.invoke();
         // 裁剪
-        let elf = self.dir().join(package);
-        let bin = elf.with_extension("bin");
-        BinUtil::objcopy()
-            .arg("--binary-architecture=riscv64")
-            .arg(elf)
-            .arg("--strip-all")
-            .arg("-O")
-            .arg("binary")
-            .arg(&bin)
-            .invoke();
-        bin
+        let elf = TARGET
+            .join(if self.release { "release" } else { "debug" })
+            .join(package);
+        strip_all(elf)
     }
 }
 
@@ -120,4 +135,16 @@ impl QemuArgs {
             })
             .invoke();
     }
+}
+
+fn strip_all(elf: impl AsRef<Path>) -> PathBuf {
+    let elf = elf.as_ref();
+    let bin = elf.with_extension("bin");
+    BinUtil::objcopy()
+        .arg("--binary-architecture=riscv64")
+        .arg(elf)
+        .args(["--strip-all", "-O", "binary"])
+        .arg(&bin)
+        .invoke();
+    bin
 }

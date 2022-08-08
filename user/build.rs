@@ -2,7 +2,10 @@ fn main() {
     use std::{env, fs, path::PathBuf};
 
     let ld = &PathBuf::from(env::var_os("OUT_DIR").unwrap()).join("linker.ld");
-    let text = format!("BASE_ADDRESS = {:#x};{LINKER}", 0x8040_0000u64);
+    let text = format!(
+        "BASE_ADDRESS = {:#x};{LINKER}",
+        env::var("BASE_ADDRESS").map_or(0, |addr| addr.parse::<u64>().unwrap()),
+    );
     fs::write(ld, text).unwrap();
     println!("cargo:rerun-if-changed=build.rs");
     println!("cargo:rustc-link-arg=-T{}", ld.display());
