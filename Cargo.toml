@@ -1,5 +1,14 @@
 [workspace]
-members = ["xtask", "ch1", "ch1-lab", "ch2", "output", "syscall", "user"]
+members = [
+    "xtask",
+    "ch1",
+    "ch1-lab",
+    "ch2",
+    "user",
+    "output",
+    "syscall",
+    "trap-frame",
+]
 default-members = ["xtask"]
 
 [profile.release]

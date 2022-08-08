@@ -3,11 +3,16 @@
 #![feature(naked_functions, asm_sym, asm_const)]
 #![deny(warnings)]
 
+use core::ops::Range;
+
 use output::*;
 use sbi_rt::*;
 
 // 用户程序内联进来。
 core::arch::global_asm!(include_str!(env!("APP_ASM")));
+
+// 用户程序的地址也要传进来。
+const APP_BASE: &str = env!("APP_BASE");
 
 /// Supervisor 汇编入口。
 ///
@@ -62,6 +67,18 @@ extern "C" fn rust_main() -> ! {
         println!("{:#10x}..{:#10x}", range[0], range[1]);
     }
 
+    let app_base = if let Some(num) = APP_BASE.strip_prefix("0x") {
+        usize::from_str_radix(num, 16).unwrap()
+    } else {
+        usize::from_str_radix(APP_BASE, 10).unwrap()
+    };
+
+    println!("app_base: {app_base:#10x}");
+
+    for range in ranges.windows(2) {
+        load(range[0]..range[1], app_base);
+    }
+
     system_reset(RESET_TYPE_SHUTDOWN, RESET_REASON_NO_REASON);
     unreachable!()
 }
@@ -71,4 +88,10 @@ extern "C" fn rust_main() -> ! {
 fn panic(_: &core::panic::PanicInfo) -> ! {
     system_reset(RESET_TYPE_SHUTDOWN, RESET_REASON_SYSTEM_FAILURE);
     unreachable!()
+}
+
+/// 将一个应用程序加载到目标位置。
+#[inline]
+fn load(range: Range<usize>, base: usize) {
+    unsafe { core::ptr::copy_nonoverlapping::<u8>(range.start as _, base as _, range.len()) };
 }

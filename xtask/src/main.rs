@@ -10,6 +10,7 @@ use command_ext::{BinUtil, Cargo, CommandExt, Qemu};
 use once_cell::sync::Lazy;
 use std::{
     collections::HashMap,
+    ffi::OsString,
     path::{Path, PathBuf},
 };
 
@@ -69,6 +70,7 @@ impl BuildArgs {
             1 => {}
             2 => {
                 user::build_for(2, false);
+                env.insert("APP_BASE", OsString::from("0x80400000"));
                 env.insert(
                     "APP_ASM",
                     TARGET

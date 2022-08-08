@@ -7,4 +7,5 @@ authors = ["YdrMaster <ydrml@hotmail.com>"]
 [dependencies]
 sbi-rt = { git = "https://github.com/rustsbi/sbi-rt", branch = "dev" }
 output = { path = "../output" }
+trap-frame = { path = "../trap-frame" }
 syscall = { path = "../syscall", features = ["kernel"] }
