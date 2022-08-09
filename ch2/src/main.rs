@@ -4,8 +4,8 @@
 #![deny(warnings)]
 
 use core::ops::Range;
-
 use output::*;
+use riscv::register::*;
 use sbi_rt::*;
 
 // 用户程序内联进来。
@@ -75,8 +75,29 @@ extern "C" fn rust_main() -> ! {
 
     println!("app_base: {app_base:#10x}");
 
+    let mut uctx = trap_frame::UserContext::new(app_base);
+    uctx.set_scratch();
+
+    unsafe { stvec::write(trap_frame::u_to_s as _, stvec::TrapMode::Direct) };
+
     for range in ranges.windows(2) {
         load(range[0]..range[1], app_base);
+
+        loop {
+            unsafe { trap_frame::s_to_u() };
+
+            use scause::{Exception, Trap};
+            match scause::read().cause() {
+                Trap::Exception(Exception::StoreFault) => {
+                    println!("sepc = {:#x}", uctx.sepc);
+                    system_reset(RESET_TYPE_SHUTDOWN, RESET_REASON_SYSTEM_FAILURE);
+                }
+                trap => {
+                    println!("{trap:?}");
+                    system_reset(RESET_TYPE_SHUTDOWN, RESET_REASON_SYSTEM_FAILURE);
+                }
+            }
+        }
     }
 
     system_reset(RESET_TYPE_SHUTDOWN, RESET_REASON_NO_REASON);
