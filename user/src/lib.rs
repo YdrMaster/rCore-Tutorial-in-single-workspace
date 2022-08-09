@@ -27,7 +27,6 @@ pub extern "C" fn _start() -> ! {
     }
     unsafe { r0::zero_bss(&mut sbss, &mut ebss) };
     output::init_console(&Console);
-    println!("Hello, world!");
     exit(main());
     unreachable!()
 }

@@ -7,6 +7,7 @@ use core::ops::Range;
 use output::*;
 use riscv::register::*;
 use sbi_rt::*;
+use syscall::SyscallId;
 use trap_frame::{s_to_u, u_to_s, UserContext};
 
 // 用户程序内联进来。
@@ -40,19 +41,22 @@ unsafe extern "C" fn _start() -> ! {
     )
 }
 
-struct Console;
-
-impl output::Console for Console {
-    fn put_char(&self, c: u8) {
-        #[allow(deprecated)]
-        legacy::console_putchar(c as _);
-    }
-}
-
 extern "C" fn rust_main() -> ! {
+    // 初始化 `output`
     init_console(&Console);
-    log::set_max_level(output::log::LevelFilter::Trace);
+    log::set_max_level(log::LevelFilter::Trace);
 
+    println!("[PRINT] Hello, world!");
+    log::trace!("Hello, world!");
+    log::debug!("Hello, world!");
+    log::info!("Hello, world!");
+    log::warn!("Hello, world!");
+    log::error!("Hello, world!");
+
+    // 初始化 syscall
+    syscall::init_io(&IOSyscall);
+    syscall::init_process(&ProcessSyscall);
+    // 定位应用程序
     extern "C" {
         static mut _num_app: u64;
     }
@@ -64,10 +68,6 @@ extern "C" fn rust_main() -> ! {
         )
     };
 
-    for range in ranges.windows(2) {
-        println!("{:#10x}..{:#10x}", range[0], range[1]);
-    }
-
     let app_base = if let Some(num) = APP_BASE.strip_prefix("0x") {
         usize::from_str_radix(num, 16).unwrap()
     } else {
@@ -76,12 +76,17 @@ extern "C" fn rust_main() -> ! {
 
     println!("app_base: {app_base:#10x}");
 
+    log::error!("log will break after the next line!!!");
     let mut uctx = UserContext::new(app_base);
     uctx.set_scratch();
 
     unsafe { stvec::write(u_to_s as _, stvec::TrapMode::Direct) };
 
-    for range in ranges.windows(2) {
+    for (i, range) in ranges.windows(2).enumerate() {
+        println!(
+            "* load app{i} from {:#10x}..{:#10x} to {app_base:#10x}",
+            range[0], range[1]
+        );
         load(range[0]..range[1], app_base);
 
         let mut user_stack = [0u8; 4096];
@@ -92,16 +97,39 @@ extern "C" fn rust_main() -> ! {
 
             use scause::{Exception, Trap};
             match scause::read().cause() {
-                Trap::Exception(Exception::InstructionFault) => {
-                    println!("sepc = {:#x}", uctx.sepc);
-                    system_reset(RESET_TYPE_SHUTDOWN, RESET_REASON_SYSTEM_FAILURE);
+                Trap::Exception(Exception::UserEnvCall) => {
+                    let id = uctx.a(7).into();
+                    let ret = syscall::handle(
+                        id,
+                        [
+                            uctx.a(0),
+                            uctx.a(1),
+                            uctx.a(2),
+                            uctx.a(3),
+                            uctx.a(4),
+                            uctx.a(5),
+                        ],
+                    );
+
+                    match id {
+                        SyscallId::EXIT => {
+                            println!("> app{i} exit with code {}", uctx.a(0));
+                            break;
+                        }
+                        _ => {}
+                    }
+
+                    *uctx.a_mut(0) = ret as _;
+                    uctx.sepc += 4;
                 }
                 trap => {
                     println!("{trap:?}");
-                    system_reset(RESET_TYPE_SHUTDOWN, RESET_REASON_SYSTEM_FAILURE);
+                    break;
                 }
             }
         }
+
+        // unsafe { core::arch::asm!("fence.i") };
     }
 
     system_reset(RESET_TYPE_SHUTDOWN, RESET_REASON_NO_REASON);
@@ -119,4 +147,39 @@ fn panic(_: &core::panic::PanicInfo) -> ! {
 #[inline]
 fn load(range: Range<usize>, base: usize) {
     unsafe { core::ptr::copy_nonoverlapping::<u8>(range.start as _, base as _, range.len()) };
+}
+
+struct Console;
+
+impl output::Console for Console {
+    #[inline]
+    fn put_char(&self, c: u8) {
+        #[allow(deprecated)]
+        legacy::console_putchar(c as _);
+    }
+}
+
+struct IOSyscall;
+
+impl syscall::IO for IOSyscall {
+    fn write(&self, fd: usize, buf: usize, count: usize) -> isize {
+        if fd == 0 {
+            print!("{}", unsafe {
+                core::str::from_utf8_unchecked(core::slice::from_raw_parts(buf as *const u8, count))
+            });
+            count as _
+        } else {
+            // log::error!("unsupported fd: {fd}");
+            -1
+        }
+    }
+}
+
+struct ProcessSyscall;
+
+impl syscall::Process for ProcessSyscall {
+    #[inline]
+    fn exit(&self, _status: usize) -> isize {
+        0
+    }
 }

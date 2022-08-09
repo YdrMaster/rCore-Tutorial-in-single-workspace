@@ -51,7 +51,7 @@ extern "C" fn rust_main() -> ! {
     // 初始化 console
     init_console(&Console);
     // 设置总的日志级别
-    log::set_max_level(output::log::LevelFilter::Trace);
+    log::set_max_level(log::LevelFilter::Trace);
 
     println!("[PRINT] Hello, world!");
     log::trace!("Hello, world!");

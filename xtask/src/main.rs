@@ -70,7 +70,7 @@ impl BuildArgs {
             1 => {}
             2 => {
                 user::build_for(2, false);
-                env.insert("APP_BASE", OsString::from("0x80400000"));
+                env.insert("APP_BASE", OsString::from(0x8040_0000u64.to_string()));
                 env.insert(
                     "APP_ASM",
                     TARGET
