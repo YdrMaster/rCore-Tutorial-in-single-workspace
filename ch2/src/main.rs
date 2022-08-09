@@ -46,21 +46,35 @@ unsafe extern "C" fn _start() -> ! {
 }
 
 extern "C" fn rust_main() -> ! {
+    // bss 段清零
+    extern "C" {
+        static mut sbss: u64;
+        static mut ebss: u64;
+    }
+    unsafe { r0::zero_bss(&mut sbss, &mut ebss) };
     // 初始化 `output`
     output::init_console(&Console);
     log::set_max_level(log::LevelFilter::Trace);
 
-    println!("[PRINT] Hello, world!");
-    log::trace!("Hello, world!");
-    log::debug!("Hello, world!");
-    log::info!("Hello, world!");
-    log::warn!("Hello, world!");
-    log::error!("Hello, world!");
+    println!(
+        r"
+  ______        __                _         __
+ /_  __/__  __ / /_ ____   _____ (_)____ _ / /
+  / /  / / / // __// __ \ / ___// // __ `// /
+ / /  / /_/ // /_ / /_/ // /   / // /_/ // /
+/_/   \__,_/ \__/ \____//_/   /_/ \__,_//_/
+==========================================="
+    );
+    log::trace!("LOG TEST >> Hello, world!");
+    log::debug!("LOG TEST >> Hello, world!");
+    log::info!("LOG TEST >> Hello, world!");
+    log::warn!("LOG TEST >> Hello, world!");
+    log::error!("LOG TEST >> Hello, world!");
 
     // 初始化 syscall
     syscall::init_io(&IOSyscall);
     syscall::init_process(&ProcessSyscall);
-    // 应用程序位置
+    // 确定应用程序位置
     let ranges = unsafe {
         extern "C" {
             static mut _num_app: u64;
@@ -71,24 +85,24 @@ extern "C" fn rust_main() -> ! {
             (_num_app + 1) as _,
         )
     };
-    // 应用程序加载位置
+    // 确定应用程序加载位置
     let app_base = if let Some(num) = APP_BASE.strip_prefix("0x") {
         usize::from_str_radix(num, 16).unwrap()
     } else {
         usize::from_str_radix(APP_BASE, 10).unwrap()
     };
-    // 设置陷入响应地址
+    // 设置陷入地址
     unsafe { stvec::write(u_to_s as _, stvec::TrapMode::Direct) };
     // 批处理
     for (i, range) in ranges.windows(2).enumerate() {
         println!();
         log::info!(
-            "* load app{i} from {:#10x}..{:#10x} to {app_base:#10x}",
+            "load app{i} from {:#10x}..{:#10x} to {app_base:#10x}",
             range[0],
             range[1],
         );
         // 加载应用程序
-        load(range[0]..range[1], app_base);
+        load_app(range[0]..range[1], app_base);
         // 初始化上下文
         let mut ctx = Context::new(app_base);
         ctx.set_scratch();
@@ -103,12 +117,12 @@ extern "C" fn rust_main() -> ! {
             match scause::read().cause() {
                 Trap::Exception(Exception::UserEnvCall) => {
                     if let Some(code) = handle_syscall(&mut ctx) {
-                        log::info!("> app{i} exit with code {code}",);
+                        log::info!("app{i} exit with code {code}",);
                         break;
                     }
                 }
                 trap => {
-                    log::error!("> app{i} was killed because of {trap:?}");
+                    log::error!("app{i} was killed because of {trap:?}");
                     break;
                 }
             }
@@ -130,7 +144,7 @@ fn panic(_: &core::panic::PanicInfo) -> ! {
 
 /// 将一个应用程序加载到目标位置。
 #[inline]
-fn load(range: Range<usize>, base: usize) {
+fn load_app(range: Range<usize>, base: usize) {
     unsafe { core::ptr::copy_nonoverlapping::<u8>(range.start as _, base as _, range.len()) };
 }
 

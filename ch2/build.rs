@@ -26,7 +26,9 @@ SECTIONS {
     }
     .bss : {
         *(.bss.uninit)
+        sbss = ALIGN(8);
         *(.bss .bss.*)
         *(.sbss .sbss.*)
+        ebss = ALIGN(8);
     }
 }";

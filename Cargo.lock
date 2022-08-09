@@ -63,6 +63,7 @@ name = "ch2"
 version = "0.0.1"
 dependencies = [
  "output",
+ "r0",
  "riscv",
  "sbi-rt",
  "syscall",
