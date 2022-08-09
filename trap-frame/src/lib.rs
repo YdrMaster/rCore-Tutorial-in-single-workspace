@@ -7,7 +7,7 @@ use riscv::register::*;
 
 /// 用户上下文。
 #[repr(C)]
-pub struct UserContext {
+pub struct Context {
     sctx: usize,
     x: [usize; 31],
     pub sstatus: usize,
@@ -23,7 +23,7 @@ pub struct KernelContext {
     x: [usize; 31],
 }
 
-impl UserContext {
+impl Context {
     /// 初始化指定入口的用户上下文。
     ///
     /// 切换到用户态时会打开内核中断。

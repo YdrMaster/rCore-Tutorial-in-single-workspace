@@ -4,4 +4,6 @@
 !/.vscode/settings.json
 
 /target
-/*.asm
+*.asm
+*.bin
+!/rustsbi-qemu.bin
