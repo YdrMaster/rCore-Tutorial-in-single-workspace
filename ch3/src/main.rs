@@ -17,6 +17,9 @@ use trap_frame::{s_to_u, u_to_s, Context};
 // 用户程序内联进来。
 core::arch::global_asm!(include_str!(env!("APP_ASM")));
 
+// 用户程序的地址也要传进来。
+const APP_BASE: &str = env!("APP_BASE");
+
 /// Supervisor 汇编入口。
 ///
 /// 设置栈并跳转到 Rust。
@@ -82,11 +85,16 @@ extern "C" fn rust_main() -> ! {
             (_num_app + 1) as _,
         )
     };
+    // 确定应用程序加载位置
+    let app_base = if let Some(num) = APP_BASE.strip_prefix("0x") {
+        usize::from_str_radix(num, 16).unwrap()
+    } else {
+        usize::from_str_radix(APP_BASE, 10).unwrap()
+    };
     // 设置陷入地址
     unsafe { stvec::write(u_to_s as _, stvec::TrapMode::Direct) };
     // 批处理
     for (i, range) in batch.windows(2).enumerate() {
-        let app_base = 0x8040_0000 + i * 0x20_0000;
         println!();
         log::info!(
             "load app{i} from {:#10x}..{:#10x} to {app_base:#10x}",

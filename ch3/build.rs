@@ -2,22 +2,16 @@ fn main() {
     use std::{env, fs, path::PathBuf};
 
     let ld = &PathBuf::from(env::var_os("OUT_DIR").unwrap()).join("linker.ld");
-    let text = format!(
-        "BASE_ADDRESS = {:#x};{LINKER}",
-        env::var("BASE_ADDRESS").map_or(0, |addr| addr.parse::<u64>().unwrap()),
-    );
-    fs::write(ld, text).unwrap();
-
+    fs::write(ld, LINKER).unwrap();
     println!("cargo:rerun-if-changed=build.rs");
-    println!("cargo:rerun-if-env-changed=BASE_ADDRESS");
     println!("cargo:rustc-link-arg=-T{}", ld.display());
 }
 
-const LINKER: &str = "
+const LINKER: &[u8] = b"
 OUTPUT_ARCH(riscv)
 ENTRY(_start)
 SECTIONS {
-    . = BASE_ADDRESS;
+    . = 0x80200000;
     .text : {
         *(.text.entry)
         *(.text .text.*)
@@ -32,9 +26,9 @@ SECTIONS {
     }
     .bss : {
         *(.bss.uninit)
-        sbss = .;
+        sbss = ALIGN(8);
         *(.bss .bss.*)
         *(.sbss .sbss.*)
-        ebss = .;
+        ebss = ALIGN(8);
     }
 }";

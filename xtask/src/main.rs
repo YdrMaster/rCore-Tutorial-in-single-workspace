@@ -15,6 +15,9 @@ use std::{
 };
 
 const TARGET_ARCH: &str = "riscv64imac-unknown-none-elf";
+const CH2_APP_BASE: u64 = 0x8040_0000;
+const CH3_APP_BASE: u64 = 0x8040_0000;
+const CH3_APP_STEP: u64 = 0x0020_0000;
 
 static PROJECT: Lazy<&'static Path> =
     Lazy::new(|| Path::new(std::env!("CARGO_MANIFEST_DIR")).parent().unwrap());
@@ -60,17 +63,18 @@ struct BuildArgs {
 
 impl BuildArgs {
     fn make(&self) -> PathBuf {
-        let package = if self.lab {
-            format!("ch{}-lab", self.ch)
-        } else {
-            format!("ch{}", self.ch)
-        };
-        let mut env = HashMap::new();
-        match self.ch {
-            1 => {}
+        let mut env: HashMap<&str, OsString> = HashMap::new();
+        let package = match self.ch {
+            1 => {
+                if self.lab {
+                    "ch1-lab"
+                } else {
+                    "ch1"
+                }
+            }
             2 => {
                 user::build_for(2, false);
-                env.insert("APP_BASE", OsString::from(0x8040_0000u64.to_string()));
+                env.insert("APP_BASE", format!("{CH2_APP_BASE:#x}").into());
                 env.insert(
                     "APP_ASM",
                     TARGET
@@ -79,6 +83,19 @@ impl BuildArgs {
                         .as_os_str()
                         .to_os_string(),
                 );
+                "ch2"
+            }
+            3 => {
+                user::build_for(3, false);
+                env.insert(
+                    "APP_ASM",
+                    TARGET
+                        .join("debug")
+                        .join("app.asm")
+                        .as_os_str()
+                        .to_os_string(),
+                );
+                "ch3"
             }
             _ => unreachable!(),
         };

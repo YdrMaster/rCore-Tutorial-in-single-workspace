@@ -1,4 +1,4 @@
-﻿use crate::{strip_all, PROJECT, TARGET, TARGET_ARCH};
+﻿use crate::*;
 use command_ext::{Cargo, CommandExt};
 use once_cell::sync::Lazy;
 use std::{ffi::OsStr, fs::File, io::Write, path::PathBuf};
@@ -6,7 +6,7 @@ use std::{ffi::OsStr, fs::File, io::Write, path::PathBuf};
 const PACKAGE: &str = "user_lib";
 static USER: Lazy<PathBuf> = Lazy::new(|| PROJECT.join("user"));
 
-fn build_all(release: bool, base_address: u64) -> Vec<PathBuf> {
+fn build_all(release: bool, base_addr: impl Fn(u64) -> u64) -> Vec<PathBuf> {
     let mut names = USER
         .join("src/bin")
         .read_dir()
@@ -20,12 +20,14 @@ fn build_all(release: bool, base_address: u64) -> Vec<PathBuf> {
     names.sort_unstable();
     names
         .into_iter()
-        .map(|name| build_one(name, release, base_address))
+        .enumerate()
+        .map(|(i, name)| build_one(name, release, base_addr(i as _)))
         .collect()
 }
 
 fn build_one(name: impl AsRef<OsStr>, release: bool, base_address: u64) -> PathBuf {
     let name = name.as_ref();
+    println!("build {name:?} at {base_address:#x}");
     Cargo::build()
         .package(PACKAGE)
         .target(TARGET_ARCH)
@@ -42,8 +44,12 @@ fn build_one(name: impl AsRef<OsStr>, release: bool, base_address: u64) -> PathB
     strip_all(elf)
 }
 
-pub fn build_for(_ch: u8, release: bool) {
-    let bins = build_all(release, 0x8040_0000u64);
+pub fn build_for(ch: u8, release: bool) {
+    let bins = match ch {
+        2 => build_all(release, |_| CH2_APP_BASE),
+        3 => build_all(release, |i| CH3_APP_BASE + i * CH3_APP_STEP),
+        _ => unreachable!(),
+    };
     if let Some(first) = bins.first() {
         let mut ld = File::create(first.parent().unwrap().join("app.asm")).unwrap();
         writeln!(
