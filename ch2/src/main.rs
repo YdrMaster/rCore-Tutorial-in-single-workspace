@@ -27,7 +27,7 @@ const APP_BASE: &str = env!("APP_BASE");
 #[no_mangle]
 #[link_section = ".text.entry"]
 unsafe extern "C" fn _start() -> ! {
-    const STACK_SIZE: usize = 4096;
+    const STACK_SIZE: usize = 8192;
 
     #[link_section = ".bss.uninit"]
     static mut STACK: [u8; STACK_SIZE] = [0u8; STACK_SIZE];
@@ -80,12 +80,12 @@ extern "C" fn rust_main() -> ! {
     // 设置陷入响应地址
     unsafe { stvec::write(u_to_s as _, stvec::TrapMode::Direct) };
     // 批处理
-    log::error!("log will break inside the loop!!!");
     for (i, range) in ranges.windows(2).enumerate() {
         println!();
-        println!(
+        log::info!(
             "* load app{i} from {:#10x}..{:#10x} to {app_base:#10x}",
-            range[0], range[1]
+            range[0],
+            range[1],
         );
         // 加载应用程序
         load(range[0]..range[1], app_base);
@@ -103,12 +103,12 @@ extern "C" fn rust_main() -> ! {
             match scause::read().cause() {
                 Trap::Exception(Exception::UserEnvCall) => {
                     if let Some(code) = handle_syscall(&mut ctx) {
-                        println!("> app{i} exit with code {code}",);
+                        log::info!("> app{i} exit with code {code}",);
                         break;
                     }
                 }
                 trap => {
-                    println!("> app{i} was killed because of {trap:?}");
+                    log::error!("> app{i} was killed because of {trap:?}");
                     break;
                 }
             }
@@ -167,8 +167,10 @@ mod impls {
 
     impl syscall::IO for IOSyscall {
         fn write(&self, fd: usize, buf: usize, count: usize) -> isize {
+            use output::log::*;
+
             if fd == 0 {
-                output::print!("{}", unsafe {
+                print!("{}", unsafe {
                     core::str::from_utf8_unchecked(core::slice::from_raw_parts(
                         buf as *const u8,
                         count,
@@ -176,7 +178,7 @@ mod impls {
                 });
                 count as _
             } else {
-                output::println!("unsupported fd: {fd}");
+                error!("unsupported fd: {fd}");
                 -1
             }
         }
