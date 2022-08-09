@@ -8,7 +8,7 @@
 output = { path = "../output"}
 ```
 
-在 [main.rs](src/main.rs#L41) 里初始化：
+在 [main.rs](src/main.rs#L52) 里初始化：
 
 ```rust
 init_console(&Console);

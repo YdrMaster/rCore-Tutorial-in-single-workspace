@@ -75,7 +75,7 @@ extern "C" fn rust_main() -> ! {
     syscall::init_io(&IOSyscall);
     syscall::init_process(&ProcessSyscall);
     // 确定应用程序位置
-    let ranges = unsafe {
+    let batch = unsafe {
         extern "C" {
             static mut _num_app: u64;
         }
@@ -94,7 +94,7 @@ extern "C" fn rust_main() -> ! {
     // 设置陷入地址
     unsafe { stvec::write(u_to_s as _, stvec::TrapMode::Direct) };
     // 批处理
-    for (i, range) in ranges.windows(2).enumerate() {
+    for (i, range) in batch.windows(2).enumerate() {
         println!();
         log::info!(
             "load app{i} from {:#10x}..{:#10x} to {app_base:#10x}",
