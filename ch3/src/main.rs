@@ -14,10 +14,18 @@ use sbi_rt::*;
 use syscall::SyscallId;
 use trap_frame::{s_to_u, u_to_s, Context};
 
-// 用户程序内联进来。
+// 应用程序内联进来。
 core::arch::global_asm!(include_str!(env!("APP_ASM")));
 
+// 应用程序数量。
+// const APP_COUNT: &str = env!("APP_COUNT");
 const APP_COUNT: usize = 8;
+
+// 应用程序地址基值。
+const APP_BASE: &str = env!("APP_BASE");
+
+// 每个应用程序地址偏移。
+const APP_STEP: &str = env!("APP_STEP");
 
 /// Supervisor 汇编入口。
 ///
@@ -87,9 +95,10 @@ extern "C" fn rust_main() -> ! {
     // 任务控制块
     static mut TCBS: [TaskControlBlock; APP_COUNT] = [TaskControlBlock::UNINIT; APP_COUNT];
     // 初始化
+    let mut app_base = parse_num(APP_BASE);
+    let app_step = parse_num(APP_STEP);
     println!();
     for (i, range) in batch.windows(2).enumerate() {
-        let app_base = app_base(i);
         log::info!(
             "load app{i} from {:#10x}..{:#10x} to {app_base:#10x}",
             range[0],
@@ -97,6 +106,7 @@ extern "C" fn rust_main() -> ! {
         );
         load_app(range[0]..range[1], app_base);
         unsafe { TCBS[i].init(app_base) };
+        app_base += app_step;
     }
     // 设置陷入地址
     unsafe { stvec::write(u_to_s as _, stvec::TrapMode::Direct) };
@@ -150,10 +160,13 @@ fn load_app(range: Range<usize>, base: usize) {
     unsafe { core::ptr::copy_nonoverlapping::<u8>(range.start as _, base as _, range.len()) };
 }
 
-/// 计算应用程序加载位置。
 #[inline]
-const fn app_base(i: usize) -> usize {
-    0x8040_0000 + i * 0x20_0000
+fn parse_num(str: &str) -> usize {
+    if let Some(num) = str.strip_prefix("0x") {
+        usize::from_str_radix(num, 16).unwrap()
+    } else {
+        usize::from_str_radix(str, 10).unwrap()
+    }
 }
 
 /// 处理系统调用，返回是否应该终止程序。

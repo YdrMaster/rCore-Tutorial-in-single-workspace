@@ -87,6 +87,8 @@ impl BuildArgs {
             }
             3 => {
                 user::build_for(3, false);
+                env.insert("APP_BASE", format!("{CH3_APP_BASE:#x}").into());
+                env.insert("APP_STEP", format!("{CH3_APP_STEP:#x}").into());
                 env.insert(
                     "APP_ASM",
                     TARGET
