@@ -7,6 +7,7 @@ use core::ops::Range;
 use output::*;
 use riscv::register::*;
 use sbi_rt::*;
+use trap_frame::{s_to_u, u_to_s, UserContext};
 
 // 用户程序内联进来。
 core::arch::global_asm!(include_str!(env!("APP_ASM")));
@@ -75,20 +76,23 @@ extern "C" fn rust_main() -> ! {
 
     println!("app_base: {app_base:#10x}");
 
-    let mut uctx = trap_frame::UserContext::new(app_base);
+    let mut uctx = UserContext::new(app_base);
     uctx.set_scratch();
 
-    unsafe { stvec::write(trap_frame::u_to_s as _, stvec::TrapMode::Direct) };
+    unsafe { stvec::write(u_to_s as _, stvec::TrapMode::Direct) };
 
     for range in ranges.windows(2) {
         load(range[0]..range[1], app_base);
 
+        let mut user_stack = [0u8; 4096];
+        *uctx.sp_mut() = user_stack.as_mut_ptr() as usize + user_stack.len();
+
         loop {
-            unsafe { trap_frame::s_to_u() };
+            unsafe { s_to_u() };
 
             use scause::{Exception, Trap};
             match scause::read().cause() {
-                Trap::Exception(Exception::StoreFault) => {
+                Trap::Exception(Exception::InstructionFault) => {
                     println!("sepc = {:#x}", uctx.sepc);
                     system_reset(RESET_TYPE_SHUTDOWN, RESET_REASON_SYSTEM_FAILURE);
                 }

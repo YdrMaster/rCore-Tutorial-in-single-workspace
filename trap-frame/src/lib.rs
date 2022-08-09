@@ -71,6 +71,18 @@ impl UserContext {
     pub fn a_mut(&mut self, n: usize) -> &mut usize {
         self.x_mut(n + 10)
     }
+
+    /// 读取用户栈指针。
+    #[inline]
+    pub fn sp(&self) -> usize {
+        self.x(2)
+    }
+
+    /// 修改用户栈指针。
+    #[inline]
+    pub fn sp_mut(&mut self) -> &mut usize {
+        self.x_mut(2)
+    }
 }
 
 /// 内核态切换到用户态。

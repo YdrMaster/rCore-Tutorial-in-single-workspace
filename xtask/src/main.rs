@@ -133,7 +133,7 @@ impl QemuArgs {
             .args(&["-serial", "mon:stdio"])
             .arg("-nographic")
             .optional(&self.gdb, |qemu, gdb| {
-                qemu.args(&["-gdb", &format!("tcp::{gdb}")]);
+                qemu.args(&["-S", "-gdb", &format!("tcp::{gdb}")]);
             })
             .invoke();
     }

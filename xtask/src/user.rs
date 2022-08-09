@@ -7,14 +7,20 @@ const PACKAGE: &str = "user_lib";
 static USER: Lazy<PathBuf> = Lazy::new(|| PROJECT.join("user"));
 
 fn build_all(release: bool, base_address: u64) -> Vec<PathBuf> {
-    USER.join("src/bin")
+    let mut names = USER
+        .join("src/bin")
         .read_dir()
         .unwrap()
         .filter_map(|e| e.ok())
         .filter(|entry| entry.file_type().map_or(false, |t| t.is_file()))
         .map(|entry| entry.path())
         .filter(|path| path.extension() == Some(OsStr::new("rs")))
-        .map(|path| build_one(path.file_prefix().unwrap(), release, base_address))
+        .map(|path| path.file_prefix().unwrap().to_string_lossy().into_owned())
+        .collect::<Vec<_>>();
+    names.sort_unstable();
+    names
+        .into_iter()
+        .map(|name| build_one(name, release, base_address))
         .collect()
 }
 
