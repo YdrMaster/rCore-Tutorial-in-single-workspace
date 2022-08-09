@@ -1,7 +1,7 @@
 #![no_std]
 #![no_main]
 #![feature(naked_functions, asm_sym, asm_const)]
-#![deny(warnings)]
+// #![deny(warnings)]
 
 #[macro_use]
 extern crate output;
@@ -17,8 +17,7 @@ use trap_frame::{s_to_u, u_to_s, Context};
 // 用户程序内联进来。
 core::arch::global_asm!(include_str!(env!("APP_ASM")));
 
-// 用户程序的地址也要传进来。
-const APP_BASE: &str = env!("APP_BASE");
+const APP_COUNT: usize = 8;
 
 /// Supervisor 汇编入口。
 ///
@@ -27,7 +26,7 @@ const APP_BASE: &str = env!("APP_BASE");
 #[no_mangle]
 #[link_section = ".text.entry"]
 unsafe extern "C" fn _start() -> ! {
-    const STACK_SIZE: usize = 8192;
+    const STACK_SIZE: usize = 4096;
 
     #[link_section = ".bss.uninit"]
     static mut STACK: [u8; STACK_SIZE] = [0u8; STACK_SIZE];
@@ -85,38 +84,37 @@ extern "C" fn rust_main() -> ! {
             (_num_app + 1) as _,
         )
     };
-    // 确定应用程序加载位置
-    let app_base = if let Some(num) = APP_BASE.strip_prefix("0x") {
-        usize::from_str_radix(num, 16).unwrap()
-    } else {
-        usize::from_str_radix(APP_BASE, 10).unwrap()
-    };
-    // 设置陷入地址
-    unsafe { stvec::write(u_to_s as _, stvec::TrapMode::Direct) };
-    // 批处理
+    // 任务控制块
+    static mut TCBS: [TaskControlBlock; APP_COUNT] = [TaskControlBlock::UNINIT; APP_COUNT];
+    // 初始化
+    println!();
     for (i, range) in batch.windows(2).enumerate() {
-        println!();
+        let app_base = app_base(i);
         log::info!(
             "load app{i} from {:#10x}..{:#10x} to {app_base:#10x}",
             range[0],
             range[1],
         );
-        // 加载应用程序
         load_app(range[0]..range[1], app_base);
-        // 初始化上下文
-        let mut ctx = Context::new(app_base);
+        unsafe { TCBS[i].init(app_base) };
+    }
+    // 设置陷入地址
+    unsafe { stvec::write(u_to_s as _, stvec::TrapMode::Direct) };
+    // 批处理
+    for i in 0..batch.len() - 1 {
+        println!();
+        log::info!("app{i} start");
+
+        let ctx = unsafe { &mut TCBS[i].ctx };
         ctx.set_scratch();
-        // 设置用户栈
-        let mut user_stack = [0u8; 4096];
-        *ctx.sp_mut() = user_stack.as_mut_ptr() as usize + user_stack.len();
-        // 执行应用程序
+        ctx.set_user_sstatus();
         loop {
             unsafe { s_to_u() };
 
             use scause::{Exception, Trap};
             match scause::read().cause() {
                 Trap::Exception(Exception::UserEnvCall) => {
-                    if let Some(code) = handle_syscall(&mut ctx) {
+                    if let Some(code) = handle_syscall(ctx) {
                         log::info!("app{i} exit with code {code}",);
                         break;
                     }
@@ -150,6 +148,12 @@ fn panic(_: &core::panic::PanicInfo) -> ! {
 #[inline]
 fn load_app(range: Range<usize>, base: usize) {
     unsafe { core::ptr::copy_nonoverlapping::<u8>(range.start as _, base as _, range.len()) };
+}
+
+/// 计算应用程序加载位置。
+#[inline]
+const fn app_base(i: usize) -> usize {
+    0x8040_0000 + i * 0x20_0000
 }
 
 /// 处理系统调用，返回是否应该终止程序。
@@ -209,5 +213,26 @@ mod impls {
         fn exit(&self, _status: usize) -> isize {
             0
         }
+    }
+}
+
+struct TaskControlBlock {
+    ctx: Context,
+    stack: [u8; 4096],
+    finish: bool,
+}
+
+impl TaskControlBlock {
+    const UNINIT: Self = Self {
+        ctx: Context::new(0),
+        stack: [0; 4096],
+        finish: false,
+    };
+
+    fn init(&mut self, entry: usize) {
+        self.ctx = Context::new(entry);
+        self.stack.fill(0);
+        self.finish = false;
+        *self.ctx.sp_mut() = self.stack.as_ptr() as usize + self.stack.len();
     }
 }

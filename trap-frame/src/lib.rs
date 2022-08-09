@@ -27,25 +27,31 @@ impl Context {
     /// 初始化指定入口的用户上下文。
     ///
     /// 切换到用户态时会打开内核中断。
-    pub fn new(entry: usize) -> Self {
-        let mut ctx = Self {
+    pub const fn new(entry: usize) -> Self {
+        Self {
             sctx: 0,
             x: [0; 31],
             sstatus: 0,
             sepc: entry,
-        };
-        unsafe {
-            sstatus::set_spp(sstatus::SPP::User);
-            sstatus::set_spie();
-            asm!("csrr {}, sstatus", out(reg) ctx.sstatus)
-        };
-        ctx
+        }
     }
 
-    /// 设置 [`s_to_u`] 时切换到这个上下文表示的用户程序。
+    /// 设置 [`s_to_u`] 时切换到这个上下文。
     #[inline]
     pub fn set_scratch(&mut self) {
         sscratch::write(self as *mut _ as _);
+    }
+
+    /// 设置加载上下文后去往用户态。
+    ///
+    /// 在当前的 `sstatus` 基础上设置 `spie = true` 和 `spp = user`。
+    #[inline]
+    pub fn set_user_sstatus(&mut self) {
+        unsafe { asm!("csrr {}, sstatus", out(reg) self.sstatus) };
+        // spie = true
+        self.sstatus |= 1 << 5;
+        // spp  = user
+        self.sstatus &= !(1 << 8);
     }
 
     /// 读取用户通用寄存器。
