@@ -78,12 +78,13 @@ extern "C" fn rust_main() -> ! {
     log::info!("LOG TEST >> Hello, world!");
     log::warn!("LOG TEST >> Hello, world!");
     log::error!("LOG TEST >> Hello, world!");
+    println!();
 
     // 初始化 syscall
     syscall::init_io(&IOSyscall);
     syscall::init_process(&ProcessSyscall);
     // 确定应用程序位置
-    let batch = unsafe {
+    let ranges = unsafe {
         extern "C" {
             static mut _num_app: u64;
         }
@@ -93,13 +94,13 @@ extern "C" fn rust_main() -> ! {
             (_num_app + 1) as _,
         )
     };
-    // 任务控制块
-    static mut TCBS: [TaskControlBlock; APP_COUNT] = [TaskControlBlock::UNINIT; APP_COUNT];
-    // 初始化
-    let mut app_base = parse_num(APP_BASE);
+    let app_base = parse_num(APP_BASE);
     let app_step = parse_num(APP_STEP);
-    println!();
-    for (i, range) in batch.windows(2).enumerate() {
+    // 任务控制块
+    static mut TCBS: [TaskControlBlock; APP_COUNT] = [TaskControlBlock::ZERO; APP_COUNT];
+    // 初始化
+    for (i, range) in ranges.windows(2).enumerate() {
+        let app_base = app_base + i * app_step;
         log::info!(
             "load app{i} from {:#10x}..{:#10x} to {app_base:#10x}",
             range[0],
@@ -107,46 +108,54 @@ extern "C" fn rust_main() -> ! {
         );
         load_app(range[0]..range[1], app_base);
         unsafe { TCBS[i].init(app_base) };
-        app_base += app_step;
     }
     // 设置陷入地址
     unsafe { stvec::write(kernel_context::trap as _, stvec::TrapMode::Direct) };
-    // 批处理
-    for i in 0..batch.len() - 1 {
-        println!();
-        log::info!("app{i} start");
-
+    // 多道执行
+    let index_mod = ranges.len() - 1;
+    let mut remain = index_mod;
+    let mut i = 0usize;
+    while remain > 0 {
         let tcb = unsafe { &mut TCBS[i] };
-        loop {
-            unsafe { tcb.execute() };
+        if !tcb.finish {
+            loop {
+                unsafe { tcb.execute() };
 
-            use scause::{Exception, Trap};
-            match scause::read().cause() {
-                Trap::Exception(Exception::UserEnvCall) => {
-                    use task::SchedulingEvent as Event;
-                    match tcb.handle_syscall() {
-                        Event::None => {}
-                        Event::Exit(code) => {
-                            log::info!("app{i} exit with code {code}",);
-                            break;
+                use scause::{Exception, Trap};
+                match scause::read().cause() {
+                    Trap::Exception(Exception::UserEnvCall) => {
+                        use task::SchedulingEvent as Event;
+                        match tcb.handle_syscall() {
+                            Event::None => {}
+                            Event::Exit(code) => {
+                                log::info!("app{i} exit with code {code}");
+                                tcb.finish = true;
+                                remain -= 1;
+                                break;
+                            }
+                            Event::Yield => {
+                                log::debug!("app{i} yield");
+                                break;
+                            }
                         }
-                        Event::Yield => todo!(),
                     }
-                }
-                Trap::Exception(e) => {
-                    log::error!("app{i} was killed by {e:?}");
-                    break;
-                }
-                Trap::Interrupt(ir) => {
-                    log::error!("app{i} was killed by an unexpected interrupt {ir:?}");
-                    break;
+                    Trap::Exception(e) => {
+                        log::error!("app{i} was killed by {e:?}");
+                        tcb.finish = true;
+                        remain -= 1;
+                        break;
+                    }
+                    Trap::Interrupt(ir) => {
+                        log::error!("app{i} was killed by an unexpected interrupt {ir:?}");
+                        tcb.finish = true;
+                        remain -= 1;
+                        break;
+                    }
                 }
             }
         }
-        // 清除指令缓存
-        unsafe { core::arch::asm!("fence.i") };
+        i = (i + 1) % index_mod;
     }
-
     system_reset(RESET_TYPE_SHUTDOWN, RESET_REASON_NO_REASON);
     unreachable!()
 }

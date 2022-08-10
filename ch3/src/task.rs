@@ -1,24 +1,29 @@
 ﻿use kernel_context::Context;
 
+/// 任务控制块。
+///
+/// 包含任务的上下文、状态和资源。
 pub struct TaskControlBlock {
     ctx: Context,
+    pub finish: bool,
     stack: [u8; 4096],
-    finish: bool,
 }
 
+/// 调度事件。
 pub enum SchedulingEvent {
     None,
-    Exit(usize),
     Yield,
+    Exit(usize),
 }
 
 impl TaskControlBlock {
-    pub const UNINIT: Self = Self {
+    pub const ZERO: Self = Self {
         ctx: Context::new(0),
-        stack: [0; 4096],
         finish: false,
+        stack: [0; 4096],
     };
 
+    /// 初始化一个任务。
     pub fn init(&mut self, entry: usize) {
         self.stack.fill(0);
         self.finish = false;
@@ -27,6 +32,7 @@ impl TaskControlBlock {
         *self.ctx.sp_mut() = self.stack.as_ptr() as usize + self.stack.len();
     }
 
+    /// 执行此任务。
     #[inline]
     pub unsafe fn execute(&mut self) {
         self.ctx.execute();
@@ -50,8 +56,8 @@ impl TaskControlBlock {
             ],
         );
         match id {
-            Id::EXIT => Event::Exit(self.ctx.a(0)),
             Id::SCHED_YIELD => Event::Yield,
+            Id::EXIT => Event::Exit(self.ctx.a(0)),
             _ => {
                 *self.ctx.a_mut(0) = ret as _;
                 self.ctx.sepc += 4;
