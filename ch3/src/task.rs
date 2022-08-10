@@ -56,8 +56,12 @@ impl TaskControlBlock {
         ];
         match syscall::handle(id, args) {
             Ret::Done(ret) => match id {
-                Id::SCHED_YIELD => Event::Yield,
                 Id::EXIT => Event::Exit(self.ctx.a(0)),
+                Id::SCHED_YIELD => {
+                    *self.ctx.a_mut(0) = ret as _;
+                    self.ctx.sepc += 4;
+                    Event::Yield
+                }
                 _ => {
                     *self.ctx.a_mut(0) = ret as _;
                     self.ctx.sepc += 4;

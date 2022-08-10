@@ -9,7 +9,7 @@ mod task;
 extern crate output;
 
 use core::ops::Range;
-use impls::{Console, IOSyscall, ProcessSyscall};
+use impls::{Console, SyscallContext};
 use output::log;
 use riscv::register::*;
 use sbi_rt::*;
@@ -81,8 +81,9 @@ extern "C" fn rust_main() -> ! {
     println!();
 
     // 初始化 syscall
-    syscall::init_io(&IOSyscall);
-    syscall::init_process(&ProcessSyscall);
+    syscall::init_io(&SyscallContext);
+    syscall::init_scheduling(&SyscallContext);
+    syscall::init_process(&SyscallContext);
     // 确定应用程序位置
     let ranges = unsafe {
         extern "C" {
@@ -198,9 +199,9 @@ mod impls {
         }
     }
 
-    pub struct IOSyscall;
+    pub struct SyscallContext;
 
-    impl syscall::IO for IOSyscall {
+    impl syscall::IO for SyscallContext {
         fn write(&self, fd: usize, buf: usize, count: usize) -> isize {
             use output::log::*;
 
@@ -219,9 +220,14 @@ mod impls {
         }
     }
 
-    pub struct ProcessSyscall;
+    impl syscall::Scheduling for SyscallContext {
+        #[inline]
+        fn sched_yield(&self) -> isize {
+            0
+        }
+    }
 
-    impl syscall::Process for ProcessSyscall {
+    impl syscall::Process for SyscallContext {
         #[inline]
         fn exit(&self, _status: usize) -> isize {
             0
