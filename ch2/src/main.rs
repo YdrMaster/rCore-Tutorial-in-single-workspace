@@ -27,7 +27,7 @@ const APP_BASE: &str = env!("APP_BASE");
 #[no_mangle]
 #[link_section = ".text.entry"]
 unsafe extern "C" fn _start() -> ! {
-    const STACK_SIZE: usize = 8192;
+    const STACK_SIZE: usize = 4 * 4096;
 
     #[link_section = ".bss.uninit"]
     static mut STACK: [u8; STACK_SIZE] = [0u8; STACK_SIZE];
@@ -117,19 +117,19 @@ extern "C" fn rust_main() -> ! {
             use scause::{Exception, Trap};
             match scause::read().cause() {
                 Trap::Exception(Exception::UserEnvCall) => {
-                    if let Some(code) = handle_syscall(&mut ctx) {
-                        log::info!("app{i} exit with code {code}",);
-                        break;
+                    use SyscallResult::*;
+                    match handle_syscall(&mut ctx) {
+                        Done => continue,
+                        Exit(code) => log::info!("app{i} exit with code {code}"),
+                        Error(id) => log::error!("app{i} call an unsupported syscall {}", id.0),
                     }
                 }
-                trap => {
-                    log::error!("app{i} was killed because of {trap:?}");
-                    break;
-                }
+                trap => log::error!("app{i} was killed because of {trap:?}"),
             }
+            // 清除指令缓存
+            unsafe { core::arch::asm!("fence.i") };
+            break;
         }
-        // 清除指令缓存
-        unsafe { core::arch::asm!("fence.i") };
     }
 
     system_reset(RESET_TYPE_SHUTDOWN, RESET_REASON_NO_REASON);
@@ -149,20 +149,28 @@ fn load_app(range: Range<usize>, base: usize) {
     unsafe { core::ptr::copy_nonoverlapping::<u8>(range.start as _, base as _, range.len()) };
 }
 
+enum SyscallResult {
+    Done,
+    Exit(usize),
+    Error(SyscallId),
+}
+
 /// 处理系统调用，返回是否应该终止程序。
-fn handle_syscall(ctx: &mut Context) -> Option<usize> {
+fn handle_syscall(ctx: &mut Context) -> SyscallResult {
+    use syscall::{SyscallId as Id, SyscallResult as Ret};
+
     let id = ctx.a(7).into();
-    let ret = syscall::handle(
-        id,
-        [ctx.a(0), ctx.a(1), ctx.a(2), ctx.a(3), ctx.a(4), ctx.a(5)],
-    );
-    match id {
-        SyscallId::EXIT => Some(ctx.a(0)),
-        _ => {
-            *ctx.a_mut(0) = ret as _;
-            ctx.sepc += 4;
-            None
-        }
+    let args = [ctx.a(0), ctx.a(1), ctx.a(2), ctx.a(3), ctx.a(4), ctx.a(5)];
+    match syscall::handle(id, args) {
+        Ret::Done(ret) => match id {
+            Id::EXIT => SyscallResult::Exit(ctx.a(0)),
+            _ => {
+                *ctx.a_mut(0) = ret as _;
+                ctx.sepc += 4;
+                SyscallResult::Done
+            }
+        },
+        Ret::Unsupported(id) => SyscallResult::Error(id),
     }
 }
 

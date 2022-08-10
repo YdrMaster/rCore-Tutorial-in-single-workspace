@@ -1,16 +1,19 @@
 ﻿use crate::SyscallId;
 use native::*;
 
+/// see <https://man7.org/linux/man-pages/man2/write.2.html>.
 #[inline]
 pub fn write(fd: usize, buffer: &[u8]) -> isize {
     unsafe { syscall3(SyscallId::WRITE, fd, buffer.as_ptr() as _, buffer.len()) }
 }
 
+/// see <https://man7.org/linux/man-pages/man2/sched_yield.2.html>.
 #[inline]
 pub fn sched_yield() -> isize {
     unsafe { syscall0(SyscallId::SCHED_YIELD) }
 }
 
+/// see <https://man7.org/linux/man-pages/man2/exit.2.html>.
 #[inline]
 pub fn exit(exit_code: i32) -> isize {
     unsafe { syscall1(SyscallId::EXIT, exit_code as _) }
@@ -25,8 +28,8 @@ pub mod native {
     pub unsafe fn syscall0(id: SyscallId) -> isize {
         let ret: isize;
         asm!("ecall",
-            out("a0") ret,
             in("a7") id.0,
+            out("a0") ret,
         );
         ret
     }
@@ -45,9 +48,9 @@ pub mod native {
     pub unsafe fn syscall2(id: SyscallId, a0: usize, a1: usize) -> isize {
         let ret: isize;
         asm!("ecall",
+            in("a7") id.0,
             inlateout("a0") a0 => ret,
             in("a1") a1,
-            in("a7") id.0,
         );
         ret
     }
@@ -56,10 +59,10 @@ pub mod native {
     pub unsafe fn syscall3(id: SyscallId, a0: usize, a1: usize, a2: usize) -> isize {
         let ret: isize;
         asm!("ecall",
+            in("a7") id.0,
             inlateout("a0") a0 => ret,
             in("a1") a1,
             in("a2") a2,
-            in("a7") id.0,
         );
         ret
     }
@@ -68,11 +71,11 @@ pub mod native {
     pub unsafe fn syscall4(id: SyscallId, a0: usize, a1: usize, a2: usize, a3: usize) -> isize {
         let ret: isize;
         asm!("ecall",
+            in("a7") id.0,
             inlateout("a0") a0 => ret,
             in("a1") a1,
             in("a2") a2,
             in("a3") a3,
-            in("a7") id.0,
         );
         ret
     }
@@ -88,12 +91,12 @@ pub mod native {
     ) -> isize {
         let ret: isize;
         asm!("ecall",
+            in("a7") id.0,
             inlateout("a0") a0 => ret,
             in("a1") a1,
             in("a2") a2,
             in("a3") a3,
             in("a4") a4,
-            in("a7") id.0,
         );
         ret
     }
@@ -110,13 +113,13 @@ pub mod native {
     ) -> isize {
         let ret: isize;
         asm!("ecall",
+            in("a7") id.0,
             inlateout("a0") a0 => ret,
             in("a1") a1,
             in("a2") a2,
             in("a3") a3,
             in("a4") a4,
             in("a5") a5,
-            in("a7") id.0,
         );
         ret
     }

@@ -35,7 +35,7 @@ const APP_STEP: &str = env!("APP_STEP");
 #[no_mangle]
 #[link_section = ".text.entry"]
 unsafe extern "C" fn _start() -> ! {
-    const STACK_SIZE: usize = 4096;
+    const STACK_SIZE: usize = 2 * 4096;
 
     #[link_section = ".bss.uninit"]
     static mut STACK: [u8; STACK_SIZE] = [0u8; STACK_SIZE];
@@ -109,6 +109,7 @@ extern "C" fn rust_main() -> ! {
         load_app(range[0]..range[1], app_base);
         unsafe { TCBS[i].init(app_base) };
     }
+    println!();
     // 设置陷入地址
     unsafe { stvec::write(kernel_context::trap as _, stvec::TrapMode::Direct) };
     // 多道执行
@@ -122,36 +123,39 @@ extern "C" fn rust_main() -> ! {
                 unsafe { tcb.execute() };
 
                 use scause::{Exception, Trap};
-                match scause::read().cause() {
+                let finish = match scause::read().cause() {
                     Trap::Exception(Exception::UserEnvCall) => {
                         use task::SchedulingEvent as Event;
                         match tcb.handle_syscall() {
-                            Event::None => {}
+                            Event::None => continue,
                             Event::Exit(code) => {
                                 log::info!("app{i} exit with code {code}");
-                                tcb.finish = true;
-                                remain -= 1;
-                                break;
+                                true
                             }
                             Event::Yield => {
                                 log::debug!("app{i} yield");
-                                break;
+                                false
+                            }
+                            Event::UnsupportedSyscall(id) => {
+                                log::error!("app{i} call an unsupported syscall {}", id.0);
+                                true
                             }
                         }
                     }
                     Trap::Exception(e) => {
                         log::error!("app{i} was killed by {e:?}");
-                        tcb.finish = true;
-                        remain -= 1;
-                        break;
+                        true
                     }
                     Trap::Interrupt(ir) => {
                         log::error!("app{i} was killed by an unexpected interrupt {ir:?}");
-                        tcb.finish = true;
-                        remain -= 1;
-                        break;
+                        true
                     }
+                };
+                if finish {
+                    tcb.finish = true;
+                    remain -= 1;
                 }
+                break;
             }
         }
         i = (i + 1) % index_mod;
