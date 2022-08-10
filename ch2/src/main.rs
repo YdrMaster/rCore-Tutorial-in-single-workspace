@@ -7,7 +7,7 @@
 extern crate output;
 
 use core::ops::Range;
-use impls::{Console, IOSyscall, ProcessSyscall};
+use impls::{Console, SyscallContext};
 use kernel_context::{execute, trap, Context};
 use output::log;
 use riscv::register::*;
@@ -72,8 +72,8 @@ extern "C" fn rust_main() -> ! {
     log::error!("LOG TEST >> Hello, world!");
 
     // 初始化 syscall
-    syscall::init_io(&IOSyscall);
-    syscall::init_process(&ProcessSyscall);
+    syscall::init_io(&SyscallContext);
+    syscall::init_process(&SyscallContext);
     // 确定应用程序位置
     let batch = unsafe {
         extern "C" {
@@ -166,7 +166,7 @@ fn handle_syscall(ctx: &mut Context) -> SyscallResult {
             Id::EXIT => SyscallResult::Exit(ctx.a(0)),
             _ => {
                 *ctx.a_mut(0) = ret as _;
-                ctx.sepc += 4;
+                ctx.move_next();
                 SyscallResult::Done
             }
         },
@@ -186,12 +186,10 @@ mod impls {
         }
     }
 
-    pub struct IOSyscall;
+    pub struct SyscallContext;
 
-    impl syscall::IO for IOSyscall {
+    impl syscall::IO for SyscallContext {
         fn write(&self, fd: usize, buf: usize, count: usize) -> isize {
-            use output::log::*;
-
             if fd == 0 {
                 print!("{}", unsafe {
                     core::str::from_utf8_unchecked(core::slice::from_raw_parts(
@@ -201,15 +199,13 @@ mod impls {
                 });
                 count as _
             } else {
-                error!("unsupported fd: {fd}");
+                output::log::error!("unsupported fd: {fd}");
                 -1
             }
         }
     }
 
-    pub struct ProcessSyscall;
-
-    impl syscall::Process for ProcessSyscall {
+    impl syscall::Process for SyscallContext {
         #[inline]
         fn exit(&self, _status: usize) -> isize {
             0

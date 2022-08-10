@@ -4,13 +4,13 @@
 
 use core::arch::asm;
 
-/// 用户上下文。
+/// 陷入上下文。
 #[repr(C)]
 pub struct Context {
     sctx: usize,
     x: [usize; 31],
     sstatus: usize,
-    pub sepc: usize,
+    sepc: usize,
 }
 
 /// 内核上下文。
@@ -34,6 +34,7 @@ impl Context {
     /// 初始化指定入口的用户上下文。
     ///
     /// 切换到用户态时会打开内核中断。
+    #[inline]
     pub const fn new(entry: usize) -> Self {
         Self {
             sctx: 0,
@@ -139,6 +140,22 @@ impl Context {
     pub unsafe fn execute(&mut self) {
         self.be_next();
         execute();
+    }
+
+    /// 当前上下文的 pc。
+    #[inline]
+    pub fn pc(&self) -> usize {
+        self.sepc
+    }
+
+    /// 将 pc 移至下一条指令。
+    ///
+    /// # Notice
+    ///
+    /// 假设这一条指令不是压缩版本。
+    #[inline]
+    pub fn move_next(&mut self) {
+        self.sepc = self.sepc.wrapping_add(4);
     }
 }
 

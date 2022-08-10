@@ -59,12 +59,12 @@ impl TaskControlBlock {
                 Id::EXIT => Event::Exit(self.ctx.a(0)),
                 Id::SCHED_YIELD => {
                     *self.ctx.a_mut(0) = ret as _;
-                    self.ctx.sepc += 4;
+                    self.ctx.move_next();
                     Event::Yield
                 }
                 _ => {
                     *self.ctx.a_mut(0) = ret as _;
-                    self.ctx.sepc += 4;
+                    self.ctx.move_next();
                     Event::None
                 }
             },
