@@ -176,6 +176,7 @@ mod impls {
     pub struct SyscallContext;
 
     impl IO for SyscallContext {
+        #[inline]
         fn write(&self, fd: usize, buf: usize, count: usize) -> isize {
             use output::log::*;
 
@@ -209,11 +210,11 @@ mod impls {
     }
 
     impl Clock for SyscallContext {
+        #[inline]
         fn clock_gettime(&self, clock_id: ClockId, tp: usize) -> isize {
             match clock_id {
                 ClockId::CLOCK_MONOTONIC => {
-                    let time = riscv::register::time::read();
-                    let time = time * 10000 / 125;
+                    let time = riscv::register::time::read() * 10000 / 125;
                     *unsafe { &mut *(tp as *mut TimeSpec) } = TimeSpec {
                         tv_sec: time / 1_000_000_000,
                         tv_nsec: time % 1_000_000_000,
