@@ -3,16 +3,17 @@
 #![feature(naked_functions, asm_sym, asm_const)]
 // #![deny(warnings)]
 
+mod task;
+
 #[macro_use]
 extern crate output;
 
 use core::ops::Range;
 use impls::{Console, IOSyscall, ProcessSyscall};
-use kernel_context::{execute, trap, Context};
 use output::log;
 use riscv::register::*;
 use sbi_rt::*;
-use syscall::SyscallId;
+use task::TaskControlBlock;
 
 // 应用程序内联进来。
 core::arch::global_asm!(include_str!(env!("APP_ASM")));
@@ -109,24 +110,27 @@ extern "C" fn rust_main() -> ! {
         app_base += app_step;
     }
     // 设置陷入地址
-    unsafe { stvec::write(trap as _, stvec::TrapMode::Direct) };
+    unsafe { stvec::write(kernel_context::trap as _, stvec::TrapMode::Direct) };
     // 批处理
     for i in 0..batch.len() - 1 {
         println!();
         log::info!("app{i} start");
 
-        let ctx = unsafe { &mut TCBS[i].ctx };
-        ctx.be_next();
-        ctx.set_sstatus_as_user();
+        let tcb = unsafe { &mut TCBS[i] };
         loop {
-            unsafe { execute() };
+            unsafe { tcb.execute() };
 
             use scause::{Exception, Trap};
             match scause::read().cause() {
                 Trap::Exception(Exception::UserEnvCall) => {
-                    if let Some(code) = handle_syscall(ctx) {
-                        log::info!("app{i} exit with code {code}",);
-                        break;
+                    use task::SchedulingEvent as Event;
+                    match tcb.handle_syscall() {
+                        Event::None => {}
+                        Event::Exit(code) => {
+                            log::info!("app{i} exit with code {code}",);
+                            break;
+                        }
+                        Event::Yield => todo!(),
                     }
                 }
                 Trap::Exception(e) => {
@@ -166,23 +170,6 @@ fn parse_num(str: &str) -> usize {
         usize::from_str_radix(num, 16).unwrap()
     } else {
         usize::from_str_radix(str, 10).unwrap()
-    }
-}
-
-/// 处理系统调用，返回是否应该终止程序。
-fn handle_syscall(ctx: &mut Context) -> Option<usize> {
-    let id = ctx.a(7).into();
-    let ret = syscall::handle(
-        id,
-        [ctx.a(0), ctx.a(1), ctx.a(2), ctx.a(3), ctx.a(4), ctx.a(5)],
-    );
-    match id {
-        SyscallId::EXIT => Some(ctx.a(0)),
-        _ => {
-            *ctx.a_mut(0) = ret as _;
-            ctx.sepc += 4;
-            None
-        }
     }
 }
 
@@ -226,26 +213,5 @@ mod impls {
         fn exit(&self, _status: usize) -> isize {
             0
         }
-    }
-}
-
-struct TaskControlBlock {
-    ctx: Context,
-    stack: [u8; 4096],
-    finish: bool,
-}
-
-impl TaskControlBlock {
-    const UNINIT: Self = Self {
-        ctx: Context::new(0),
-        stack: [0; 4096],
-        finish: false,
-    };
-
-    fn init(&mut self, entry: usize) {
-        self.ctx = Context::new(entry);
-        self.stack.fill(0);
-        self.finish = false;
-        *self.ctx.sp_mut() = self.stack.as_ptr() as usize + self.stack.len();
     }
 }

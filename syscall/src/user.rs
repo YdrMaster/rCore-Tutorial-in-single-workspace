@@ -7,6 +7,11 @@ pub fn write(fd: usize, buffer: &[u8]) -> isize {
 }
 
 #[inline]
+pub fn sched_yield() -> isize {
+    unsafe { syscall0(SyscallId::SCHED_YIELD) }
+}
+
+#[inline]
 pub fn exit(exit_code: i32) -> isize {
     unsafe { syscall1(SyscallId::EXIT, exit_code as _) }
 }

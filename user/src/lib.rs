@@ -43,6 +43,11 @@ pub fn write(fd: usize, buf: &[u8]) -> isize {
 }
 
 #[inline]
+pub fn sched_yield() -> isize {
+    syscall::sched_yield()
+}
+
+#[inline]
 pub fn exit(exit_code: i32) -> isize {
     syscall::exit(exit_code)
 }
