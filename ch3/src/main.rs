@@ -1,7 +1,7 @@
 #![no_std]
 #![no_main]
 #![feature(naked_functions, asm_sym, asm_const)]
-// #![deny(warnings)]
+#![deny(warnings)]
 
 mod task;
 
@@ -61,7 +61,7 @@ extern "C" fn rust_main() -> ! {
     unsafe { r0::zero_bss(&mut sbss, &mut ebss) };
     // 初始化 `output`
     output::init_console(&Console);
-    log::set_max_level(log::LevelFilter::Trace);
+    output::set_log_level(option_env!("LOG"));
 
     println!(
         r"
@@ -123,6 +123,7 @@ extern "C" fn rust_main() -> ! {
         let tcb = unsafe { &mut TCBS[i] };
         if !tcb.finish {
             loop {
+                #[cfg(not(feature = "coop"))]
                 sbi_rt::set_timer(time::read64() + 12500);
                 unsafe { tcb.execute() };
 
@@ -245,7 +246,6 @@ mod impls {
     }
 
     impl Clock for SyscallContext {
-        #[inline]
         fn clock_gettime(&self, clock_id: ClockId, tp: usize) -> isize {
             match clock_id {
                 ClockId::CLOCK_MONOTONIC => {

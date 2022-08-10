@@ -1,7 +1,10 @@
 ﻿#![no_std]
 #![deny(warnings)]
 
-use core::fmt::{Arguments, Write};
+use core::{
+    fmt::{Arguments, Write},
+    str::FromStr,
+};
 use spin::Once;
 
 /// 向用户提供 `log`。
@@ -30,6 +33,12 @@ static CONSOLE: Once<&'static dyn Console> = Once::new();
 pub fn init_console(console: &'static dyn Console) {
     CONSOLE.call_once(|| console);
     log::set_logger(&Logger).unwrap();
+}
+
+/// 根据环境变量设置日志级别。
+pub fn set_log_level(env: Option<&str>) {
+    use log::LevelFilter as Lv;
+    log::set_max_level(env.and_then(|s| Lv::from_str(s).ok()).unwrap_or(Lv::Trace));
 }
 
 /// 给宏用的，用户不会直接调它。

@@ -5,6 +5,7 @@ fn main() {
     fs::write(ld, LINKER).unwrap();
 
     println!("cargo:rerun-if-changed=build.rs");
+    println!("cargo:rerun-if-env-changed=LOG");
     println!("cargo:rerun-if-env-changed=APP_ASM");
     println!("cargo:rerun-if-env-changed=APP_BASE");
     println!("cargo:rustc-link-arg=-T{}", ld.display());

@@ -54,7 +54,7 @@ extern "C" fn rust_main() -> ! {
     unsafe { r0::zero_bss(&mut sbss, &mut ebss) };
     // 初始化 `output`
     output::init_console(&Console);
-    log::set_max_level(log::LevelFilter::Trace);
+    output::set_log_level(option_env!("LOG"));
 
     println!(
         r"

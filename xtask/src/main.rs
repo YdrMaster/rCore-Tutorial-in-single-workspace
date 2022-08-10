@@ -56,6 +56,12 @@ struct BuildArgs {
     /// Lab?
     #[clap(long)]
     lab: bool,
+    /// features
+    #[clap(short, long)]
+    features: Option<String>,
+    /// features
+    #[clap(long)]
+    log: Option<String>,
     /// Build in debug mode.
     #[clap(long)]
     release: bool,
@@ -105,8 +111,14 @@ impl BuildArgs {
         let mut build = Cargo::build();
         build
             .package(&package)
-            .conditional(self.release, |sbi| {
-                sbi.release();
+            .optional(&self.features, |cargo, features| {
+                cargo.features(false, features.split_whitespace());
+            })
+            .optional(&self.log, |cargo, log| {
+                cargo.env("LOG", log);
+            })
+            .conditional(self.release, |cargo| {
+                cargo.release();
             })
             .target(TARGET_ARCH);
         for (key, value) in env {
