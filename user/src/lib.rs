@@ -3,6 +3,7 @@
 #![feature(panic_info_message)]
 
 pub use output::{print, println};
+pub use syscall::*;
 
 struct Console;
 
@@ -35,21 +36,6 @@ pub extern "C" fn _start() -> ! {
 #[no_mangle]
 fn main() -> i32 {
     panic!("Cannot find main!");
-}
-
-#[inline]
-pub fn write(fd: usize, buf: &[u8]) -> isize {
-    syscall::write(fd, buf)
-}
-
-#[inline]
-pub fn sched_yield() -> isize {
-    syscall::sched_yield()
-}
-
-#[inline]
-pub fn exit(exit_code: i32) -> isize {
-    syscall::exit(exit_code)
 }
 
 #[panic_handler]

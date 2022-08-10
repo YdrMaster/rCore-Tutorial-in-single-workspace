@@ -5,6 +5,9 @@
 compile_error!("You can only use one of `supervisor` or `user` features at a time");
 
 mod syscalls;
+mod time;
+
+pub use time::*;
 
 #[cfg(feature = "user")]
 mod user;

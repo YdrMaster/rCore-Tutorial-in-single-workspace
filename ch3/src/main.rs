@@ -19,8 +19,7 @@ use task::TaskControlBlock;
 core::arch::global_asm!(include_str!(env!("APP_ASM")));
 
 // 应用程序数量。
-// const APP_COUNT: &str = env!("APP_COUNT");
-const APP_COUNT: usize = 8;
+const APP_COUNT: usize = 32;
 
 // 应用程序地址基值。
 const APP_BASE: &str = env!("APP_BASE");
@@ -82,8 +81,9 @@ extern "C" fn rust_main() -> ! {
 
     // 初始化 syscall
     syscall::init_io(&SyscallContext);
-    syscall::init_scheduling(&SyscallContext);
     syscall::init_process(&SyscallContext);
+    syscall::init_scheduling(&SyscallContext);
+    syscall::init_clock(&SyscallContext);
     // 确定应用程序位置
     let ranges = unsafe {
         extern "C" {
@@ -111,6 +111,8 @@ extern "C" fn rust_main() -> ! {
         unsafe { TCBS[i].init(app_base) };
     }
     println!();
+    // 打开中断
+    unsafe { sie::set_stimer() };
     // 设置陷入地址
     unsafe { stvec::write(kernel_context::trap as _, stvec::TrapMode::Direct) };
     // 多道执行
@@ -121,10 +123,16 @@ extern "C" fn rust_main() -> ! {
         let tcb = unsafe { &mut TCBS[i] };
         if !tcb.finish {
             loop {
+                sbi_rt::set_timer(time::read64() + 12500);
                 unsafe { tcb.execute() };
 
-                use scause::{Exception, Trap};
+                use scause::*;
                 let finish = match scause::read().cause() {
+                    Trap::Interrupt(Interrupt::SupervisorTimer) => {
+                        sbi_rt::set_timer(u64::MAX);
+                        log::trace!("app{i} timeout");
+                        false
+                    }
                     Trap::Exception(Exception::UserEnvCall) => {
                         use task::SchedulingEvent as Event;
                         match tcb.handle_syscall() {
@@ -189,6 +197,8 @@ fn parse_num(str: &str) -> usize {
 
 /// 各种接口库的实现
 mod impls {
+    use syscall::*;
+
     pub struct Console;
 
     impl output::Console for Console {
@@ -201,7 +211,7 @@ mod impls {
 
     pub struct SyscallContext;
 
-    impl syscall::IO for SyscallContext {
+    impl IO for SyscallContext {
         fn write(&self, fd: usize, buf: usize, count: usize) -> isize {
             use output::log::*;
 
@@ -220,17 +230,35 @@ mod impls {
         }
     }
 
-    impl syscall::Scheduling for SyscallContext {
+    impl Process for SyscallContext {
+        #[inline]
+        fn exit(&self, _status: usize) -> isize {
+            0
+        }
+    }
+
+    impl Scheduling for SyscallContext {
         #[inline]
         fn sched_yield(&self) -> isize {
             0
         }
     }
 
-    impl syscall::Process for SyscallContext {
+    impl Clock for SyscallContext {
         #[inline]
-        fn exit(&self, _status: usize) -> isize {
-            0
+        fn clock_gettime(&self, clock_id: ClockId, tp: usize) -> isize {
+            match clock_id {
+                ClockId::CLOCK_MONOTONIC => {
+                    let time = riscv::register::time::read();
+                    let time = time * 10000 / 125;
+                    *unsafe { &mut *(tp as *mut TimeSpec) } = TimeSpec {
+                        tv_sec: time / 1_000_000_000,
+                        tv_nsec: time % 1_000_000_000,
+                    };
+                    0
+                }
+                _ => -1,
+            }
         }
     }
 }

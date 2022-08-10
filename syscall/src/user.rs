@@ -1,4 +1,4 @@
-﻿use crate::SyscallId;
+﻿use crate::{ClockId, SyscallId, TimeSpec};
 use native::*;
 
 /// see <https://man7.org/linux/man-pages/man2/write.2.html>.
@@ -7,16 +7,22 @@ pub fn write(fd: usize, buffer: &[u8]) -> isize {
     unsafe { syscall3(SyscallId::WRITE, fd, buffer.as_ptr() as _, buffer.len()) }
 }
 
+/// see <https://man7.org/linux/man-pages/man2/exit.2.html>.
+#[inline]
+pub fn exit(exit_code: i32) -> isize {
+    unsafe { syscall1(SyscallId::EXIT, exit_code as _) }
+}
+
 /// see <https://man7.org/linux/man-pages/man2/sched_yield.2.html>.
 #[inline]
 pub fn sched_yield() -> isize {
     unsafe { syscall0(SyscallId::SCHED_YIELD) }
 }
 
-/// see <https://man7.org/linux/man-pages/man2/exit.2.html>.
+/// see <https://man7.org/linux/man-pages/man2/clock_gettime.2.html>.
 #[inline]
-pub fn exit(exit_code: i32) -> isize {
-    unsafe { syscall1(SyscallId::EXIT, exit_code as _) }
+pub fn clock_gettime(clockid: ClockId, tp: *mut TimeSpec) -> isize {
+    unsafe { syscall2(SyscallId::CLOCK_GETTIME, clockid.0, tp as _) }
 }
 
 /// 这个模块包含调用系统调用的最小封装，用户可以直接使用这些函数调用自定义的系统调用。
