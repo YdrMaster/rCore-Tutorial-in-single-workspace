@@ -8,11 +8,11 @@ extern crate output;
 
 use core::ops::Range;
 use impls::{Console, IOSyscall, ProcessSyscall};
+use kernel_context::{execute, trap, Context};
 use output::log;
 use riscv::register::*;
 use sbi_rt::*;
 use syscall::SyscallId;
-use trap_frame::{s_to_u, u_to_s, Context};
 
 // 应用程序内联进来。
 core::arch::global_asm!(include_str!(env!("APP_ASM")));
@@ -109,17 +109,17 @@ extern "C" fn rust_main() -> ! {
         app_base += app_step;
     }
     // 设置陷入地址
-    unsafe { stvec::write(u_to_s as _, stvec::TrapMode::Direct) };
+    unsafe { stvec::write(trap as _, stvec::TrapMode::Direct) };
     // 批处理
     for i in 0..batch.len() - 1 {
         println!();
         log::info!("app{i} start");
 
         let ctx = unsafe { &mut TCBS[i].ctx };
-        ctx.set_scratch();
-        ctx.set_user_sstatus();
+        ctx.be_next();
+        ctx.set_sstatus_as_user();
         loop {
-            unsafe { s_to_u() };
+            unsafe { execute() };
 
             use scause::{Exception, Trap};
             match scause::read().cause() {

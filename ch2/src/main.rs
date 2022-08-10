@@ -8,11 +8,11 @@ extern crate output;
 
 use core::ops::Range;
 use impls::{Console, IOSyscall, ProcessSyscall};
+use kernel_context::{execute, trap, Context};
 use output::log;
 use riscv::register::*;
 use sbi_rt::*;
 use syscall::SyscallId;
-use trap_frame::{s_to_u, u_to_s, Context};
 
 // 用户程序内联进来。
 core::arch::global_asm!(include_str!(env!("APP_ASM")));
@@ -92,7 +92,7 @@ extern "C" fn rust_main() -> ! {
         usize::from_str_radix(APP_BASE, 10).unwrap()
     };
     // 设置陷入地址
-    unsafe { stvec::write(u_to_s as _, stvec::TrapMode::Direct) };
+    unsafe { stvec::write(trap as _, stvec::TrapMode::Direct) };
     // 批处理
     for (i, range) in batch.windows(2).enumerate() {
         println!();
@@ -105,14 +105,14 @@ extern "C" fn rust_main() -> ! {
         load_app(range[0]..range[1], app_base);
         // 初始化上下文
         let mut ctx = Context::new(app_base);
-        ctx.set_scratch();
-        ctx.set_user_sstatus();
+        ctx.be_next();
+        ctx.set_sstatus_as_user();
         // 设置用户栈
         let mut user_stack = [0u8; 4096];
         *ctx.sp_mut() = user_stack.as_mut_ptr() as usize + user_stack.len();
         // 执行应用程序
         loop {
-            unsafe { s_to_u() };
+            unsafe { execute() };
 
             use scause::{Exception, Trap};
             match scause::read().cause() {

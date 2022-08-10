@@ -3,14 +3,13 @@
 #![deny(warnings)]
 
 use core::arch::asm;
-use riscv::register::*;
 
 /// 用户上下文。
 #[repr(C)]
 pub struct Context {
     sctx: usize,
     x: [usize; 31],
-    pub sstatus: usize,
+    sstatus: usize,
     pub sepc: usize,
 }
 
@@ -22,6 +21,14 @@ pub struct KernelContext {
     uctx: usize,
     x: [usize; 31],
 }
+
+pub enum Previlege {
+    User,
+    Supervisor,
+}
+
+const PREVILEGE_BIT: usize = 1 << 8;
+const INTERRUPT_BIT: usize = 1 << 5;
 
 impl Context {
     /// 初始化指定入口的用户上下文。
@@ -36,22 +43,18 @@ impl Context {
         }
     }
 
-    /// 设置 [`s_to_u`] 时切换到这个上下文。
+    /// 设置 [`execute`] 时切换到这个上下文。
     #[inline]
-    pub fn set_scratch(&mut self) {
-        sscratch::write(self as *mut _ as _);
+    pub fn be_next(&mut self) {
+        unsafe { asm!("csrw sscratch, {}", in(reg) self) };
     }
 
-    /// 设置加载上下文后去往用户态。
-    ///
-    /// 在当前的 `sstatus` 基础上设置 `spie = true` 和 `spp = user`。
+    /// 设置一个标准的用户态上下文，在当前状态基础上具有用户特权级并开启中断。
     #[inline]
-    pub fn set_user_sstatus(&mut self) {
-        unsafe { asm!("csrr {}, sstatus", out(reg) self.sstatus) };
-        // spie = true
-        self.sstatus |= 1 << 5;
-        // spp  = user
-        self.sstatus &= !(1 << 8);
+    pub fn set_sstatus_as_user(&mut self) {
+        self.load_sstatus();
+        self.set_privilege(Previlege::User);
+        self.set_interrupt(true);
     }
 
     /// 读取用户通用寄存器。
@@ -89,6 +92,54 @@ impl Context {
     pub fn sp_mut(&mut self) -> &mut usize {
         self.x_mut(2)
     }
+
+    /// 从当前上下文加载 `sstatus`。
+    #[inline]
+    pub fn load_sstatus(&mut self) {
+        unsafe { asm!("csrr {}, sstatus", out(reg) self.sstatus) };
+    }
+
+    /// 读取上下文特权级。
+    #[inline]
+    pub fn privilege(&self) -> Previlege {
+        if self.sstatus & PREVILEGE_BIT == 0 {
+            Previlege::User
+        } else {
+            Previlege::Supervisor
+        }
+    }
+
+    /// 设置上下文特权级。
+    #[inline]
+    pub fn set_privilege(&mut self, previlige: Previlege) {
+        match previlige {
+            Previlege::User => self.sstatus &= !PREVILEGE_BIT,
+            Previlege::Supervisor => self.sstatus |= PREVILEGE_BIT,
+        }
+    }
+
+    /// 读取上下文中断是否开启。
+    #[inline]
+    pub fn interrupt(&self) -> bool {
+        self.sstatus & INTERRUPT_BIT != 0
+    }
+
+    /// 设置上下文特权级。
+    #[inline]
+    pub fn set_interrupt(&mut self, enabled: bool) {
+        if enabled {
+            self.sstatus |= INTERRUPT_BIT;
+        } else {
+            self.sstatus &= !INTERRUPT_BIT;
+        }
+    }
+
+    /// 执行当前上下文。
+    #[inline]
+    pub unsafe fn execute(&mut self) {
+        self.be_next();
+        execute();
+    }
 }
 
 /// 内核态切换到用户态。
@@ -97,7 +148,7 @@ impl Context {
 ///
 /// 裸函数。手动保存所有上下文环境。
 #[naked]
-pub unsafe extern "C" fn s_to_u() {
+pub unsafe extern "C" fn execute() {
     asm!(
         r"  .altmacro
             .macro SAVE_S n
@@ -151,9 +202,9 @@ pub unsafe extern "C" fn s_to_u() {
 ///
 /// # Safety
 ///
-/// 裸函数。利用恢复的 ra 回到 [`s_to_u`] 的返回地址。
+/// 裸函数。利用恢复的 ra 回到 [`execute`] 的返回地址。
 #[naked]
-pub unsafe extern "C" fn u_to_s() {
+pub unsafe extern "C" fn trap() {
     asm!(
         r"
         .altmacro

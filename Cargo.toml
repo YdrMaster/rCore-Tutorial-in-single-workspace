@@ -8,7 +8,7 @@ members = [
     "user",
     "output",
     "syscall",
-    "trap-frame",
+    "kernel-context",
 ]
 default-members = ["xtask"]
 
