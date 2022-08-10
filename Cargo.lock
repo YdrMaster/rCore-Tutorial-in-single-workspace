@@ -68,6 +68,7 @@ dependencies = [
  "riscv",
  "sbi-rt",
  "syscall",
+ "utils",
 ]
 
 [[package]]
@@ -80,6 +81,7 @@ dependencies = [
  "riscv",
  "sbi-rt",
  "syscall",
+ "utils",
 ]
 
 [[package]]
@@ -389,6 +391,13 @@ dependencies = [
  "r0",
  "riscv",
  "syscall",
+]
+
+[[package]]
+name = "utils"
+version = "0.0.1"
+dependencies = [
+ "output",
 ]
 
 [[package]]

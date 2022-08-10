@@ -9,6 +9,7 @@ members = [
     "output",
     "syscall",
     "kernel-context",
+    "utils",
 ]
 default-members = ["xtask"]
 

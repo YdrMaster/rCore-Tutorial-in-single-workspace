@@ -8,7 +8,6 @@ mod task;
 #[macro_use]
 extern crate output;
 
-use core::ops::Range;
 use impls::{Console, SyscallContext};
 use output::log;
 use riscv::register::*;
@@ -19,13 +18,7 @@ use task::TaskControlBlock;
 core::arch::global_asm!(include_str!(env!("APP_ASM")));
 
 // 应用程序数量。
-const APP_COUNT: usize = 32;
-
-// 应用程序地址基值。
-const APP_BASE: &str = env!("APP_BASE");
-
-// 每个应用程序地址偏移。
-const APP_STEP: &str = env!("APP_STEP");
+const APP_CAPACITY: usize = 32;
 
 /// Supervisor 汇编入口。
 ///
@@ -62,22 +55,7 @@ extern "C" fn rust_main() -> ! {
     // 初始化 `output`
     output::init_console(&Console);
     output::set_log_level(option_env!("LOG"));
-
-    println!(
-        r"
-  ______        __                _         __
- /_  __/__  __ / /_ ____   _____ (_)____ _ / /
-  / /  / / / // __// __ \ / ___// // __ `// /
- / /  / /_/ // /_ / /_/ // /   / // /_/ // /
-/_/   \__,_/ \__/ \____//_/   /_/ \__,_//_/
-==========================================="
-    );
-    log::trace!("LOG TEST >> Hello, world!");
-    log::debug!("LOG TEST >> Hello, world!");
-    log::info!("LOG TEST >> Hello, world!");
-    log::warn!("LOG TEST >> Hello, world!");
-    log::error!("LOG TEST >> Hello, world!");
-    println!();
+    utils::test_log();
 
     // 初始化 syscall
     syscall::init_io(&SyscallContext);
@@ -95,10 +73,10 @@ extern "C" fn rust_main() -> ! {
             (_num_app + 1) as _,
         )
     };
-    let app_base = parse_num(APP_BASE);
-    let app_step = parse_num(APP_STEP);
+    let app_base = utils::parse_num(env!("APP_BASE"));
+    let app_step = utils::parse_num(env!("APP_STEP"));
     // 任务控制块
-    static mut TCBS: [TaskControlBlock; APP_COUNT] = [TaskControlBlock::ZERO; APP_COUNT];
+    static mut TCBS: [TaskControlBlock; APP_CAPACITY] = [TaskControlBlock::ZERO; APP_CAPACITY];
     // 初始化
     for (i, range) in ranges.windows(2).enumerate() {
         let app_base = app_base + i * app_step;
@@ -107,7 +85,7 @@ extern "C" fn rust_main() -> ! {
             range[0],
             range[1],
         );
-        load_app(range[0]..range[1], app_base);
+        utils::load_app(range[0]..range[1], app_base);
         unsafe { TCBS[i].init(app_base) };
     }
     println!();
@@ -179,21 +157,6 @@ extern "C" fn rust_main() -> ! {
 fn panic(_: &core::panic::PanicInfo) -> ! {
     system_reset(RESET_TYPE_SHUTDOWN, RESET_REASON_SYSTEM_FAILURE);
     unreachable!()
-}
-
-/// 将一个应用程序加载到目标位置。
-#[inline]
-fn load_app(range: Range<usize>, base: usize) {
-    unsafe { core::ptr::copy_nonoverlapping::<u8>(range.start as _, base as _, range.len()) };
-}
-
-#[inline]
-fn parse_num(str: &str) -> usize {
-    if let Some(num) = str.strip_prefix("0x") {
-        usize::from_str_radix(num, 16).unwrap()
-    } else {
-        usize::from_str_radix(str, 10).unwrap()
-    }
 }
 
 /// 各种接口库的实现
