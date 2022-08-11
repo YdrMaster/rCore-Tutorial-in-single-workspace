@@ -32,9 +32,7 @@ SECTIONS {
     }
     .bss : {
         *(.bss.uninit)
-        sbss = .;
         *(.bss .bss.*)
         *(.sbss .sbss.*)
-        ebss = .;
     }
 }";
