@@ -1,16 +1,18 @@
 fn main() {
     use std::{env, fs, path::PathBuf};
 
-    let ld = &PathBuf::from(env::var_os("OUT_DIR").unwrap()).join("linker.ld");
-    let text = format!(
-        "BASE_ADDRESS = {:#x};{LINKER}",
-        env::var("BASE_ADDRESS").map_or(0, |addr| addr.parse::<u64>().unwrap()),
-    );
-    fs::write(ld, text).unwrap();
-
     println!("cargo:rerun-if-changed=build.rs");
     println!("cargo:rerun-if-env-changed=BASE_ADDRESS");
-    println!("cargo:rustc-link-arg=-T{}", ld.display());
+
+    if let Some(base) = env::var("BASE_ADDRESS")
+        .ok()
+        .and_then(|s| s.parse::<u64>().ok())
+    {
+        let ld = &PathBuf::from(env::var_os("OUT_DIR").unwrap()).join("linker.ld");
+        let text = format!("BASE_ADDRESS = {base:#x};{LINKER}",);
+        fs::write(ld, text).unwrap();
+        println!("cargo:rustc-link-arg=-T{}", ld.display());
+    }
 }
 
 const LINKER: &str = "

@@ -1,5 +1,3 @@
-#![feature(path_file_prefix)]
-
 mod user;
 
 #[macro_use]
@@ -123,7 +121,7 @@ impl BuildArgs {
         let elf = TARGET
             .join(if self.release { "release" } else { "debug" })
             .join(package);
-        strip_all(elf)
+        objcopy(elf, true)
     }
 }
 
@@ -164,13 +162,15 @@ impl QemuArgs {
     }
 }
 
-fn strip_all(elf: impl AsRef<Path>) -> PathBuf {
+fn objcopy(elf: impl AsRef<Path>, binary: bool) -> PathBuf {
     let elf = elf.as_ref();
     let bin = elf.with_extension("bin");
     BinUtil::objcopy()
-        .arg("--binary-architecture=riscv64")
         .arg(elf)
-        .args(["--strip-all", "-O", "binary"])
+        .arg("--strip-all")
+        .conditional(binary, |binutil| {
+            binutil.args(["-O", "binary"]);
+        })
         .arg(&bin)
         .invoke();
     bin

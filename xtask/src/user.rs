@@ -1,10 +1,7 @@
 ﻿use crate::*;
 use command_ext::{Cargo, CommandExt};
-use once_cell::sync::Lazy;
 use serde_derive::Deserialize;
 use std::{ffi::OsStr, fs::File, io::Write, path::PathBuf};
-
-static USER: Lazy<PathBuf> = Lazy::new(|| PROJECT.join("user"));
 
 #[derive(Deserialize)]
 struct Ch2 {
@@ -14,6 +11,11 @@ struct Ch2 {
 #[derive(Deserialize)]
 struct Ch3 {
     ch3: Cases,
+}
+
+#[derive(Deserialize)]
+struct Ch4 {
+    ch4: Cases,
 }
 
 #[derive(Deserialize)]
@@ -56,7 +58,10 @@ impl Cases {
 
 fn build_one(name: impl AsRef<OsStr>, release: bool, base_address: u64) -> PathBuf {
     let name = name.as_ref();
-    println!("build {name:?} at {base_address:#x}");
+    let binary = base_address != 0;
+    if binary {
+        println!("build {name:?} at {base_address:#x}");
+    }
     Cargo::build()
         .package("user_lib")
         .target(TARGET_ARCH)
@@ -65,12 +70,14 @@ fn build_one(name: impl AsRef<OsStr>, release: bool, base_address: u64) -> PathB
         .conditional(release, |cargo| {
             cargo.release();
         })
-        .env("BASE_ADDRESS", base_address.to_string())
+        .conditional(binary, |cargo| {
+            cargo.env("BASE_ADDRESS", base_address.to_string());
+        })
         .invoke();
     let elf = TARGET
         .join(if release { "release" } else { "debug" })
         .join(name);
-    strip_all(elf)
+    objcopy(elf, binary)
 }
 
 pub fn build_for(ch: u8, release: bool) {
@@ -78,6 +85,7 @@ pub fn build_for(ch: u8, release: bool) {
     let cases = match ch {
         2 => toml::from_str::<Ch2>(&cfg).unwrap().ch2,
         3 => toml::from_str::<Ch3>(&cfg).unwrap().ch3,
+        4 => toml::from_str::<Ch4>(&cfg).unwrap().ch4,
         _ => unreachable!(),
     };
     let CasesInfo { base, step, bins } = cases.build(release);
