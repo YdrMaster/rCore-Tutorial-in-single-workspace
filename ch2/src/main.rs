@@ -57,30 +57,17 @@ extern "C" fn rust_main() -> ! {
     syscall::init_io(&SyscallContext);
     syscall::init_process(&SyscallContext);
     // 确定应用程序位置
-    let batch = unsafe {
-        extern "C" {
-            static mut _num_app: u64;
-        }
-
-        core::slice::from_raw_parts(
-            (&_num_app as *const u64).add(1) as *const usize,
-            (_num_app + 1) as _,
-        )
-    };
-    // 确定应用程序加载位置
-    let app_base = utils::parse_num(env!("APP_BASE"));
+    extern "C" {
+        static apps: utils::AppMeta;
+    }
     // 设置陷入地址
     unsafe { stvec::write(trap as _, stvec::TrapMode::Direct) };
     // 批处理
-    for (i, range) in batch.windows(2).enumerate() {
-        println!();
-        log::info!(
-            "load app{i} from {:#10x}..{:#10x} to {app_base:#10x}",
-            range[0],
-            range[1],
-        );
+    for i in 0..unsafe { apps.len() } {
         // 加载应用程序
-        utils::load_app(range[0]..range[1], app_base);
+        let app_base = unsafe { apps.load(i) };
+        println!();
+        log::info!("load app{i} to {app_base:#x}");
         // 初始化上下文
         let mut ctx = Context::new(app_base);
         ctx.be_next();

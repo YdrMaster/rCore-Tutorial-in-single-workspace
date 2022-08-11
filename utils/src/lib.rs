@@ -21,19 +21,34 @@ pub fn test_log() {
     println!();
 }
 
-/// 将一个应用程序加载到目标位置。
-#[inline]
-pub fn load_app(range: core::ops::Range<usize>, base: usize) {
-    unsafe { core::ptr::copy_nonoverlapping::<u8>(range.start as _, base as _, range.len()) };
+/// 应用程序元数据
+#[repr(C)]
+pub struct AppMeta {
+    base: u64,
+    step: u64,
+    count: u64,
+    first: u64,
 }
 
-/// 解析一个数字。
-#[inline]
-pub fn parse_num(str: impl AsRef<str>) -> usize {
-    let str = str.as_ref();
-    if let Some(num) = str.strip_prefix("0x") {
-        usize::from_str_radix(num, 16).unwrap()
-    } else {
-        usize::from_str_radix(str, 10).unwrap()
+impl AppMeta {
+    /// 加载一个应用程序，并返回目标位置。
+    ///
+    /// 将应用程序可能用到的其他地址区域清零。
+    pub unsafe fn load(&self, i: usize) -> usize {
+        let slice = core::slice::from_raw_parts(
+            &self.first as *const _ as *const usize,
+            (self.count + 1) as _,
+        );
+        let pos = slice[i];
+        let size = slice[i + 1] - pos;
+        let base = self.base as usize + i * self.step as usize;
+        core::ptr::copy_nonoverlapping::<u8>(pos as _, base as _, size);
+        core::slice::from_raw_parts_mut(base as *mut u8, 0x20_0000)[size..].fill(0);
+        base
+    }
+
+    #[inline]
+    pub fn len(&self) -> usize {
+        self.count as _
     }
 }

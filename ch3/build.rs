@@ -7,8 +7,6 @@ fn main() {
     println!("cargo:rerun-if-changed=build.rs");
     println!("cargo:rerun-if-env-changed=LOG");
     println!("cargo:rerun-if-env-changed=APP_ASM");
-    println!("cargo:rerun-if-env-changed=APP_BASE");
-    println!("cargo:rerun-if-env-changed=APP_STEP");
     println!("cargo:rustc-link-arg=-T{}", ld.display());
 }
 

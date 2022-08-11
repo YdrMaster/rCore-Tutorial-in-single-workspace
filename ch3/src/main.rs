@@ -63,29 +63,15 @@ extern "C" fn rust_main() -> ! {
     syscall::init_scheduling(&SyscallContext);
     syscall::init_clock(&SyscallContext);
     // 确定应用程序位置
-    let ranges = unsafe {
-        extern "C" {
-            static mut _num_app: u64;
-        }
-
-        core::slice::from_raw_parts(
-            (&_num_app as *const u64).add(1) as *const usize,
-            (_num_app + 1) as _,
-        )
-    };
-    let app_base = utils::parse_num(env!("APP_BASE"));
-    let app_step = utils::parse_num(env!("APP_STEP"));
+    extern "C" {
+        static apps: utils::AppMeta;
+    }
     // 任务控制块
     static mut TCBS: [TaskControlBlock; APP_CAPACITY] = [TaskControlBlock::ZERO; APP_CAPACITY];
     // 初始化
-    for (i, range) in ranges.windows(2).enumerate() {
-        let app_base = app_base + i * app_step;
-        log::info!(
-            "load app{i} from {:#10x}..{:#10x} to {app_base:#10x}",
-            range[0],
-            range[1],
-        );
-        utils::load_app(range[0]..range[1], app_base);
+    for i in 0..unsafe { apps.len() } {
+        let app_base = unsafe { apps.load(i) };
+        log::info!("load app{i} to {app_base:#x}");
         unsafe { TCBS[i].init(app_base) };
     }
     println!();
@@ -94,7 +80,7 @@ extern "C" fn rust_main() -> ! {
     // 设置陷入地址
     unsafe { stvec::write(kernel_context::trap as _, stvec::TrapMode::Direct) };
     // 多道执行
-    let index_mod = ranges.len() - 1;
+    let index_mod = unsafe { apps.len() } as usize;
     let mut remain = index_mod;
     let mut i = 0usize;
     while remain > 0 {

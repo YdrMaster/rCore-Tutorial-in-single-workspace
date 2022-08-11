@@ -45,54 +45,61 @@ fn build_one(name: impl AsRef<OsStr>, release: bool, base_address: u64) -> PathB
 }
 
 pub fn build_for(ch: u8, release: bool) {
-    let bins = match ch {
-        2 => build_all(release, |_| CH2_APP_BASE),
-        3 => build_all(release, |i| CH3_APP_BASE + i * CH3_APP_STEP),
+    let (base, step, bins) = match ch {
+        2 => (CH2_APP_BASE, 0, build_all(release, |_| CH2_APP_BASE)),
+        3 => (
+            CH3_APP_BASE,
+            CH3_APP_STEP,
+            build_all(release, |i| CH3_APP_BASE + i * CH3_APP_STEP),
+        ),
         _ => unreachable!(),
     };
-    if let Some(first) = bins.first() {
-        let mut ld = File::create(first.parent().unwrap().join("app.asm")).unwrap();
-        writeln!(
-            ld,
-            "\
+    if bins.is_empty() {
+        return;
+    }
+    let asm = TARGET
+        .join(if release { "release" } else { "debug" })
+        .join("app.asm");
+    let mut ld = File::create(asm).unwrap();
+    writeln!(
+        ld,
+        "\
+    .global apps
+    .section .data
     .align 3
-    .section .data
-    .global _num_app
-_num_app:
+apps:
+    .quad {base:#x}
+    .quad {step:#x}
     .quad {}",
-            bins.len(),
-        )
-        .unwrap();
+        bins.len(),
+    )
+    .unwrap();
 
-        (0..bins.len()).for_each(|i| {
-            writeln!(
-                ld,
-                "\
-    .quad app_{i}_start"
-            )
-            .unwrap()
-        });
-
+    (0..bins.len()).for_each(|i| {
         writeln!(
             ld,
             "\
-    .quad app_{}_end",
-            bins.len() - 1
+    .quad app_{i}_start"
         )
-        .unwrap();
+        .unwrap()
+    });
 
-        bins.iter().enumerate().for_each(|(i, path)| {
-            writeln!(
-                ld,
-                "
-    .section .data
-    .global app_{i}_start
-    .global app_{i}_end
+    writeln!(
+        ld,
+        "\
+    .quad app_{}_end",
+        bins.len() - 1
+    )
+    .unwrap();
+
+    bins.iter().enumerate().for_each(|(i, path)| {
+        writeln!(
+            ld,
+            "
 app_{i}_start:
     .incbin {path:?}
 app_{i}_end:",
-            )
-            .unwrap();
-        });
-    }
+        )
+        .unwrap();
+    });
 }

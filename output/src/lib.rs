@@ -41,6 +41,8 @@ pub fn set_log_level(env: Option<&str>) {
     log::set_max_level(env.and_then(|s| Lv::from_str(s).ok()).unwrap_or(Lv::Trace));
 }
 
+/// 打印。
+///
 /// 给宏用的，用户不会直接调它。
 #[doc(hidden)]
 #[inline]
