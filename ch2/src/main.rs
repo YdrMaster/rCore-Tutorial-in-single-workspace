@@ -66,7 +66,6 @@ extern "C" fn rust_main() -> ! {
     for i in 0..unsafe { apps.len() } {
         // 加载应用程序
         let app_base = unsafe { apps.load(i) };
-        println!();
         log::info!("load app{i} to {app_base:#x}");
         // 初始化上下文
         let mut ctx = Context::new(app_base);
@@ -95,6 +94,7 @@ extern "C" fn rust_main() -> ! {
             unsafe { core::arch::asm!("fence.i") };
             break;
         }
+        println!();
     }
 
     system_reset(RESET_TYPE_SHUTDOWN, RESET_REASON_NO_REASON);

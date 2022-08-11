@@ -15,9 +15,6 @@ use std::{
 };
 
 const TARGET_ARCH: &str = "riscv64imac-unknown-none-elf";
-const CH2_APP_BASE: u64 = 0x8040_0000;
-const CH3_APP_BASE: u64 = 0x8040_0000;
-const CH3_APP_STEP: u64 = 0x0020_0000;
 
 static PROJECT: Lazy<&'static Path> =
     Lazy::new(|| Path::new(std::env!("CARGO_MANIFEST_DIR")).parent().unwrap());
@@ -80,7 +77,6 @@ impl BuildArgs {
             }
             2 => {
                 user::build_for(2, false);
-                env.insert("APP_BASE", format!("{CH2_APP_BASE:#x}").into());
                 env.insert(
                     "APP_ASM",
                     TARGET
@@ -93,8 +89,6 @@ impl BuildArgs {
             }
             3 => {
                 user::build_for(3, false);
-                env.insert("APP_BASE", format!("{CH3_APP_BASE:#x}").into());
-                env.insert("APP_STEP", format!("{CH3_APP_STEP:#x}").into());
                 env.insert(
                     "APP_ASM",
                     TARGET

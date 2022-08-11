@@ -1,35 +1,64 @@
 ﻿use crate::*;
 use command_ext::{Cargo, CommandExt};
 use once_cell::sync::Lazy;
+use serde_derive::Deserialize;
 use std::{ffi::OsStr, fs::File, io::Write, path::PathBuf};
 
-const PACKAGE: &str = "user_lib";
 static USER: Lazy<PathBuf> = Lazy::new(|| PROJECT.join("user"));
 
-fn build_all(release: bool, base_addr: impl Fn(u64) -> u64) -> Vec<PathBuf> {
-    let mut names = USER
-        .join("src/bin")
-        .read_dir()
-        .unwrap()
-        .filter_map(|e| e.ok())
-        .filter(|entry| entry.file_type().map_or(false, |t| t.is_file()))
-        .map(|entry| entry.path())
-        .filter(|path| path.extension() == Some(OsStr::new("rs")))
-        .map(|path| path.file_prefix().unwrap().to_string_lossy().into_owned())
-        .collect::<Vec<_>>();
-    names.sort_unstable();
-    names
-        .into_iter()
-        .enumerate()
-        .map(|(i, name)| build_one(name, release, base_addr(i as _)))
-        .collect()
+#[derive(Deserialize)]
+struct Ch2 {
+    ch2: Cases,
+}
+
+#[derive(Deserialize)]
+struct Ch3 {
+    ch3: Cases,
+}
+
+#[derive(Deserialize)]
+struct Cases {
+    base: Option<u64>,
+    step: Option<u64>,
+    cases: Option<Vec<String>>,
+}
+
+struct CasesInfo {
+    base: u64,
+    step: u64,
+    bins: Vec<PathBuf>,
+}
+
+impl Cases {
+    fn build(self, release: bool) -> CasesInfo {
+        if let Some(names) = self.cases {
+            let base = self.base.unwrap_or(0);
+            let step = self.step.filter(|_| self.base.is_some()).unwrap_or(0);
+            let cases = names
+                .into_iter()
+                .enumerate()
+                .map(|(i, name)| build_one(name, release, base + i as u64 * step))
+                .collect();
+            CasesInfo {
+                base,
+                step,
+                bins: cases,
+            }
+        } else {
+            CasesInfo {
+                base: 0,
+                step: 0,
+                bins: vec![],
+            }
+        }
+    }
 }
 
 fn build_one(name: impl AsRef<OsStr>, release: bool, base_address: u64) -> PathBuf {
     let name = name.as_ref();
     println!("build {name:?} at {base_address:#x}");
     Cargo::build()
-        .package(PACKAGE)
+        .package("user_lib")
         .target(TARGET_ARCH)
         .arg("--bin")
         .arg(name)
@@ -45,15 +74,13 @@ fn build_one(name: impl AsRef<OsStr>, release: bool, base_address: u64) -> PathB
 }
 
 pub fn build_for(ch: u8, release: bool) {
-    let (base, step, bins) = match ch {
-        2 => (CH2_APP_BASE, 0, build_all(release, |_| CH2_APP_BASE)),
-        3 => (
-            CH3_APP_BASE,
-            CH3_APP_STEP,
-            build_all(release, |i| CH3_APP_BASE + i * CH3_APP_STEP),
-        ),
+    let cfg = std::fs::read_to_string(PROJECT.join("user/cases.toml")).unwrap();
+    let cases = match ch {
+        2 => toml::from_str::<Ch2>(&cfg).unwrap().ch2,
+        3 => toml::from_str::<Ch3>(&cfg).unwrap().ch3,
         _ => unreachable!(),
     };
+    let CasesInfo { base, step, bins } = cases.build(release);
     if bins.is_empty() {
         return;
     }
