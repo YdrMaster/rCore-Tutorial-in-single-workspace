@@ -6,7 +6,12 @@ use std::{ffi::OsStr, fs::File, io::Write, path::PathBuf};
 const PACKAGE: &str = "user_lib";
 static USER: Lazy<PathBuf> = Lazy::new(|| PROJECT.join("user"));
 
+/// load all applications
+/// 
+/// return PathBuf [ a list of location for binary mirror image ]
 fn build_all(release: bool, base_addr: impl Fn(u64) -> u64) -> Vec<PathBuf> {
+    // [`PathBuf` representation and layout are considered implementation detail, are not documented and must not be relied upon.]
+    // get all applications names
     let mut names = USER
         .join("src/bin")
         .read_dir()
@@ -17,19 +22,25 @@ fn build_all(release: bool, base_addr: impl Fn(u64) -> u64) -> Vec<PathBuf> {
         .filter(|path| path.extension() == Some(OsStr::new("rs")))
         .map(|path| path.file_prefix().unwrap().to_string_lossy().into_owned())
         .collect::<Vec<_>>();
+    // ???
     names.sort_unstable();
+    // for build each application by name(string)
+    // place the application consecutively[连续]
     names
         .into_iter()
         .enumerate()
         .map(|(i, name)| build_one(name, release, base_addr(i as _)))
+        // using base_address closure function to account the space where the applications should be put.
         .collect()
 }
 
 fn build_one(name: impl AsRef<OsStr>, release: bool, base_address: u64) -> PathBuf {
+    // reference name
     let name = name.as_ref();
     println!("build {name:?} at {base_address:#x}");
+    // Generate the ELF executable file
     Cargo::build()
-        .package(PACKAGE)
+        .package(PACKAGE)                       // was the same as workspace::members
         .target(TARGET_ARCH)
         .arg("--bin")
         .arg(name)
@@ -45,7 +56,9 @@ fn build_one(name: impl AsRef<OsStr>, release: bool, base_address: u64) -> PathB
 }
 
 pub fn build_for(ch: u8, release: bool) {
+    // get binary mirror image
     let bins = match ch {
+        // using different kinds closure function to place application in different location
         2 => build_all(release, |_| CH2_APP_BASE),
         3 => build_all(release, |i| CH3_APP_BASE + i * CH3_APP_STEP),
         _ => unreachable!(),

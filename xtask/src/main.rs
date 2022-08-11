@@ -79,6 +79,7 @@ impl BuildArgs {
                 }
             }
             2 => {
+                // get application binary mirror image package and insert it
                 user::build_for(2, false);
                 env.insert("APP_BASE", format!("{CH2_APP_BASE:#x}").into());
                 env.insert(
@@ -121,6 +122,7 @@ impl BuildArgs {
                 cargo.release();
             })
             .target(TARGET_ARCH);
+        // ???
         for (key, value) in env {
             build.env(key, value);
         }
@@ -169,7 +171,7 @@ impl QemuArgs {
             .invoke();
     }
 }
-
+/// delete all ELF header and symbol to get a Binary mirror image
 fn strip_all(elf: impl AsRef<Path>) -> PathBuf {
     let elf = elf.as_ref();
     let bin = elf.with_extension("bin");
