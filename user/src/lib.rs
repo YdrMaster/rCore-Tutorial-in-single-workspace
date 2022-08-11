@@ -5,28 +5,9 @@
 pub use output::{print, println};
 pub use syscall::*;
 
-struct Console;
-
-impl output::Console for Console {
-    #[inline]
-    fn put_char(&self, c: u8) {
-        syscall::write(0, &[c]);
-    }
-
-    #[inline]
-    fn put_str(&self, s: &str) {
-        syscall::write(0, s.as_bytes());
-    }
-}
-
 #[no_mangle]
 #[link_section = ".text.entry"]
 pub extern "C" fn _start() -> ! {
-    extern "C" {
-        static mut sbss: u64;
-        static mut ebss: u64;
-    }
-    unsafe { r0::zero_bss(&mut sbss, &mut ebss) };
     output::init_console(&Console);
     exit(main());
     unreachable!()
@@ -48,4 +29,18 @@ fn panic_handler(panic_info: &core::panic::PanicInfo) -> ! {
     }
     exit(1);
     unreachable!()
+}
+
+struct Console;
+
+impl output::Console for Console {
+    #[inline]
+    fn put_char(&self, c: u8) {
+        syscall::write(0, &[c]);
+    }
+
+    #[inline]
+    fn put_str(&self, s: &str) {
+        syscall::write(0, s.as_bytes());
+    }
 }
