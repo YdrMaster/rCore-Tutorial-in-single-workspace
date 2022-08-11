@@ -5,6 +5,7 @@ members = [
     "ch1-lab",
     "ch2",
     "ch3",
+    "ch4",
     "user",
     "output",
     "syscall",

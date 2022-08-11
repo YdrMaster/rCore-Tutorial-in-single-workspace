@@ -66,15 +66,9 @@ impl BuildArgs {
     fn make(&self) -> PathBuf {
         let mut env: HashMap<&str, OsString> = HashMap::new();
         let package = match self.ch {
-            1 => {
-                if self.lab {
-                    "ch1-lab"
-                } else {
-                    "ch1"
-                }
-            }
-            2 => {
-                user::build_for(2, false);
+            1 => if self.lab { "ch1-lab" } else { "ch1" }.to_string(),
+            2 | 3 | 4 => {
+                user::build_for(self.ch, false);
                 env.insert(
                     "APP_ASM",
                     TARGET
@@ -83,19 +77,7 @@ impl BuildArgs {
                         .as_os_str()
                         .to_os_string(),
                 );
-                "ch2"
-            }
-            3 => {
-                user::build_for(3, false);
-                env.insert(
-                    "APP_ASM",
-                    TARGET
-                        .join("debug")
-                        .join("app.asm")
-                        .as_os_str()
-                        .to_os_string(),
-                );
-                "ch3"
+                format!("ch{}", self.ch)
             }
             _ => unreachable!(),
         };

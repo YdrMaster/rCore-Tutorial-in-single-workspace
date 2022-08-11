@@ -85,6 +85,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "ch4"
+version = "0.0.1"
+dependencies = [
+ "kernel-context",
+ "output",
+ "r0",
+ "riscv",
+ "sbi-rt",
+ "syscall",
+ "utils",
+]
+
+[[package]]
 name = "clap"
 version = "3.2.16"
 source = "registry+https://github.com/rust-lang/crates.io-index"

@@ -18,7 +18,7 @@ struct Ch4 {
     ch4: Cases,
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, Default)]
 struct Cases {
     base: Option<u64>,
     step: Option<u64>,
@@ -82,13 +82,14 @@ fn build_one(name: impl AsRef<OsStr>, release: bool, base_address: u64) -> PathB
 
 pub fn build_for(ch: u8, release: bool) {
     let cfg = std::fs::read_to_string(PROJECT.join("user/cases.toml")).unwrap();
-    let cases = match ch {
-        2 => toml::from_str::<Ch2>(&cfg).unwrap().ch2,
-        3 => toml::from_str::<Ch3>(&cfg).unwrap().ch3,
-        4 => toml::from_str::<Ch4>(&cfg).unwrap().ch4,
+    let CasesInfo { base, step, bins } = match ch {
+        2 => toml::from_str::<Ch2>(&cfg).map(|ch| ch.ch2),
+        3 => toml::from_str::<Ch3>(&cfg).map(|ch| ch.ch3),
+        4 => toml::from_str::<Ch4>(&cfg).map(|ch| ch.ch4),
         _ => unreachable!(),
-    };
-    let CasesInfo { base, step, bins } = cases.build(release);
+    }
+    .unwrap_or_default()
+    .build(release);
     if bins.is_empty() {
         return;
     }
