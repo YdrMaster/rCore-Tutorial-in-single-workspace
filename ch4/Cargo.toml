@@ -14,3 +14,4 @@ output = { path = "../output" }
 utils = { path = "../utils" }
 kernel-context = { path = "../kernel-context" }
 syscall = { path = "../syscall", features = ["kernel"] }
+page-table = "0.0.4"

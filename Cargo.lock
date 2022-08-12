@@ -91,6 +91,7 @@ dependencies = [
  "idx-alloc",
  "kernel-context",
  "output",
+ "page-table",
  "r0",
  "riscv",
  "sbi-rt",
@@ -258,6 +259,16 @@ version = "0.0.1"
 dependencies = [
  "log",
  "spin",
+]
+
+[[package]]
+name = "page-table"
+version = "0.0.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "907a2e25693394c5546590ee1b9021f5f389680ba9e64b90586c2364eef7d667"
+dependencies = [
+ "cfg-if",
+ "static_assertions",
 ]
 
 [[package]]
