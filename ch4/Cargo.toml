@@ -9,6 +9,7 @@ sbi-rt = { git = "https://github.com/rustsbi/sbi-rt", branch = "dev" }
 riscv = "0.8.0"
 r0 = "1.0.0"
 
+idx-alloc = { path = "../idx-alloc" }
 output = { path = "../output" }
 utils = { path = "../utils" }
 kernel-context = { path = "../kernel-context" }

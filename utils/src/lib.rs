@@ -1,5 +1,7 @@
+//! 一些零散的函数和定义。
+
 #![no_std]
-#![deny(warnings)]
+#![deny(warnings, missing_docs)]
 
 /// 打印一些测试信息。
 pub fn test_log() {
@@ -47,6 +49,7 @@ impl AppMeta {
         base
     }
 
+    /// 返回元数据描述的应用程序数量。
     #[inline]
     pub fn len(&self) -> usize {
         self.count as _
