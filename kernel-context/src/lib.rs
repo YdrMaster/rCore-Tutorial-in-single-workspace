@@ -165,7 +165,6 @@ impl Context {
 ///
 /// 裸函数。手动保存所有上下文环境。
 #[naked]
-#[link_section = ".text.trampoline"]
 pub unsafe extern "C" fn execute() {
     asm!(
         r"  .altmacro
@@ -222,7 +221,6 @@ pub unsafe extern "C" fn execute() {
 ///
 /// 裸函数。利用恢复的 ra 回到 [`execute`] 的返回地址。
 #[naked]
-#[link_section = ".text.trampoline"]
 pub unsafe extern "C" fn trap() {
     asm!(
         r"

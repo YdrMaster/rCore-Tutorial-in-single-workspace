@@ -19,15 +19,18 @@ SECTIONS {
     .text : {
         *(.text.entry)
         *(.text .text.*)
-        __strampoline = ALIGN(4K);
-        *(.text.trampoline)
+        . = ALIGN(4K);
+        __trampoline = .;
+        KEEP(*(.trampoline))
     }
-    __rodata = ALIGN(4K);
+    . = ALIGN(4K);
+    __rodata = .;
     .rodata : {
         *(.rodata .rodata.*)
         *(.srodata .srodata.*)
     }
-    __data = ALIGN(4K);
+    . = ALIGN(4K);
+    __data = .;
     .data : {
         *(.data .data.*)
         *(.sdata .sdata.*)
@@ -39,5 +42,6 @@ SECTIONS {
         *(.sbss .sbss.*)
         ebss = ALIGN(8);
     }
-    __end = ALIGN(4K);
+    . = ALIGN(4K);
+    __end = .;
 }";

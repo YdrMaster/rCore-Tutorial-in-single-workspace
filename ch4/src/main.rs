@@ -1,12 +1,15 @@
 #![no_std]
 #![no_main]
 #![feature(naked_functions, asm_sym, asm_const)]
-#![deny(warnings)]
+// #![deny(warnings)]
+
+mod frame_allocator;
 
 // #[macro_use]
 // extern crate output;
 
 use impls::Console;
+use output::log;
 use sbi_rt::*;
 
 // 应用程序内联进来。
@@ -48,6 +51,21 @@ extern "C" fn rust_main() -> ! {
     output::init_console(&Console);
     output::set_log_level(option_env!("LOG"));
     utils::test_log();
+    // 打印段位置
+    #[link_section = ".trampoline"]
+    static _PLACE_HOLDER: u8 = 0;
+    extern "C" {
+        fn __text();
+        fn __trampoline();
+        fn __rodata();
+        fn __data();
+        fn __end();
+    }
+    log::info!("__text -------> {:#10x}", __text as usize);
+    log::info!("__trampoline -> {:#10x}", __trampoline as usize);
+    log::info!("__rodata -----> {:#10x}", __rodata as usize);
+    log::info!("__data -------> {:#10x}", __data as usize);
+    log::info!("__end --------> {:#10x}", __end as usize);
 
     system_reset(RESET_TYPE_SHUTDOWN, RESET_REASON_NO_REASON);
     unreachable!()
