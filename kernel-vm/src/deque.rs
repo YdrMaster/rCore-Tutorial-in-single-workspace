@@ -2,7 +2,7 @@
 use core::{marker::PhantomData, mem::MaybeUninit};
 use page_table::{MaybeInvalidPPN, VmMeta, PPN, VPN};
 
-/// 直接假设在物理页上的双端队列。
+/// 直接架设在物理页上的双端队列。
 ///
 /// 原理类似 c++ 的 `std::deque`，但每个分片都是一个物理页。
 /// 这个数据结构可以用于只有物理页帧分配器的情况。
@@ -22,11 +22,18 @@ pub struct Deque<T: 'static, Meta: VmMeta, A: FrameAllocator<Meta>, F: Fn(PPN<Me
     _phantom: PhantomData<T>,
 }
 
+/// 计算每个物理页能容纳元素的数量。
+///
+/// 从物理页头上去掉链表两个指针的空间再对齐到元素要求的位置，然后连续放置。
 const fn page_cap<Meta: VmMeta, T>() -> usize {
     use core::mem::{align_of, size_of};
-    let align_mask: usize = align_of::<T>() - 1;
-    let base: usize = (2 * size_of::<MaybeInvalidPPN<Meta>>() + align_mask) & !align_mask;
-    ((1 << Meta::PAGE_BITS) - base) / size_of::<T>()
+    let align_mask = align_of::<T>() - 1;
+    // 对齐两个指针
+    let base = (2 * size_of::<MaybeInvalidPPN<Meta>>() + align_mask) & !align_mask;
+    // 对齐每个元素
+    let each = (size_of::<T>() + align_mask) & !align_mask;
+    // 除！
+    ((1 << Meta::PAGE_BITS) - base) / each
 }
 
 impl<T: 'static, Meta: VmMeta, A: FrameAllocator<Meta>, F: Fn(PPN<Meta>) -> VPN<Meta>>
@@ -136,18 +143,7 @@ impl<T: 'static, Meta: VmMeta, A: FrameAllocator<Meta>, F: Fn(PPN<Meta>) -> VPN<
         let val = unsafe { tail.take(self.tail_idx) };
         // 如果最后一页已空，则释放该页
         if self.tail_idx == 0 || (self.page_count == 1 && self.head_idx == self.tail_idx) {
-            // 最后一页的物理页号
-            let old = core::mem::replace(&mut self.tail_page, tail.prev)
-                .get()
-                .unwrap();
-            // 擦除页上数据并释放页
-            unsafe {
-                tail.zero();
-                self.a.deallocate(old..old + 1);
-            }
-            // 修改链表元数据
-            self.tail_idx = Self::PAGE_CAP;
-            self.page_count -= 1;
+            self.deallocate_tail(tail);
             match self.tail() {
                 Some(mut tail) => tail.next = MaybeInvalidPPN::invalid(),
                 None => {
@@ -174,18 +170,7 @@ impl<T: 'static, Meta: VmMeta, A: FrameAllocator<Meta>, F: Fn(PPN<Meta>) -> VPN<
         if self.head_idx == Self::PAGE_CAP
             || (self.page_count == 1 && self.head_idx == self.tail_idx)
         {
-            // 第一页的物理页号
-            let old = core::mem::replace(&mut self.head_page, head.next)
-                .get()
-                .unwrap();
-            // 擦除页上数据并释放页
-            unsafe {
-                head.zero();
-                self.a.deallocate(old..old + 1);
-            }
-            // 修改链表元数据
-            self.head_idx = 0;
-            self.page_count -= 1;
+            self.deallocate_head(head);
             match self.head() {
                 Some(mut head) => head.prev = MaybeInvalidPPN::invalid(),
                 None => {
@@ -206,8 +191,65 @@ impl<T: 'static, Meta: VmMeta, A: FrameAllocator<Meta>, F: Fn(PPN<Meta>) -> VPN<
     fn tail(&mut self) -> Option<&'static mut Node<Meta, T>> {
         unsafe { Node::try_from_ppn(self.tail_page, &self.f) }
     }
+
+    /// 释放第一页。
+    #[inline]
+    fn deallocate_head(&mut self, head: &mut Node<Meta, T>) {
+        // 第一页的物理页号
+        let old = core::mem::replace(&mut self.head_page, head.next)
+            .get()
+            .unwrap();
+        // 擦除页上数据并释放页
+        unsafe {
+            head.zero();
+            self.a.deallocate(old..old + 1);
+        }
+        self.head_idx = 0;
+        self.page_count -= 1;
+    }
+
+    /// 释放最后一页。
+    #[inline]
+    fn deallocate_tail(&mut self, tail: &mut Node<Meta, T>) {
+        // 最后一页的物理页号
+        let old = core::mem::replace(&mut self.tail_page, tail.prev)
+            .get()
+            .unwrap();
+        // 擦除页上数据并释放页
+        unsafe {
+            tail.zero();
+            self.a.deallocate(old..old + 1);
+        }
+        // 修改链表元数据
+        self.tail_idx = Self::PAGE_CAP;
+        self.page_count -= 1;
+    }
 }
 
+impl<T: 'static, Meta: VmMeta, A: FrameAllocator<Meta>, F: Fn(PPN<Meta>) -> VPN<Meta>> Drop
+    for Deque<T, Meta, A, F>
+{
+    fn drop(&mut self) {
+        // 释放前面的页
+        while self.page_count > 1 {
+            let head = self.head().unwrap();
+            for i in self.head_idx..Self::PAGE_CAP {
+                unsafe { head.items[i].assume_init_drop() };
+            }
+            self.deallocate_head(head);
+        }
+        // 释放最后一页
+        if self.page_count == 1 {
+            let tail = self.tail().unwrap();
+            for i in self.head_idx..self.tail_idx {
+                unsafe { tail.items[i].assume_init_drop() };
+            }
+            self.deallocate_tail(tail);
+        }
+    }
+}
+
+/// 双端队列的页节点映射。
 #[repr(C)]
 struct Node<Meta: VmMeta, T> {
     next: MaybeInvalidPPN<Meta>,
