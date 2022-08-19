@@ -3,8 +3,6 @@
 #![feature(naked_functions, asm_sym, asm_const)]
 // #![deny(warnings)]
 
-mod frame_allocator;
-
 // #[macro_use]
 // extern crate output;
 
