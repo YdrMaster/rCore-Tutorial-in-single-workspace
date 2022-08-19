@@ -1,5 +1,9 @@
 ﻿use crate::{AllocError, FrameAllocator};
-use core::{marker::PhantomData, mem::MaybeUninit};
+use core::{
+    marker::PhantomData,
+    mem::MaybeUninit,
+    ops::{Index, IndexMut},
+};
 use page_table::{MaybeInvalidPPN, VmMeta, PPN, VPN};
 
 /// 直接架设在物理页上的双端队列。
@@ -68,7 +72,7 @@ impl<T: 'static, Meta: VmMeta, A: FrameAllocator<Meta>, F: Fn(PPN<Meta>) -> VPN<
     pub fn len(&self) -> usize {
         match self.page_count {
             0 => 0,
-            1 => self.tail_idx - self.head_idx,
+
             n => (n - 1) * Self::PAGE_CAP + self.tail_idx - self.head_idx,
         }
     }
@@ -183,12 +187,12 @@ impl<T: 'static, Meta: VmMeta, A: FrameAllocator<Meta>, F: Fn(PPN<Meta>) -> VPN<
     }
 
     #[inline]
-    fn head(&mut self) -> Option<&'static mut Node<Meta, T>> {
+    fn head(&self) -> Option<&'static mut Node<Meta, T>> {
         unsafe { Node::try_from_ppn(self.head_page, &self.f) }
     }
 
     #[inline]
-    fn tail(&mut self) -> Option<&'static mut Node<Meta, T>> {
+    fn tail(&self) -> Option<&'static mut Node<Meta, T>> {
         unsafe { Node::try_from_ppn(self.tail_page, &self.f) }
     }
 
@@ -223,6 +227,46 @@ impl<T: 'static, Meta: VmMeta, A: FrameAllocator<Meta>, F: Fn(PPN<Meta>) -> VPN<
         // 修改链表元数据
         self.tail_idx = Self::PAGE_CAP;
         self.page_count -= 1;
+    }
+
+    /// 索引 `index` 处的元素。
+    fn get(&self, index: usize) -> Option<&'static mut T> {
+        if index >= self.len() {
+            panic!("index out of bounds");
+        }
+        // 补上第一页缺的
+        let index = index + self.head_idx;
+        // 跳链表
+        let mut page = self.head().unwrap();
+        for _ in 0..index / Self::PAGE_CAP {
+            page = unsafe { page.next_unchecked(&self.f) };
+        }
+        // 返回
+        Some(unsafe {
+            page.items
+                .get_unchecked_mut(index % Self::PAGE_CAP)
+                .assume_init_mut()
+        })
+    }
+}
+
+impl<T: 'static, Meta: VmMeta, A: FrameAllocator<Meta>, F: Fn(PPN<Meta>) -> VPN<Meta>> Index<usize>
+    for Deque<T, Meta, A, F>
+{
+    type Output = T;
+
+    #[inline]
+    fn index(&self, index: usize) -> &Self::Output {
+        self.get(index).expect("index out of bounds")
+    }
+}
+
+impl<T: 'static, Meta: VmMeta, A: FrameAllocator<Meta>, F: Fn(PPN<Meta>) -> VPN<Meta>>
+    IndexMut<usize> for Deque<T, Meta, A, F>
+{
+    #[inline]
+    fn index_mut(&mut self, index: usize) -> &mut Self::Output {
+        self.get(index).expect("index out of bounds")
     }
 }
 
@@ -277,6 +321,12 @@ impl<Meta: VmMeta, T> Node<Meta, T> {
         f: impl Fn(PPN<Meta>) -> VPN<Meta>,
     ) -> Option<&'static mut Self> {
         ppn.get().map(|ppn| Self::from_ppn(ppn, f))
+    }
+
+    /// 跳到下一页。
+    #[inline]
+    unsafe fn next_unchecked(&self, f: impl Fn(PPN<Meta>) -> VPN<Meta>) -> &'static mut Self {
+        Self::from_ppn(self.next.get().unwrap(), f)
     }
 
     /// 清零物理页。
