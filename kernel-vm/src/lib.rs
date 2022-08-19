@@ -1,15 +1,19 @@
 //! 内核虚存管理。
 
 #![no_std]
+#![feature(ptr_metadata)]
 #![deny(warnings, missing_docs)]
 
+mod deque;
 mod frame_queue;
 
 use core::ops::Range;
-use frame_queue::FrameQueue;
 use page_table::{VmMeta, PPN, VPN};
 
 pub extern crate page_table;
+
+pub use deque::Deque;
+pub use frame_queue::{FrameInfo, FrameQueue};
 
 /// 页帧分配器。
 pub trait FrameAllocator<Meta: VmMeta>: Sized {

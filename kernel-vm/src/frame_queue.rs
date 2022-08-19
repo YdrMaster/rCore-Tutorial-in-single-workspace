@@ -31,7 +31,7 @@ pub struct FrameInfo<Meta: VmMeta> {
 
 impl<Meta: VmMeta> FrameInfo<Meta> {
     #[inline]
-    pub unsafe fn deallocate_to<A: FrameAllocator<Meta>>(&self, a: &A) {
+    unsafe fn deallocate_to<A: FrameAllocator<Meta>>(&self, a: &A) {
         let len = self.count * Meta::pages_in_table(self.level);
         a.deallocate(self.ppn..self.ppn + len);
     }
