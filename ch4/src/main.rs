@@ -1,10 +1,14 @@
 #![no_std]
 #![no_main]
 #![feature(naked_functions, asm_sym, asm_const)]
-// #![deny(warnings)]
+#![feature(default_alloc_error_handler)]
+#![deny(warnings)]
 
-// #[macro_use]
-// extern crate output;
+#[macro_use]
+extern crate output;
+
+#[macro_use]
+extern crate alloc;
 
 use impls::Console;
 use output::log;
@@ -64,6 +68,15 @@ extern "C" fn rust_main() -> ! {
     log::info!("__rodata -----> {:#10x}", __rodata as usize);
     log::info!("__data -------> {:#10x}", __data as usize);
     log::info!("__end --------> {:#10x}", __end as usize);
+    println!();
+    mm::init();
+    {
+        let mut vec = vec![0; 256];
+        for (i, val) in vec.iter_mut().enumerate() {
+            *val = i;
+        }
+        println!("{vec:?}");
+    }
 
     system_reset(RESET_TYPE_SHUTDOWN, RESET_REASON_NO_REASON);
     unreachable!()
@@ -85,6 +98,67 @@ mod impls {
         fn put_char(&self, c: u8) {
             #[allow(deprecated)]
             sbi_rt::legacy::console_putchar(c as _);
+        }
+    }
+}
+
+mod mm {
+    use alloc::alloc::handle_alloc_error;
+    use buddy_allocator::{BuddyAllocator, LinkedListBuddy, UsizeBuddy};
+    use core::{
+        alloc::{GlobalAlloc, Layout},
+        cell::RefCell,
+        ptr::NonNull,
+    };
+
+    pub fn init() {
+        let ptr = NonNull::new(unsafe { MEMORY.as_mut_ptr() }).unwrap();
+        let len = core::mem::size_of_val(unsafe { &MEMORY });
+        unsafe { GLOBAL.init(12, ptr) };
+        unsafe { GLOBAL.transfer(ptr, len) };
+        ALLOC.0.borrow_mut().init(3, ptr);
+    }
+
+    #[repr(C, align(4096))]
+    struct Page([u8; 4096]);
+
+    impl Page {
+        const ZERO: Self = Self([0; 4096]);
+    }
+
+    /// 托管空间 8 MiB
+    static mut MEMORY: [Page; 2048] = [Page::ZERO; 2048];
+    static mut GLOBAL: MutAllocator<5> = MutAllocator::<5>::new();
+
+    type MutAllocator<const N: usize> = BuddyAllocator<N, UsizeBuddy, LinkedListBuddy>;
+
+    #[global_allocator]
+    static ALLOC: SharedAllocator<22> = SharedAllocator(RefCell::new(MutAllocator::new()));
+
+    unsafe impl<const N: usize> Sync for SharedAllocator<N> {}
+
+    struct SharedAllocator<const N: usize>(RefCell<MutAllocator<N>>);
+
+    unsafe impl<const N: usize> GlobalAlloc for SharedAllocator<N> {
+        #[inline]
+        unsafe fn alloc(&self, layout: Layout) -> *mut u8 {
+            let mut inner = self.0.borrow_mut();
+            loop {
+                if let Ok((ptr, _)) = inner.allocate::<u8>(layout) {
+                    return ptr.as_ptr();
+                } else if let Ok((ptr, size)) = unsafe { GLOBAL.allocate::<u8>(layout) } {
+                    inner.transfer(ptr, size);
+                } else {
+                    handle_alloc_error(layout)
+                }
+            }
+        }
+
+        #[inline]
+        unsafe fn dealloc(&self, ptr: *mut u8, layout: Layout) {
+            self.0
+                .borrow_mut()
+                .deallocate(NonNull::new(ptr).unwrap(), layout.size())
         }
     }
 }

@@ -38,6 +38,11 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "bef38d45163c2f1dde094a7dfd33ccf595c92905c8f8f4fdc18d06fb1037718a"
 
 [[package]]
+name = "buddy-allocator"
+version = "0.0.1"
+source = "git+https://github.com/YdrMaster/buddy-allocator?rev=5ac08b8#5ac08b82fb1a200b50460ef70e244a39938eaba8"
+
+[[package]]
 name = "cfg-if"
 version = "1.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -88,9 +93,10 @@ dependencies = [
 name = "ch4"
 version = "0.0.1"
 dependencies = [
+ "buddy-allocator",
  "kernel-context",
- "kernel-vm",
  "output",
+ "page-table",
  "r0",
  "riscv",
  "sbi-rt",
@@ -270,7 +276,7 @@ dependencies = [
 [[package]]
 name = "page-table"
 version = "0.0.4"
-source = "git+https://github.com/YdrMaster/page-table.git?rev=534105a#534105aa373470d190df242b41892051f1916b0d"
+source = "git+https://github.com/YdrMaster/page-table?rev=534105a#534105aa373470d190df242b41892051f1916b0d"
 dependencies = [
  "cfg-if",
  "static_assertions",
@@ -359,15 +365,15 @@ checksum = "d29ab0c6d3fc0ee92fe66e2d99f700eab17a8d57d1c1d3b748380fb20baa78cd"
 
 [[package]]
 name = "serde"
-version = "1.0.143"
+version = "1.0.144"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "53e8e5d5b70924f74ff5c6d64d9a5acd91422117c60f48c4e07855238a254553"
+checksum = "0f747710de3dcd43b88c9168773254e809d8ddbdf9653b84e2554ab219f17860"
 
 [[package]]
 name = "serde_derive"
-version = "1.0.143"
+version = "1.0.144"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d3d8e8de557aee63c26b85b947f5e59b690d0454c753f3adeb5cd7835ab88391"
+checksum = "94ed3a816fb1d101812f83e789f888322c34e291f894f19590dc310963e87a00"
 dependencies = [
  "proc-macro2",
  "quote",
