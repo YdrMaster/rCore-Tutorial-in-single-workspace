@@ -28,7 +28,7 @@ use crate::{mm::Page, page_table::KernelSpaceBuilder};
 #[no_mangle]
 #[link_section = ".text.entry"]
 unsafe extern "C" fn _start() -> ! {
-    const STACK_SIZE: usize = 2 * 4096;
+    const STACK_SIZE: usize = 4 * 4096;
 
     #[link_section = ".bss.uninit"]
     static mut STACK: [u8; STACK_SIZE] = [0u8; STACK_SIZE];
@@ -74,26 +74,33 @@ extern "C" fn rust_main() -> ! {
     log::info!("__end --------> {:#10x}", __end as usize);
     println!();
     mm::init();
+
+    {
+        let kernel_root = Page::ZERO;
+        let kernel_root = VAddr::<Sv39>::new(kernel_root.addr());
+        let table = unsafe {
+            PageTable::<Sv39>::from_raw_parts(
+                kernel_root.val() as *mut _,
+                VPN::ZERO,
+                Sv39::MAX_LEVEL,
+            )
+        };
+        let mut shuttle = PageTableShuttle {
+            table,
+            f: |ppn| VPN::new(ppn.val()),
+        };
+        shuttle.walk_mut(KernelSpaceBuilder);
+        // println!("{shuttle:?}");
+        unsafe { satp::set(satp::Mode::Sv39, 0, kernel_root.floor().val()) };
+    }
     {
         let mut vec = vec![0; 256];
         for (i, val) in vec.iter_mut().enumerate() {
             *val = i;
         }
         println!("{vec:?}");
+        println!();
     }
-    println!();
-    let mut kernel_root = Page::ZERO;
-    let kernel_root = VAddr::<Sv39>::new(kernel_root.addr());
-    let table = unsafe {
-        PageTable::<Sv39>::from_raw_parts(kernel_root.val() as *mut _, VPN::ZERO, Sv39::MAX_LEVEL)
-    };
-    let mut shuttle = PageTableShuttle {
-        table,
-        f: |ppn| VPN::new(ppn.val()),
-    };
-    shuttle.walk_mut(KernelSpaceBuilder);
-    println!("{shuttle:?}");
-    // unsafe { satp::set(satp::Mode::Sv39, 0, kernel_root.floor().val()) };
 
     system_reset(RESET_TYPE_SHUTDOWN, RESET_REASON_NO_REASON);
     unreachable!()
@@ -180,7 +187,7 @@ mod mm {
             loop {
                 if let Ok((ptr, _)) = inner.allocate::<u8>(layout) {
                     return ptr.as_ptr();
-                } else if let Ok((ptr, size)) = unsafe { GLOBAL.allocate::<u8>(layout) } {
+                } else if let Ok((ptr, size)) = GLOBAL.allocate::<u8>(layout) {
                     inner.transfer(ptr, size);
                 } else {
                     handle_alloc_error(layout)
@@ -212,7 +219,9 @@ mod page_table {
         fn arrive(&mut self, pte: &mut Pte<Sv39>, target_hint: Pos<Sv39>) -> Pos<Sv39> {
             let addr = target_hint.vpn.base().val();
             let flags = if addr < __rodata as usize {
-                unsafe { VmFlags::from_raw(0b1011) }
+                unsafe { VmFlags::from_raw(0b1001) }
+            } else if addr < __trampoline as usize {
+                unsafe { VmFlags::from_raw(0b1111) }
             } else if addr < __data as usize {
                 unsafe { VmFlags::from_raw(0b0011) }
             } else if addr < __end as usize {
