@@ -2,7 +2,7 @@
 #![no_main]
 #![feature(naked_functions, asm_sym, asm_const)]
 #![feature(default_alloc_error_handler)]
-#![deny(warnings)]
+// #![deny(warnings)]
 
 #[macro_use]
 extern crate output;
@@ -10,9 +10,13 @@ extern crate output;
 #[macro_use]
 extern crate alloc;
 
+use ::page_table::{PageTable, PageTableShuttle, Sv39, VAddr, VmMeta, VPN};
 use impls::Console;
 use output::log;
+use riscv::register::satp;
 use sbi_rt::*;
+
+use crate::{mm::Page, page_table::KernelSpaceBuilder};
 
 // 应用程序内联进来。
 // core::arch::global_asm!(include_str!(env!("APP_ASM")));
@@ -77,6 +81,19 @@ extern "C" fn rust_main() -> ! {
         }
         println!("{vec:?}");
     }
+    println!();
+    let mut kernel_root = Page::ZERO;
+    let kernel_root = VAddr::<Sv39>::new(kernel_root.addr());
+    let table = unsafe {
+        PageTable::<Sv39>::from_raw_parts(kernel_root.val() as *mut _, VPN::ZERO, Sv39::MAX_LEVEL)
+    };
+    let mut shuttle = PageTableShuttle {
+        table,
+        f: |ppn| VPN::new(ppn.val()),
+    };
+    shuttle.walk_mut(KernelSpaceBuilder);
+    println!("{shuttle:?}");
+    // unsafe { satp::set(satp::Mode::Sv39, 0, kernel_root.floor().val()) };
 
     system_reset(RESET_TYPE_SHUTDOWN, RESET_REASON_NO_REASON);
     unreachable!()
@@ -111,34 +128,51 @@ mod mm {
         ptr::NonNull,
     };
 
+    /// 初始化全局分配器和内核堆分配器。
     pub fn init() {
-        let ptr = NonNull::new(unsafe { MEMORY.as_mut_ptr() }).unwrap();
-        let len = core::mem::size_of_val(unsafe { &MEMORY });
-        unsafe { GLOBAL.init(12, ptr) };
-        unsafe { GLOBAL.transfer(ptr, len) };
-        ALLOC.0.borrow_mut().init(3, ptr);
+        unsafe {
+            let ptr = NonNull::new(MEMORY.as_mut_ptr()).unwrap();
+            let len = core::mem::size_of_val(&MEMORY);
+            println!(
+                "MEMORY = {:#x}..{:#x}",
+                ptr.as_ptr() as usize,
+                ptr.as_ptr() as usize + len
+            );
+            GLOBAL.init(12, ptr);
+            GLOBAL.transfer(ptr, len);
+            ALLOC.0.borrow_mut().init(3, ptr);
+        }
+    }
+
+    /// 获取全局分配器。
+    #[inline]
+    pub unsafe fn global() -> &'static mut MutAllocator<5> {
+        &mut GLOBAL
     }
 
     #[repr(C, align(4096))]
-    struct Page([u8; 4096]);
+    pub struct Page([u8; 4096]);
 
     impl Page {
-        const ZERO: Self = Self([0; 4096]);
+        pub const ZERO: Self = Self([0; 4096]);
+        pub const LAYOUT: Layout = Layout::new::<Self>();
+
+        #[inline]
+        pub fn addr(&self) -> usize {
+            self as *const _ as _
+        }
     }
 
-    /// 托管空间 8 MiB
-    static mut MEMORY: [Page; 2048] = [Page::ZERO; 2048];
+    /// 托管空间 2 MiB
+    static mut MEMORY: [Page; 512] = [Page::ZERO; 512];
     static mut GLOBAL: MutAllocator<5> = MutAllocator::<5>::new();
-
-    type MutAllocator<const N: usize> = BuddyAllocator<N, UsizeBuddy, LinkedListBuddy>;
-
     #[global_allocator]
     static ALLOC: SharedAllocator<22> = SharedAllocator(RefCell::new(MutAllocator::new()));
 
-    unsafe impl<const N: usize> Sync for SharedAllocator<N> {}
+    type MutAllocator<const N: usize> = BuddyAllocator<N, UsizeBuddy, LinkedListBuddy>;
 
     struct SharedAllocator<const N: usize>(RefCell<MutAllocator<N>>);
-
+    unsafe impl<const N: usize> Sync for SharedAllocator<N> {}
     unsafe impl<const N: usize> GlobalAlloc for SharedAllocator<N> {
         #[inline]
         unsafe fn alloc(&self, layout: Layout) -> *mut u8 {
@@ -160,5 +194,56 @@ mod mm {
                 .borrow_mut()
                 .deallocate(NonNull::new(ptr).unwrap(), layout.size())
         }
+    }
+}
+
+mod page_table {
+    use crate::mm::{global, Page};
+    use page_table::{Pos, Pte, Sv39, Update, VAddr, VisitorMut, VmFlags, PPN};
+
+    pub struct KernelSpaceBuilder;
+
+    impl VisitorMut<Sv39> for KernelSpaceBuilder {
+        #[inline]
+        fn start(&mut self, _: Pos<Sv39>) -> Pos<Sv39> {
+            Pos::new(VAddr::new(__text as usize).floor(), 0)
+        }
+
+        fn arrive(&mut self, pte: &mut Pte<Sv39>, target_hint: Pos<Sv39>) -> Pos<Sv39> {
+            let addr = target_hint.vpn.base().val();
+            let flags = if addr < __rodata as usize {
+                unsafe { VmFlags::from_raw(0b1011) }
+            } else if addr < __data as usize {
+                unsafe { VmFlags::from_raw(0b0011) }
+            } else if addr < __end as usize {
+                unsafe { VmFlags::from_raw(0b0111) }
+            } else {
+                return Pos::stop();
+            };
+            *pte = flags.build_pte(PPN::new(target_hint.vpn.val()));
+            target_hint.next()
+        }
+
+        fn meet(
+            &mut self,
+            _level: usize,
+            _pte: Pte<Sv39>,
+            _target_hint: Pos<Sv39>,
+        ) -> Update<Sv39> {
+            const MIDDLE: VmFlags<Sv39> = unsafe { VmFlags::from_raw(1) };
+            let (ptr, size) = unsafe { global() }.allocate::<Page>(Page::LAYOUT).unwrap();
+            assert_eq!(size, Page::LAYOUT.size());
+            let vpn = VAddr::new(ptr.as_ptr() as _).floor();
+            let ppn = PPN::new(vpn.val());
+            Update::Pte(MIDDLE.build_pte(ppn), vpn)
+        }
+    }
+
+    extern "C" {
+        fn __text();
+        fn __trampoline();
+        fn __rodata();
+        fn __data();
+        fn __end();
     }
 }
