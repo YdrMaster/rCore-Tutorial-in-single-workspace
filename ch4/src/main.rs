@@ -13,7 +13,7 @@ extern crate alloc;
 use self::page_table::KernelSpaceBuilder;
 use ::page_table::{PageTable, PageTableShuttle, Sv39, VAddr, VmMeta, VPN};
 use impls::Console;
-use kernel_context::{transit_main, Context, ForeignContext, TransitKernel};
+use kernel_context::{transit_main, TransitKernel};
 use output::log;
 use riscv::register::satp;
 use sbi_rt::*;
@@ -48,14 +48,7 @@ unsafe extern "C" fn _start() -> ! {
 
 /// 中转内核。
 #[link_section = ".transit"]
-static mut TRANSIT_KERNEL: TransitKernel = TransitKernel {
-    shared_context: ForeignContext {
-        satp: 0,
-        context: Context::new(0),
-    },
-    execute_copy: [0; 128],
-    trap_copy: [0; 128],
-};
+static mut TRANSIT_KERNEL: TransitKernel = TransitKernel::new();
 
 extern "C" fn rust_main() -> ! {
     // bss 段清零
@@ -84,6 +77,7 @@ extern "C" fn rust_main() -> ! {
     println!();
     mm::init();
 
+    // 内核地址空间
     {
         let kernel_root = mm::Page::ZERO;
         let kernel_root = VAddr::<Sv39>::new(kernel_root.addr());
@@ -102,6 +96,7 @@ extern "C" fn rust_main() -> ! {
         // println!("{shuttle:?}");
         unsafe { satp::set(satp::Mode::Sv39, 0, kernel_root.floor().val()) };
     }
+    // 测试内核堆分配
     {
         let mut vec = vec![0; 256];
         for (i, val) in vec.iter_mut().enumerate() {
@@ -110,7 +105,7 @@ extern "C" fn rust_main() -> ! {
         println!("{vec:?}");
         println!();
     }
-    // 运行时定位两个重要的函数
+    // 中转内核初始化
     unsafe {
         TRANSIT_KERNEL.init();
         println!(

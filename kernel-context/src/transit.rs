@@ -58,7 +58,10 @@ impl TransitKernel {
 
         // sret + unimp
         let execute = locate_function(crate::execute as _, [0x0073, 0x1020, 0x0000]);
-        assert!(size_of_val(&self.execute_copy) >= execute.len());
+        assert!(
+            size_of_val(&self.execute_copy) >= execute.len(),
+            "`execute_copy` is too small in transit kernel"
+        );
         self.execute_copy
             .as_mut_ptr()
             .cast::<u8>()
@@ -66,7 +69,10 @@ impl TransitKernel {
 
         // ret + unimp
         let trap = locate_function(crate::trap as _, [0x8082, 0x0000]);
-        assert!(size_of_val(&self.trap_copy) >= trap.len());
+        assert!(
+            size_of_val(&self.trap_copy) >= trap.len(),
+            "`trap_copy` is too small in transit kernel"
+        );
         self.trap_copy
             .as_mut_ptr()
             .cast::<u8>()
