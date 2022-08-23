@@ -11,7 +11,6 @@ members = [
     "syscall",
     "kernel-context",
     "kernel-vm",
-    "idx-alloc",
     "utils",
 ]
 default-members = ["xtask"]

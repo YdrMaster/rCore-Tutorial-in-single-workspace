@@ -2,7 +2,7 @@
 #![no_main]
 #![feature(naked_functions, asm_sym, asm_const)]
 #![feature(default_alloc_error_handler)]
-// #![deny(warnings)]
+#![deny(warnings)]
 
 #[macro_use]
 extern crate output;
@@ -10,13 +10,12 @@ extern crate output;
 #[macro_use]
 extern crate alloc;
 
+use self::page_table::KernelSpaceBuilder;
 use ::page_table::{PageTable, PageTableShuttle, Sv39, VAddr, VmMeta, VPN};
 use impls::Console;
 use output::log;
 use riscv::register::satp;
 use sbi_rt::*;
-
-use crate::{mm::Page, page_table::KernelSpaceBuilder};
 
 // 应用程序内联进来。
 // core::arch::global_asm!(include_str!(env!("APP_ASM")));
@@ -76,7 +75,7 @@ extern "C" fn rust_main() -> ! {
     mm::init();
 
     {
-        let kernel_root = Page::ZERO;
+        let kernel_root = mm::Page::ZERO;
         let kernel_root = VAddr::<Sv39>::new(kernel_root.addr());
         let table = unsafe {
             PageTable::<Sv39>::from_raw_parts(
@@ -218,18 +217,18 @@ mod page_table {
 
         fn arrive(&mut self, pte: &mut Pte<Sv39>, target_hint: Pos<Sv39>) -> Pos<Sv39> {
             let addr = target_hint.vpn.base().val();
-            let flags = if addr < __rodata as usize {
-                unsafe { VmFlags::from_raw(0b1001) }
+            let bits = if addr < __rodata as usize {
+                0b1001 // X__V <- .text
             } else if addr < __trampoline as usize {
-                unsafe { VmFlags::from_raw(0b1111) }
+                0b1111 // XWRV <- .trampline
             } else if addr < __data as usize {
-                unsafe { VmFlags::from_raw(0b0011) }
+                0b0011 // __RV <- .rodata
             } else if addr < __end as usize {
-                unsafe { VmFlags::from_raw(0b0111) }
+                0b0111 // _WRV <- .data + .bss
             } else {
-                return Pos::stop();
+                return Pos::stop(); // end of kernel sections
             };
-            *pte = flags.build_pte(PPN::new(target_hint.vpn.val()));
+            *pte = unsafe { VmFlags::from_raw(bits) }.build_pte(PPN::new(target_hint.vpn.val()));
             target_hint.next()
         }
 
@@ -239,12 +238,11 @@ mod page_table {
             _pte: Pte<Sv39>,
             _target_hint: Pos<Sv39>,
         ) -> Update<Sv39> {
-            const MIDDLE: VmFlags<Sv39> = unsafe { VmFlags::from_raw(1) };
             let (ptr, size) = unsafe { global() }.allocate::<Page>(Page::LAYOUT).unwrap();
             assert_eq!(size, Page::LAYOUT.size());
             let vpn = VAddr::new(ptr.as_ptr() as _).floor();
             let ppn = PPN::new(vpn.val());
-            Update::Pte(MIDDLE.build_pte(ppn), vpn)
+            Update::Pte(unsafe { VmFlags::from_raw(1) }.build_pte(ppn), vpn)
         }
     }
 
