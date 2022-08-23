@@ -100,6 +100,23 @@ extern "C" fn rust_main() -> ! {
         println!("{vec:?}");
         println!();
     }
+    // 运行时定位两个重要的函数
+    {
+        let execute = kernel_context::locate_execute();
+        println!(
+            "execute: {:#010x}..{:#010x}({})",
+            execute.as_ptr() as usize,
+            execute.as_ptr() as usize + execute.len(),
+            execute.len(),
+        );
+        let trap = kernel_context::locate_trap();
+        println!(
+            "trap:    {:#010x}..{:#010x}({})",
+            trap.as_ptr() as usize,
+            trap.as_ptr() as usize + trap.len(),
+            trap.len(),
+        );
+    }
 
     system_reset(RESET_TYPE_SHUTDOWN, RESET_REASON_NO_REASON);
     unreachable!()
@@ -169,8 +186,8 @@ mod mm {
         }
     }
 
-    /// 托管空间 2 MiB
-    static mut MEMORY: [Page; 512] = [Page::ZERO; 512];
+    /// 托管空间 4 MiB
+    static mut MEMORY: [Page; 1024] = [Page::ZERO; 1024];
     static mut GLOBAL: MutAllocator<5> = MutAllocator::<5>::new();
     #[global_allocator]
     static ALLOC: SharedAllocator<22> = SharedAllocator(RefCell::new(MutAllocator::new()));
@@ -215,10 +232,11 @@ mod page_table {
             Pos::new(VAddr::new(__text as usize).floor(), 0)
         }
 
+        #[inline]
         fn arrive(&mut self, pte: &mut Pte<Sv39>, target_hint: Pos<Sv39>) -> Pos<Sv39> {
             let addr = target_hint.vpn.base().val();
             let bits = if addr < __rodata as usize {
-                0b1001 // X__V <- .text
+                0b1011 // X_RV <- .text
             } else if addr < __trampoline as usize {
                 0b1111 // XWRV <- .trampline
             } else if addr < __data as usize {
@@ -232,6 +250,7 @@ mod page_table {
             target_hint.next()
         }
 
+        #[inline]
         fn meet(
             &mut self,
             _level: usize,
