@@ -48,7 +48,7 @@ unsafe extern "C" fn _start() -> ! {
 
 /// 中转内核。
 #[link_section = ".transit"]
-static _TRANSIT_KERNEL: TransitKernel = TransitKernel {
+static mut TRANSIT_KERNEL: TransitKernel = TransitKernel {
     shared_context: ForeignContext {
         satp: 0,
         context: Context::new(0),
@@ -111,21 +111,13 @@ extern "C" fn rust_main() -> ! {
         println!();
     }
     // 运行时定位两个重要的函数
-    {
-        let execute = kernel_context::locate_execute();
-        let trap = kernel_context::locate_trap();
+    unsafe {
+        TRANSIT_KERNEL.init();
         println!(
             "\
-execute       | {:#010x}..{:#010x}({})
-trap          | {:#010x}..{:#010x}({})
+transit       | {:#x}
 transit main  | {:#x}",
-            execute.as_ptr() as usize,
-            execute.as_ptr() as usize + execute.len(),
-            execute.len(),
-            trap.as_ptr() as usize,
-            trap.as_ptr() as usize + trap.len(),
-            trap.len(),
-            transit_main as usize,
+            &TRANSIT_KERNEL as *const _ as usize, transit_main as usize,
         );
     }
 
@@ -197,8 +189,8 @@ mod mm {
         }
     }
 
-    /// 托管空间 4 MiB
-    static mut MEMORY: [Page; 1024] = [Page::ZERO; 1024];
+    /// 托管空间 1 MiB
+    static mut MEMORY: [Page; 256] = [Page::ZERO; 256];
     static mut GLOBAL: MutAllocator<5> = MutAllocator::<5>::new();
     #[global_allocator]
     static ALLOC: SharedAllocator<22> = SharedAllocator(RefCell::new(MutAllocator::new()));
@@ -246,9 +238,9 @@ mod page_table {
         #[inline]
         fn arrive(&mut self, pte: &mut Pte<Sv39>, target_hint: Pos<Sv39>) -> Pos<Sv39> {
             let addr = target_hint.vpn.base().val();
-            let bits = if addr < __rodata as usize {
+            let bits = if addr < __transit as usize {
                 0b1011 // X_RV <- .text
-            } else if addr < __transit as usize {
+            } else if addr < __rodata as usize {
                 0b1111 // XWRV <- .trampline
             } else if addr < __data as usize {
                 0b0011 // __RV <- .rodata

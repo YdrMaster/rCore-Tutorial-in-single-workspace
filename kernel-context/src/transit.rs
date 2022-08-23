@@ -1,19 +1,5 @@
 ﻿use crate::Context;
 
-/// 运行时定位 `locate` 函数。
-#[inline]
-pub fn locate_execute() -> &'static [u8] {
-    // sret + unimp
-    unsafe { locate_function(crate::execute as _, [0x0073, 0x1020, 0x0000]) }
-}
-
-/// 运行时定位 `trap` 函数。
-#[inline]
-pub fn locate_trap() -> &'static [u8] {
-    // ret + unimp
-    unsafe { locate_function(crate::trap as _, [0x8082, 0x0000]) }
-}
-
 /// 中转内核布局。
 #[repr(C)]
 pub struct TransitKernel {
@@ -51,6 +37,41 @@ pub extern "C" fn transit_main(
     _trap_copy: unsafe extern "C" fn(),
 ) {
     todo!()
+}
+
+impl TransitKernel {
+    /// 构造空白的中转内核。
+    pub const fn new() -> Self {
+        Self {
+            shared_context: ForeignContext {
+                satp: 0,
+                context: Context::new(0),
+            },
+            execute_copy: [0; 128],
+            trap_copy: [0; 128],
+        }
+    }
+
+    /// 中转内核运行时初始化。
+    pub unsafe fn init(&mut self) {
+        use core::mem::size_of_val;
+
+        // sret + unimp
+        let execute = locate_function(crate::execute as _, [0x0073, 0x1020, 0x0000]);
+        assert!(size_of_val(&self.execute_copy) >= execute.len());
+        self.execute_copy
+            .as_mut_ptr()
+            .cast::<u8>()
+            .copy_from_nonoverlapping(execute.as_ptr(), execute.len());
+
+        // ret + unimp
+        let trap = locate_function(crate::trap as _, [0x8082, 0x0000]);
+        assert!(size_of_val(&self.trap_copy) >= trap.len());
+        self.trap_copy
+            .as_mut_ptr()
+            .cast::<u8>()
+            .copy_from_nonoverlapping(trap.as_ptr(), trap.len());
+    }
 }
 
 /// 通过寻找结尾的指令在运行时定位一个函数。

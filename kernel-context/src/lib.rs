@@ -4,9 +4,9 @@
 #![feature(naked_functions, asm_sym, asm_const)]
 #![deny(warnings, missing_docs)]
 
-mod address_space;
+mod transit;
 
-pub use address_space::{locate_execute, locate_trap, transit_main, ForeignContext, TransitKernel};
+pub use transit::{transit_main, ForeignContext, TransitKernel};
 
 use core::arch::asm;
 
