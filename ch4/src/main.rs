@@ -13,7 +13,7 @@ extern crate alloc;
 use self::page_table::KernelSpaceBuilder;
 use ::page_table::{PageTable, PageTableShuttle, Sv39, VAddr, VmMeta, VPN};
 use impls::Console;
-use kernel_context::{transit_main, TransitKernel};
+use kernel_context::foreign::{executor_main_rust, ForeignExecutor, RustForeignExecutor};
 use output::log;
 use riscv::register::satp;
 use sbi_rt::*;
@@ -48,7 +48,7 @@ unsafe extern "C" fn _start() -> ! {
 
 /// 中转内核。
 #[link_section = ".transit"]
-static mut TRANSIT_KERNEL: TransitKernel = TransitKernel::new();
+static mut TRANSIT_KERNEL: RustForeignExecutor = RustForeignExecutor::new();
 
 extern "C" fn rust_main() -> ! {
     // bss 段清零
@@ -107,12 +107,12 @@ extern "C" fn rust_main() -> ! {
     }
     // 中转内核初始化
     unsafe {
-        TRANSIT_KERNEL.init();
+        TRANSIT_KERNEL.init(0usize.wrapping_sub(0x1000));
         println!(
             "\
-transit       | {:#x}
-transit main  | {:#x}",
-            &TRANSIT_KERNEL as *const _ as usize, transit_main as usize,
+transit      | {:#x}
+transit main | {:#x}",
+            &TRANSIT_KERNEL as *const _ as usize, executor_main_rust as usize,
         );
     }
 

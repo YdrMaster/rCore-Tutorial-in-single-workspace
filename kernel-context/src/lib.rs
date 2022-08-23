@@ -4,9 +4,8 @@
 #![feature(naked_functions, asm_sym, asm_const)]
 #![deny(warnings, missing_docs)]
 
-mod transit;
-
-pub use transit::{transit_main, ForeignContext, TransitKernel};
+/// 不同地址空间的上下文控制。
+pub mod foreign;
 
 use core::arch::asm;
 
@@ -65,6 +64,14 @@ impl Context {
         self.load_sstatus();
         self.set_privilege(Previlege::User);
         self.set_interrupt(true);
+    }
+
+    /// 设置一个标准的执行器上下文，在当前状态基础上具有内核特权级并关闭中断。
+    #[inline]
+    pub fn set_sstatus_as_executor(&mut self) {
+        self.load_sstatus();
+        self.set_privilege(Previlege::Supervisor);
+        self.set_interrupt(false);
     }
 
     /// 读取用户通用寄存器。

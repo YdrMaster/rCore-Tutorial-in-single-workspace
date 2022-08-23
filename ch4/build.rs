@@ -24,7 +24,7 @@ SECTIONS {
     __transit = .;
     .transit : {
         KEEP(*(.transit))
-        KEEP(*(.transit.entry))
+        KEEP(*(.transit.entry .transit.entry.*))
         . = __transit + 4K;
         __transit_end = .;
     }
