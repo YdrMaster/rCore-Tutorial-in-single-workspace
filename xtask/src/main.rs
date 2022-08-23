@@ -9,6 +9,7 @@ use once_cell::sync::Lazy;
 use std::{
     collections::HashMap,
     ffi::OsString,
+    fs,
     path::{Path, PathBuf},
 };
 
@@ -30,6 +31,7 @@ struct Cli {
 #[derive(Subcommand)]
 enum Commands {
     Make(BuildArgs),
+    Asm(AsmArgs),
     Qemu(QemuArgs),
 }
 
@@ -39,6 +41,7 @@ fn main() {
         Make(args) => {
             let _ = args.make();
         }
+        Asm(args) => args.dump(),
         Qemu(args) => args.run(),
     }
 }
@@ -99,11 +102,30 @@ impl BuildArgs {
             build.env(key, value);
         }
         build.invoke();
-        // 裁剪
-        let elf = TARGET
+        TARGET
             .join(if self.release { "release" } else { "debug" })
-            .join(package);
-        objcopy(elf, true)
+            .join(package)
+    }
+}
+
+#[derive(Args)]
+struct AsmArgs {
+    #[clap(flatten)]
+    build: BuildArgs,
+    /// Output file.
+    #[clap(short, long)]
+    output: Option<String>,
+}
+
+impl AsmArgs {
+    fn dump(self) {
+        let elf = self.build.make();
+        let out = Path::new(std::env!("CARGO_MANIFEST_DIR"))
+            .parent()
+            .unwrap()
+            .join(self.output.unwrap_or(format!("ch{}.asm", self.build.ch)));
+        println!("Asm file dumps to '{}'.", out.display());
+        fs::write(out, BinUtil::objdump().arg(elf).arg("-d").output().stdout).unwrap();
     }
 }
 
@@ -124,7 +146,7 @@ struct QemuArgs {
 
 impl QemuArgs {
     fn run(self) {
-        let bin = self.build.make();
+        let elf = self.build.make();
         if let Some(p) = &self.qemu_dir {
             Qemu::search_at(p);
         }
@@ -133,7 +155,7 @@ impl QemuArgs {
             .arg("-bios")
             .arg(PROJECT.join("rustsbi-qemu.bin"))
             .arg("-kernel")
-            .arg(bin)
+            .arg(objcopy(elf, true))
             .args(&["-smp", &self.smp.unwrap_or(1).to_string()])
             .args(&["-serial", "mon:stdio"])
             .arg("-nographic")
