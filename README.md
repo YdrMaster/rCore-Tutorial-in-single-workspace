@@ -59,12 +59,11 @@ rCore-Tutorial-v3 的教材部分别出心裁地为每一章取了一种古生�
 
 - `--lab` 只对 ch1 有效，执行 ch1-lab
 - `--features <features>` 只对 ch3 有效，传入 features=coop
-- **--lab** 只对 ch1 有效，执行 ch1-lab
+- `--lab` 只对 ch1 有效，执行 ch1-lab
 
 ## 设计稿
 
 - [crate 分类](docs/design/20220814-crate-types.md)
-- [虚存抽象](docs/design/20220814-vm.md)
 
 ## 进度
 
