@@ -13,6 +13,7 @@ extern crate alloc;
 use self::page_table::KernelSpaceBuilder;
 use ::page_table::{PageTable, PageTableShuttle, Sv39, VAddr, VmMeta, VPN};
 use impls::Console;
+use kernel_context::{transit_main, Context, ForeignContext, TransitKernel};
 use output::log;
 use riscv::register::satp;
 use sbi_rt::*;
@@ -45,6 +46,17 @@ unsafe extern "C" fn _start() -> ! {
     )
 }
 
+/// 中转内核。
+#[link_section = ".transit"]
+static _TRANSIT_KERNEL: TransitKernel = TransitKernel {
+    shared_context: ForeignContext {
+        satp: 0,
+        context: Context::new(0),
+    },
+    execute_copy: [0; 128],
+    trap_copy: [0; 128],
+};
+
 extern "C" fn rust_main() -> ! {
     // bss 段清零
     extern "C" {
@@ -57,20 +69,18 @@ extern "C" fn rust_main() -> ! {
     output::set_log_level(option_env!("LOG"));
     utils::test_log();
     // 打印段位置
-    #[link_section = ".trampoline"]
-    static _PLACE_HOLDER: u8 = 0;
     extern "C" {
         fn __text();
-        fn __trampoline();
+        fn __transit();
         fn __rodata();
         fn __data();
         fn __end();
     }
-    log::info!("__text -------> {:#10x}", __text as usize);
-    log::info!("__trampoline -> {:#10x}", __trampoline as usize);
-    log::info!("__rodata -----> {:#10x}", __rodata as usize);
-    log::info!("__data -------> {:#10x}", __data as usize);
-    log::info!("__end --------> {:#10x}", __end as usize);
+    log::info!("__text ----> {:#10x}", __text as usize);
+    log::info!("__transit -> {:#10x}", __transit as usize);
+    log::info!("__rodata --> {:#10x}", __rodata as usize);
+    log::info!("__data ----> {:#10x}", __data as usize);
+    log::info!("__end -----> {:#10x}", __end as usize);
     println!();
     mm::init();
 
@@ -103,18 +113,19 @@ extern "C" fn rust_main() -> ! {
     // 运行时定位两个重要的函数
     {
         let execute = kernel_context::locate_execute();
+        let trap = kernel_context::locate_trap();
         println!(
-            "execute: {:#010x}..{:#010x}({})",
+            "\
+execute       | {:#010x}..{:#010x}({})
+trap          | {:#010x}..{:#010x}({})
+transit main  | {:#x}",
             execute.as_ptr() as usize,
             execute.as_ptr() as usize + execute.len(),
             execute.len(),
-        );
-        let trap = kernel_context::locate_trap();
-        println!(
-            "trap:    {:#010x}..{:#010x}({})",
             trap.as_ptr() as usize,
             trap.as_ptr() as usize + trap.len(),
             trap.len(),
+            transit_main as usize,
         );
     }
 
@@ -237,7 +248,7 @@ mod page_table {
             let addr = target_hint.vpn.base().val();
             let bits = if addr < __rodata as usize {
                 0b1011 // X_RV <- .text
-            } else if addr < __trampoline as usize {
+            } else if addr < __transit as usize {
                 0b1111 // XWRV <- .trampline
             } else if addr < __data as usize {
                 0b0011 // __RV <- .rodata
@@ -267,7 +278,7 @@ mod page_table {
 
     extern "C" {
         fn __text();
-        fn __trampoline();
+        fn __transit();
         fn __rodata();
         fn __data();
         fn __end();

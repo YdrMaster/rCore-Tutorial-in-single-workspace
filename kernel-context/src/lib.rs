@@ -1,6 +1,12 @@
+//! 内核上下文控制。
+
 #![no_std]
 #![feature(naked_functions, asm_sym, asm_const)]
-#![deny(warnings)]
+#![deny(warnings, missing_docs)]
+
+mod address_space;
+
+pub use address_space::{locate_execute, locate_trap, transit_main, ForeignContext, TransitKernel};
 
 use core::arch::asm;
 
@@ -22,8 +28,11 @@ pub struct KernelContext {
     x: [usize; 31],
 }
 
+/// 任务特权级。
 pub enum Previlege {
+    /// 用户态。
     User,
+    /// 特权态。
     Supervisor,
 }
 
@@ -269,31 +278,4 @@ pub unsafe extern "C" fn trap() {
         ",
         options(noreturn)
     )
-}
-
-/// 通过寻找结尾的指令在运行时定位一个函数。
-unsafe fn locate_function<const N: usize>(entry: usize, key: [u16; N]) -> &'static [u8] {
-    use core::{mem::size_of, slice::from_raw_parts};
-    let entry = entry as *const u16;
-    for len in 1.. {
-        let ptr = entry.add(len);
-        if key == from_raw_parts(ptr, key.len()) {
-            return from_raw_parts(entry.cast(), size_of::<u16>() * (len + key.len()));
-        }
-    }
-    unreachable!()
-}
-
-/// 运行时定位 `locate` 函数。
-#[inline]
-pub fn locate_execute() -> &'static [u8] {
-    // sret + unimp
-    unsafe { locate_function(execute as _, [0x0073, 0x1020, 0x0000]) }
-}
-
-/// 运行时定位 `trap` 函数。
-#[inline]
-pub fn locate_trap() -> &'static [u8] {
-    // ret + unimp
-    unsafe { locate_function(trap as _, [0x8082, 0x0000]) }
 }

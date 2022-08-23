@@ -21,11 +21,12 @@ SECTIONS {
         *(.text .text.*)
     }
     . = ALIGN(4K);
-    __trampoline = .;
-    .trampoline : {
-        KEEP(*(.trampoline))
-        . = __trampoline + 1K;
-        KEEP(*(.trampoline.entry))
+    __transit = .;
+    .transit : {
+        KEEP(*(.transit))
+        KEEP(*(.transit.entry))
+        . = __transit + 4K;
+        __transit_end = .;
     }
     . = ALIGN(4K);
     __rodata = .;
