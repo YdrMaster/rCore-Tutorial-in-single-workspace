@@ -19,9 +19,13 @@ SECTIONS {
     .text : {
         *(.text.entry)
         *(.text .text.*)
-        . = ALIGN(4K);
-        __trampoline = .;
+    }
+    . = ALIGN(4K);
+    __trampoline = .;
+    .trampoline : {
         KEEP(*(.trampoline))
+        . = __trampoline + 1K;
+        KEEP(*(.trampoline.entry))
     }
     . = ALIGN(4K);
     __rodata = .;
