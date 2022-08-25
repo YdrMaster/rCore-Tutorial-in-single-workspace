@@ -13,22 +13,11 @@ pub struct LocalContext {
     sctx: usize,
     x: [usize; 31],
     sepc: usize,
-    /// 线程特权级。
-    pub prev: Previlege,
+    /// 是否以特权态切换。
+    pub supervisor: bool,
     /// 线程中断是否开启。
-    pub intr: bool,
+    pub intrrupt: bool,
 }
-
-/// 任务特权级。
-pub enum Previlege {
-    /// 用户态。
-    User,
-    /// 特权态。
-    Supervisor,
-}
-
-const PREVILEGE_BIT: usize = 1 << 8;
-const INTERRUPT_BIT: usize = 1 << 5;
 
 impl LocalContext {
     /// 创建空白上下文。
@@ -37,8 +26,8 @@ impl LocalContext {
         Self {
             sctx: 0,
             x: [0; 31],
-            prev: Previlege::User,
-            intr: false,
+            supervisor: false,
+            intrrupt: false,
             sepc: 0,
         }
     }
@@ -51,8 +40,8 @@ impl LocalContext {
         Self {
             sctx: 0,
             x: [0; 31],
-            prev: Previlege::User,
-            intr: true,
+            supervisor: false,
+            intrrupt: true,
             sepc: entry,
         }
     }
@@ -122,13 +111,16 @@ impl LocalContext {
     /// 将修改 `sscratch`、`sepc`、`sstatus` 和 `stvec`。
     #[inline]
     pub unsafe fn execute(&mut self) -> usize {
+        const PREVILEGE_BIT: usize = 1 << 8;
+        const INTERRUPT_BIT: usize = 1 << 5;
+
         let mut sstatus: usize;
         core::arch::asm!("csrr {}, sstatus", out(reg) sstatus);
-        match self.prev {
-            Previlege::User => sstatus &= !PREVILEGE_BIT,
-            Previlege::Supervisor => sstatus |= PREVILEGE_BIT,
+        match self.supervisor {
+            false => sstatus &= !PREVILEGE_BIT,
+            true => sstatus |= PREVILEGE_BIT,
         }
-        match self.intr {
+        match self.intrrupt {
             false => sstatus &= !INTERRUPT_BIT,
             true => sstatus |= INTERRUPT_BIT,
         }
@@ -153,9 +145,9 @@ impl LocalContext {
     }
 }
 
-/// 最简线程切换。
+/// 线程切换核心部分。
 ///
-/// 当前通用寄存器压栈，然后从预存在 `sscratch` 里的上下文指针恢复线程通用寄存器。
+/// 通用寄存器压栈，然后从预存在 `sscratch` 里的上下文指针恢复线程通用寄存器。
 ///
 /// # Safety
 ///
@@ -187,6 +179,10 @@ unsafe extern "C" fn execute_naked() {
                     .set n, n+1
                 .endr
             .endm
+        ",
+        // 位置无关加载
+        "   .option push
+            .option pic
         ",
         // 保存调度上下文
         "   addi sp, sp, -32*8
@@ -224,6 +220,7 @@ unsafe extern "C" fn execute_naked() {
         ",
         // 返回调度
         "   ret",
+        "   .option pop",
         options(noreturn)
     )
 }
