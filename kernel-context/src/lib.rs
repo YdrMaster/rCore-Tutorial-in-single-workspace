@@ -2,30 +2,21 @@
 
 #![no_std]
 #![feature(naked_functions, asm_sym, asm_const)]
-// #![deny(warnings, missing_docs)]
+#![deny(warnings, missing_docs)]
 
 // 不同地址空间的上下文控制。
 // pub mod foreign;
 
-use core::arch::asm;
-
-/// 陷入上下文。
+/// 线程上下文。
 #[repr(C)]
-pub struct Context {
+pub struct LocalContext {
     sctx: usize,
     x: [usize; 31],
-    pub prev: Previlege,
-    pub intr: bool,
     sepc: usize,
-}
-
-/// 内核上下文。
-///
-/// 切换到用户态之前会这个结构压在栈上。
-#[repr(C)]
-pub struct KernelContext {
-    uctx: usize,
-    x: [usize; 31],
+    /// 线程特权级。
+    pub prev: Previlege,
+    /// 线程中断是否开启。
+    pub intr: bool,
 }
 
 /// 任务特权级。
@@ -39,7 +30,19 @@ pub enum Previlege {
 const PREVILEGE_BIT: usize = 1 << 8;
 const INTERRUPT_BIT: usize = 1 << 5;
 
-impl Context {
+impl LocalContext {
+    /// 创建空白上下文。
+    #[inline]
+    pub const fn empty() -> Self {
+        Self {
+            sctx: 0,
+            x: [0; 31],
+            prev: Previlege::User,
+            intr: false,
+            sepc: 0,
+        }
+    }
+
     /// 初始化指定入口的用户上下文。
     ///
     /// 切换到用户态时会打开内核中断。
@@ -96,39 +99,6 @@ impl Context {
         self.x_mut(2)
     }
 
-    /// 执行当前上下文。
-    #[inline]
-    pub unsafe fn execute(&mut self) -> usize {
-        let mut sstatus: usize;
-        asm!("csrr {}, sstatus", out(reg) sstatus);
-        match self.prev {
-            Previlege::User => sstatus &= !PREVILEGE_BIT,
-            Previlege::Supervisor => sstatus |= PREVILEGE_BIT,
-        }
-        match self.intr {
-            false => sstatus &= !INTERRUPT_BIT,
-            true => sstatus |= INTERRUPT_BIT,
-        }
-        asm!(
-            "   csrw sscratch, {}
-                csrw sepc    , {}
-                csrw sstatus , {}
-            ",
-            in(reg) self,
-            in(reg) self.sepc,
-            in(reg) sstatus,
-        );
-        execute_naked();
-        asm!(
-            "   csrr {}, sepc
-                csrr {}, sstatus
-            ",
-            out(reg) self.sepc,
-            out(reg) sstatus,
-        );
-        sstatus
-    }
-
     /// 当前上下文的 pc。
     #[inline]
     pub fn pc(&self) -> usize {
@@ -144,104 +114,116 @@ impl Context {
     pub fn move_next(&mut self) {
         self.sepc = self.sepc.wrapping_add(4);
     }
+
+    /// 执行此线程，并返回 `sstatus`。
+    ///
+    /// # Safety
+    ///
+    /// 将修改 `sscratch`、`sepc`、`sstatus` 和 `stvec`。
+    #[inline]
+    pub unsafe fn execute(&mut self) -> usize {
+        let mut sstatus: usize;
+        core::arch::asm!("csrr {}, sstatus", out(reg) sstatus);
+        match self.prev {
+            Previlege::User => sstatus &= !PREVILEGE_BIT,
+            Previlege::Supervisor => sstatus |= PREVILEGE_BIT,
+        }
+        match self.intr {
+            false => sstatus &= !INTERRUPT_BIT,
+            true => sstatus |= INTERRUPT_BIT,
+        }
+        core::arch::asm!(
+            "   csrw sscratch, {sscratch}
+                csrw sepc    , {sepc}
+                csrw sstatus , {sstatus}
+                addi sp, sp, -8
+                sd   ra, (sp)
+                call {execute_naked}
+                ld   ra, (sp)
+                addi sp, sp,  8
+                csrr {sepc}   , sepc
+                csrr {sstatus}, sstatus
+            ",
+            sscratch      = in(reg) self,
+            sepc          = inlateout(reg) self.sepc,
+            sstatus       = inlateout(reg) sstatus,
+            execute_naked = sym execute_naked,
+        );
+        sstatus
+    }
 }
 
-/// 内核态切换到用户态。
+/// 最简线程切换。
+///
+/// 当前通用寄存器压栈，然后从预存在 `sscratch` 里的上下文指针恢复线程通用寄存器。
 ///
 /// # Safety
 ///
-/// 裸函数。手动保存所有上下文环境。
+/// 裸函数。
 #[naked]
 unsafe extern "C" fn execute_naked() {
-    asm!(
+    core::arch::asm!(
         r"  .altmacro
-            .macro SAVE_S n
+            .macro SAVE n
                 sd x\n, \n*8(sp)
             .endm
-            .macro LOAD_U n
+            .macro SAVE_ALL
+                sd x1, 1*8(sp)
+                .set n, 3
+                .rept 29
+                    SAVE %n
+                    .set n, n+1
+                .endr
+            .endm
+
+            .macro LOAD n
                 ld x\n, \n*8(sp)
             .endm
+            .macro LOAD_ALL
+                ld x1, 1*8(sp)
+                .set n, 3
+                .rept 29
+                    LOAD %n
+                    .set n, n+1
+                .endr
+            .endm
         ",
-        // 初始化栈帧：sp = Sctx
-        "   addi sp, sp, -32*8",
-        // 用户上下文地址保存到内核上下文
-        "   csrr  t0, sscratch
-            sd    t0, (sp)
+        // 保存调度上下文
+        "   addi sp, sp, -32*8
+            SAVE_ALL
         ",
-        // 保存内核上下文
-        "   .set n, 1
-            .rept 31
-                SAVE_S %n
-                .set n, n+1
-            .endr
+        // 设置陷入入口
+        "   la   t0, 1f
+            csrw stvec, t0
         ",
-        // 切换上下文：sp = Uctx
-        "   csrrw sp, sscratch, sp",
-        // 内核上下文地址保存到用户上下文
-        "   csrr  t0, sscratch
-            sd    t0, (sp)
+        // 保存调度上下文地址并切换上下文
+        "   csrr t0, sscratch
+            sd   sp, (t0)
+            mv   sp, t0
         ",
-        // 恢复用户上下文
-        "   ld x1, 1*8(sp)
-            .set n, 3
-            .rept 29
-                LOAD_U %n
-                .set n, n+1
-            .endr
-            ld sp, 2*8(sp)
+        // 恢复线程上下文
+        "   LOAD_ALL
+            ld   sp, 2*8(sp)
         ",
-        // 执行用户程序
+        // 执行线程
         "   sret",
-        options(noreturn)
-    )
-}
-
-/// 用户态陷入内核态。
-///
-/// # Safety
-///
-/// 裸函数。利用恢复的 ra 回到 [`execute`] 的返回地址。
-#[naked]
-pub unsafe extern "C" fn trap() {
-    asm!(
-        r"
-        .altmacro
-        .macro SAVE_U n
-            sd x\n, \n*8(sp)
-        .endm
-        .macro LOAD_S n
-            ld x\n, \n*8(sp)
-        .endm
-        ",
-        // 作为陷入地址需要 4 字节对齐
+        // 陷入
         "   .align 2",
-        // 切换上下文：sp = Uctx
-        "   csrrw sp, sscratch, sp
-            ld    sp, (sp)
-        ",
-        // 保存用户上下文
-        "   sd x1, 1*8(sp)
-            .set n, 3
-            .rept 29
-                SAVE_U %n
-                .set n, n+1
-            .endr
+        // 切换上下文
+        "1: csrrw sp, sscratch, sp",
+        // 保存线程上下文
+        "   SAVE_ALL
             csrrw t0, sscratch, sp
             sd    t0, 2*8(sp)
         ",
-        // 切换上下文：sp = Mctx
+        // 切换上下文
         "   ld sp, (sp)",
-        // 恢复机器上下文
-        "   .set n, 1
-            .rept 31
-                LOAD_S %n
-                .set n, n+1
-            .endr
+        // 恢复调度上下文
+        "   LOAD_ALL
+            addi sp, sp, 32*8
         ",
-        // 栈帧释放，返回
-        "   addi sp, sp, 32*8
-            ret
-        ",
+        // 返回调度
+        "   ret",
         options(noreturn)
     )
 }

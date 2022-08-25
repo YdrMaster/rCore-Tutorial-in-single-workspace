@@ -1,11 +1,11 @@
-﻿use kernel_context::Context;
+﻿use kernel_context::LocalContext;
 use syscall::SyscallId;
 
 /// 任务控制块。
 ///
 /// 包含任务的上下文、状态和资源。
 pub struct TaskControlBlock {
-    ctx: Context,
+    ctx: LocalContext,
     pub finish: bool,
     stack: [u8; 4096],
 }
@@ -20,7 +20,7 @@ pub enum SchedulingEvent {
 
 impl TaskControlBlock {
     pub const ZERO: Self = Self {
-        ctx: Context::user(0),
+        ctx: LocalContext::empty(),
         finish: false,
         stack: [0; 4096],
     };
@@ -29,7 +29,7 @@ impl TaskControlBlock {
     pub fn init(&mut self, entry: usize) {
         self.stack.fill(0);
         self.finish = false;
-        self.ctx = Context::user(entry);
+        self.ctx = LocalContext::user(entry);
         *self.ctx.sp_mut() = self.stack.as_ptr() as usize + self.stack.len();
     }
 

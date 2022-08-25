@@ -7,7 +7,7 @@
 extern crate output;
 
 use impls::{Console, SyscallContext};
-use kernel_context::{trap, Context};
+use kernel_context::LocalContext;
 use output::log;
 use riscv::register::*;
 use sbi_rt::*;
@@ -60,15 +60,13 @@ extern "C" fn rust_main() -> ! {
     extern "C" {
         static apps: utils::AppMeta;
     }
-    // 设置陷入地址
-    unsafe { stvec::write(trap as _, stvec::TrapMode::Direct) };
     // 批处理
     for i in 0..unsafe { apps.len() } {
         // 加载应用程序
         let app_base = unsafe { apps.load(i) };
         log::info!("load app{i} to {app_base:#x}");
         // 初始化上下文
-        let mut ctx = Context::user(app_base);
+        let mut ctx = LocalContext::user(app_base);
         // 设置用户栈
         let mut user_stack = [0u8; 4096];
         *ctx.sp_mut() = user_stack.as_mut_ptr() as usize + user_stack.len();
@@ -113,7 +111,7 @@ enum SyscallResult {
 }
 
 /// 处理系统调用，返回是否应该终止程序。
-fn handle_syscall(ctx: &mut Context) -> SyscallResult {
+fn handle_syscall(ctx: &mut LocalContext) -> SyscallResult {
     use syscall::{SyscallId as Id, SyscallResult as Ret};
 
     let id = ctx.a(7).into();

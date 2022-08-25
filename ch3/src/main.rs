@@ -77,8 +77,6 @@ extern "C" fn rust_main() -> ! {
     println!();
     // 打开中断
     unsafe { sie::set_stimer() };
-    // 设置陷入地址
-    unsafe { stvec::write(kernel_context::trap as _, stvec::TrapMode::Direct) };
     // 多道执行
     let index_mod = unsafe { apps.len() } as usize;
     let mut remain = index_mod;
