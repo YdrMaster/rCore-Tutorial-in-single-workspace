@@ -4,8 +4,8 @@
 #![feature(naked_functions, asm_sym, asm_const)]
 #![deny(warnings, missing_docs)]
 
-// 不同地址空间的上下文控制。
-// pub mod foreign;
+/// 不同地址空间的上下文控制。
+pub mod foreign;
 
 /// 线程上下文。
 #[repr(C)]
@@ -16,7 +16,7 @@ pub struct LocalContext {
     /// 是否以特权态切换。
     pub supervisor: bool,
     /// 线程中断是否开启。
-    pub intrrupt: bool,
+    pub interrupt: bool,
 }
 
 impl LocalContext {
@@ -27,7 +27,7 @@ impl LocalContext {
             sctx: 0,
             x: [0; 31],
             supervisor: false,
-            intrrupt: false,
+            interrupt: false,
             sepc: 0,
         }
     }
@@ -41,7 +41,7 @@ impl LocalContext {
             sctx: 0,
             x: [0; 31],
             supervisor: false,
-            intrrupt: true,
+            interrupt: true,
             sepc: entry,
         }
     }
@@ -111,19 +111,9 @@ impl LocalContext {
     /// 将修改 `sscratch`、`sepc`、`sstatus` 和 `stvec`。
     #[inline]
     pub unsafe fn execute(&mut self) -> usize {
-        const PREVILEGE_BIT: usize = 1 << 8;
-        const INTERRUPT_BIT: usize = 1 << 5;
-
-        let mut sstatus: usize;
+        let sstatus: usize;
         core::arch::asm!("csrr {}, sstatus", out(reg) sstatus);
-        match self.supervisor {
-            false => sstatus &= !PREVILEGE_BIT,
-            true => sstatus |= PREVILEGE_BIT,
-        }
-        match self.intrrupt {
-            false => sstatus &= !INTERRUPT_BIT,
-            true => sstatus |= INTERRUPT_BIT,
-        }
+        let mut sstatus = build_sstatus(sstatus, self.supervisor, self.interrupt);
         core::arch::asm!(
             "   csrw sscratch, {sscratch}
                 csrw sepc    , {sepc}
@@ -143,6 +133,21 @@ impl LocalContext {
         );
         sstatus
     }
+}
+
+#[inline]
+fn build_sstatus(mut sstatus: usize, supervisor: bool, interrupt: bool) -> usize {
+    const PREVILEGE_BIT: usize = 1 << 8;
+    const INTERRUPT_BIT: usize = 1 << 5;
+    match supervisor {
+        false => sstatus &= !PREVILEGE_BIT,
+        true => sstatus |= PREVILEGE_BIT,
+    }
+    match interrupt {
+        false => sstatus &= !INTERRUPT_BIT,
+        true => sstatus |= INTERRUPT_BIT,
+    }
+    sstatus
 }
 
 /// 线程切换核心部分。
