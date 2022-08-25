@@ -20,7 +20,7 @@ pub enum SchedulingEvent {
 
 impl TaskControlBlock {
     pub const ZERO: Self = Self {
-        ctx: Context::new(0),
+        ctx: Context::user(0),
         finish: false,
         stack: [0; 4096],
     };
@@ -29,8 +29,7 @@ impl TaskControlBlock {
     pub fn init(&mut self, entry: usize) {
         self.stack.fill(0);
         self.finish = false;
-        self.ctx = Context::new(entry);
-        self.ctx.set_sstatus_as_user();
+        self.ctx = Context::user(entry);
         *self.ctx.sp_mut() = self.stack.as_ptr() as usize + self.stack.len();
     }
 

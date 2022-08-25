@@ -13,7 +13,6 @@ extern crate alloc;
 use self::page_table::KernelSpaceBuilder;
 use ::page_table::{PageTable, PageTableShuttle, Sv39, VAddr, VmMeta, VPN};
 use impls::Console;
-use kernel_context::foreign::{executor_main_rust, ForeignExecutor, RustForeignExecutor};
 use output::log;
 use riscv::register::satp;
 use sbi_rt::*;
@@ -45,10 +44,6 @@ unsafe extern "C" fn _start() -> ! {
         options(noreturn),
     )
 }
-
-/// 中转内核。
-#[link_section = ".transit"]
-static mut TRANSIT_KERNEL: RustForeignExecutor = RustForeignExecutor::new();
 
 extern "C" fn rust_main() -> ! {
     // bss 段清零
@@ -105,16 +100,16 @@ extern "C" fn rust_main() -> ! {
         println!("{vec:?}");
         println!();
     }
-    // 中转内核初始化
-    unsafe {
-        TRANSIT_KERNEL.init(0usize.wrapping_sub(0x1000));
-        println!(
-            "\
-transit      | {:#x}
-transit main | {:#x}",
-            &TRANSIT_KERNEL as *const _ as usize, executor_main_rust as usize,
-        );
-    }
+    //     // 中转内核初始化
+    //     unsafe {
+    //         TRANSIT_KERNEL.init(0usize.wrapping_sub(0x1000));
+    //         println!(
+    //             "\
+    // transit      | {:#x}
+    // transit main | {:#x}",
+    //             &TRANSIT_KERNEL as *const _ as usize, executor_main_rust as usize,
+    //         );
+    //     }
 
     system_reset(RESET_TYPE_SHUTDOWN, RESET_REASON_NO_REASON);
     unreachable!()

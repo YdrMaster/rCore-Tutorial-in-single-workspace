@@ -2,10 +2,10 @@
 
 #![no_std]
 #![feature(naked_functions, asm_sym, asm_const)]
-#![deny(warnings, missing_docs)]
+// #![deny(warnings, missing_docs)]
 
-/// 不同地址空间的上下文控制。
-pub mod foreign;
+// 不同地址空间的上下文控制。
+// pub mod foreign;
 
 use core::arch::asm;
 
@@ -14,7 +14,8 @@ use core::arch::asm;
 pub struct Context {
     sctx: usize,
     x: [usize; 31],
-    sstatus: usize,
+    pub prev: Previlege,
+    pub intr: bool,
     sepc: usize,
 }
 
@@ -43,35 +44,14 @@ impl Context {
     ///
     /// 切换到用户态时会打开内核中断。
     #[inline]
-    pub const fn new(entry: usize) -> Self {
+    pub const fn user(entry: usize) -> Self {
         Self {
             sctx: 0,
             x: [0; 31],
-            sstatus: 0,
+            prev: Previlege::User,
+            intr: true,
             sepc: entry,
         }
-    }
-
-    /// 设置 [`execute`] 时切换到这个上下文。
-    #[inline]
-    pub fn be_next(&mut self) {
-        unsafe { asm!("csrw sscratch, {}", in(reg) self) };
-    }
-
-    /// 设置一个标准的用户态上下文，在当前状态基础上具有用户特权级并开启中断。
-    #[inline]
-    pub fn set_sstatus_as_user(&mut self) {
-        self.load_sstatus();
-        self.set_privilege(Previlege::User);
-        self.set_interrupt(true);
-    }
-
-    /// 设置一个标准的执行器上下文，在当前状态基础上具有内核特权级并关闭中断。
-    #[inline]
-    pub fn set_sstatus_as_executor(&mut self) {
-        self.load_sstatus();
-        self.set_privilege(Previlege::Supervisor);
-        self.set_interrupt(false);
     }
 
     /// 读取用户通用寄存器。
@@ -100,6 +80,12 @@ impl Context {
 
     /// 读取用户栈指针。
     #[inline]
+    pub fn ra(&self) -> usize {
+        self.x(1)
+    }
+
+    /// 读取用户栈指针。
+    #[inline]
     pub fn sp(&self) -> usize {
         self.x(2)
     }
@@ -110,52 +96,37 @@ impl Context {
         self.x_mut(2)
     }
 
-    /// 从当前上下文加载 `sstatus`。
-    #[inline]
-    pub fn load_sstatus(&mut self) {
-        unsafe { asm!("csrr {}, sstatus", out(reg) self.sstatus) };
-    }
-
-    /// 读取上下文特权级。
-    #[inline]
-    pub fn privilege(&self) -> Previlege {
-        if self.sstatus & PREVILEGE_BIT == 0 {
-            Previlege::User
-        } else {
-            Previlege::Supervisor
-        }
-    }
-
-    /// 设置上下文特权级。
-    #[inline]
-    pub fn set_privilege(&mut self, previlige: Previlege) {
-        match previlige {
-            Previlege::User => self.sstatus &= !PREVILEGE_BIT,
-            Previlege::Supervisor => self.sstatus |= PREVILEGE_BIT,
-        }
-    }
-
-    /// 读取上下文中断是否开启。
-    #[inline]
-    pub fn interrupt(&self) -> bool {
-        self.sstatus & INTERRUPT_BIT != 0
-    }
-
-    /// 设置上下文特权级。
-    #[inline]
-    pub fn set_interrupt(&mut self, enabled: bool) {
-        if enabled {
-            self.sstatus |= INTERRUPT_BIT;
-        } else {
-            self.sstatus &= !INTERRUPT_BIT;
-        }
-    }
-
     /// 执行当前上下文。
     #[inline]
-    pub unsafe fn execute(&mut self) {
-        self.be_next();
-        execute();
+    pub unsafe fn execute(&mut self) -> usize {
+        let mut sstatus: usize;
+        asm!("csrr {}, sstatus", out(reg) sstatus);
+        match self.prev {
+            Previlege::User => sstatus &= !PREVILEGE_BIT,
+            Previlege::Supervisor => sstatus |= PREVILEGE_BIT,
+        }
+        match self.intr {
+            false => sstatus &= !INTERRUPT_BIT,
+            true => sstatus |= INTERRUPT_BIT,
+        }
+        asm!(
+            "   csrw sscratch, {}
+                csrw sepc    , {}
+                csrw sstatus , {}
+            ",
+            in(reg) self,
+            in(reg) self.sepc,
+            in(reg) sstatus,
+        );
+        execute_naked();
+        asm!(
+            "   csrr {}, sepc
+                csrr {}, sstatus
+            ",
+            out(reg) self.sepc,
+            out(reg) sstatus,
+        );
+        sstatus
     }
 
     /// 当前上下文的 pc。
@@ -181,7 +152,7 @@ impl Context {
 ///
 /// 裸函数。手动保存所有上下文环境。
 #[naked]
-pub unsafe extern "C" fn execute() {
+unsafe extern "C" fn execute_naked() {
     asm!(
         r"  .altmacro
             .macro SAVE_S n
@@ -209,12 +180,6 @@ pub unsafe extern "C" fn execute() {
         // 内核上下文地址保存到用户上下文
         "   csrr  t0, sscratch
             sd    t0, (sp)
-        ",
-        // 恢复 csr
-        "   ld   t0, 32*8(sp)
-            ld   t1, 33*8(sp)
-            csrw sstatus, t0
-            csrw    sepc, t1
         ",
         // 恢复用户上下文
         "   ld x1, 1*8(sp)
@@ -263,12 +228,6 @@ pub unsafe extern "C" fn trap() {
             .endr
             csrrw t0, sscratch, sp
             sd    t0, 2*8(sp)
-        ",
-        // 保存 csr
-        "   csrr t1, sstatus
-            csrr t2, sepc
-            sd   t1, 32*8(sp)
-            sd   t2, 33*8(sp)
         ",
         // 切换上下文：sp = Mctx
         "   ld sp, (sp)",

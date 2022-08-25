@@ -7,7 +7,7 @@
 extern crate output;
 
 use impls::{Console, SyscallContext};
-use kernel_context::{execute, trap, Context};
+use kernel_context::{trap, Context};
 use output::log;
 use riscv::register::*;
 use sbi_rt::*;
@@ -68,15 +68,13 @@ extern "C" fn rust_main() -> ! {
         let app_base = unsafe { apps.load(i) };
         log::info!("load app{i} to {app_base:#x}");
         // 初始化上下文
-        let mut ctx = Context::new(app_base);
-        ctx.be_next();
-        ctx.set_sstatus_as_user();
+        let mut ctx = Context::user(app_base);
         // 设置用户栈
         let mut user_stack = [0u8; 4096];
         *ctx.sp_mut() = user_stack.as_mut_ptr() as usize + user_stack.len();
         // 执行应用程序
         loop {
-            unsafe { execute() };
+            unsafe { ctx.execute() };
 
             use scause::{Exception, Trap};
             match scause::read().cause() {
