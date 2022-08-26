@@ -26,3 +26,6 @@ cases = [
     "10power_7",
     "11sleep",
 ]
+
+[ch4]
+cases = ["00hello_world", "01store_fault"]

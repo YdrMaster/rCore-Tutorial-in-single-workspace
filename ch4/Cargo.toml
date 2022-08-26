@@ -6,12 +6,13 @@ authors = ["YdrMaster <ydrml@hotmail.com>"]
 
 [dependencies]
 sbi-rt = { git = "https://github.com/rustsbi/sbi-rt", branch = "dev" }
+elfloader = "0.16.0"
+page-table = "0.0.5"
 riscv = "0.8.0"
 r0 = "1.0.0"
 
 output = { path = "../output" }
 utils = { path = "../utils" }
 kernel-context = { path = "../kernel-context" }
-page-table = { git = "https://github.com/YdrMaster/page-table", rev = "534105a" }
 buddy-allocator = { git = "https://github.com/YdrMaster/buddy-allocator", rev = "5ac08b8" }
 syscall = { path = "../syscall", features = ["kernel"] }

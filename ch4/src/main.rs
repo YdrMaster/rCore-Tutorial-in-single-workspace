@@ -18,7 +18,7 @@ use riscv::register::satp;
 use sbi_rt::*;
 
 // 应用程序内联进来。
-// core::arch::global_asm!(include_str!(env!("APP_ASM")));
+core::arch::global_asm!(include_str!(env!("APP_ASM")));
 
 /// Supervisor 汇编入口。
 ///
@@ -100,16 +100,15 @@ extern "C" fn rust_main() -> ! {
         println!("{vec:?}");
         println!();
     }
-    //     // 中转内核初始化
-    //     unsafe {
-    //         TRANSIT_KERNEL.init(0usize.wrapping_sub(0x1000));
-    //         println!(
-    //             "\
-    // transit      | {:#x}
-    // transit main | {:#x}",
-    //             &TRANSIT_KERNEL as *const _ as usize, executor_main_rust as usize,
-    //         );
-    //     }
+    // 加载应用程序
+    extern "C" {
+        static apps: utils::AppMeta;
+    }
+    {
+        for (_i, _elf) in unsafe { apps.iter_elf() }.enumerate() {
+            core::hint::spin_loop();
+        }
+    }
 
     system_reset(RESET_TYPE_SHUTDOWN, RESET_REASON_NO_REASON);
     unreachable!()
@@ -215,11 +214,11 @@ mod mm {
 
 mod page_table {
     use crate::mm::{global, Page};
-    use page_table::{Pos, Pte, Sv39, Update, VAddr, VisitorMut, VmFlags, PPN};
+    use page_table::{Decorator, Pos, Pte, Sv39, Update, VAddr, VmFlags, PPN};
 
     pub struct KernelSpaceBuilder;
 
-    impl VisitorMut<Sv39> for KernelSpaceBuilder {
+    impl Decorator<Sv39> for KernelSpaceBuilder {
         #[inline]
         fn start(&mut self, _: Pos<Sv39>) -> Pos<Sv39> {
             Pos::new(VAddr::new(__text as usize).floor(), 0)

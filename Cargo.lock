@@ -94,9 +94,10 @@ name = "ch4"
 version = "0.0.1"
 dependencies = [
  "buddy-allocator",
+ "elfloader",
  "kernel-context",
  "output",
- "page-table",
+ "page-table 0.0.5",
  "r0",
  "riscv",
  "sbi-rt",
@@ -152,6 +153,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "elfloader"
+version = "0.16.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "6a7b18d35bf8ec3bac59c3ec29cf1f1b46e764e00b42a9c0c754d06e38e78f3b"
+dependencies = [
+ "bitflags",
+ "log",
+ "xmas-elf",
+]
+
+[[package]]
 name = "embedded-hal"
 version = "0.2.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -200,7 +212,7 @@ version = "0.1.0"
 name = "kernel-vm"
 version = "0.1.0"
 dependencies = [
- "page-table",
+ "page-table 0.0.4",
 ]
 
 [[package]]
@@ -272,7 +284,17 @@ dependencies = [
 [[package]]
 name = "page-table"
 version = "0.0.4"
-source = "git+https://github.com/YdrMaster/page-table?rev=534105a#534105aa373470d190df242b41892051f1916b0d"
+source = "git+https://github.com/YdrMaster/page-table.git?rev=534105a#534105aa373470d190df242b41892051f1916b0d"
+dependencies = [
+ "cfg-if",
+ "static_assertions",
+]
+
+[[package]]
+name = "page-table"
+version = "0.0.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "722991bbdf6cb74cf9cb223aefa8132b1e6c0a882cab96c0cad2d121085b3354"
 dependencies = [
  "cfg-if",
  "static_assertions",
@@ -504,6 +526,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "712e227841d057c1ee1cd2fb22fa7e5a5461ae8e48fa2ca79ec42cfc1931183f"
 
 [[package]]
+name = "xmas-elf"
+version = "0.8.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "8d29b4d8e7beaceb4e77447ba941a7600d23d0319ab52da0461abea214832d5a"
+dependencies = [
+ "zero",
+]
+
+[[package]]
 name = "xtask"
 version = "0.0.1"
 dependencies = [
@@ -514,3 +545,9 @@ dependencies = [
  "serde_derive",
  "toml",
 ]
+
+[[package]]
+name = "zero"
+version = "0.1.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "5f1bc8a6b2005884962297587045002d8cfb8dcec9db332f4ca216ddc5de82c5"

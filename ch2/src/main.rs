@@ -61,9 +61,7 @@ extern "C" fn rust_main() -> ! {
         static apps: utils::AppMeta;
     }
     // 批处理
-    for i in 0..unsafe { apps.len() } {
-        // 加载应用程序
-        let app_base = unsafe { apps.load(i) };
+    for (i, app_base) in unsafe { apps.iter_static() }.enumerate() {
         log::info!("load app{i} to {app_base:#x}");
         // 初始化上下文
         let mut ctx = LocalContext::user(app_base);

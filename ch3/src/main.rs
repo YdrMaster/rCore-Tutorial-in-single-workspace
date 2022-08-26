@@ -68,17 +68,17 @@ extern "C" fn rust_main() -> ! {
     }
     // 任务控制块
     static mut TCBS: [TaskControlBlock; APP_CAPACITY] = [TaskControlBlock::ZERO; APP_CAPACITY];
+    let mut index_mod = 0;
     // 初始化
-    for i in 0..unsafe { apps.len() } {
-        let app_base = unsafe { apps.load(i) };
-        log::info!("load app{i} to {app_base:#x}");
-        unsafe { TCBS[i].init(app_base) };
+    for (i, entry) in unsafe { apps.iter_static() }.enumerate() {
+        index_mod += 1;
+        log::info!("load app{i} to {entry:#x}");
+        unsafe { TCBS[i].init(entry) };
     }
     println!();
     // 打开中断
     unsafe { sie::set_stimer() };
     // 多道执行
-    let index_mod = unsafe { apps.len() } as usize;
     let mut remain = index_mod;
     let mut i = 0usize;
     while remain > 0 {
