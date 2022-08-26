@@ -105,8 +105,12 @@ extern "C" fn rust_main() -> ! {
         static apps: utils::AppMeta;
     }
     {
-        for (_i, _elf) in unsafe { apps.iter_elf() }.enumerate() {
-            core::hint::spin_loop();
+        for (i, elf) in unsafe { apps.iter_elf() }.enumerate() {
+            println!(
+                "detect app[{i}] at {:?} (size: {} bytes)",
+                elf.as_ptr(),
+                elf.len()
+            );
         }
     }
 

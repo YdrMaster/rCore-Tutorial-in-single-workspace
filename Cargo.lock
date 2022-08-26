@@ -94,7 +94,6 @@ name = "ch4"
 version = "0.0.1"
 dependencies = [
  "buddy-allocator",
- "elfloader",
  "kernel-context",
  "output",
  "page-table 0.0.5",
@@ -150,17 +149,6 @@ version = "0.1.0"
 source = "git+https://github.com/YdrMaster/command-ext.git?rev=f25befb#f25befb0b5a58e3e75fb3a891d6cc5969a13d93c"
 dependencies = [
  "lazy_static",
-]
-
-[[package]]
-name = "elfloader"
-version = "0.16.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6a7b18d35bf8ec3bac59c3ec29cf1f1b46e764e00b42a9c0c754d06e38e78f3b"
-dependencies = [
- "bitflags",
- "log",
- "xmas-elf",
 ]
 
 [[package]]
@@ -526,15 +514,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "712e227841d057c1ee1cd2fb22fa7e5a5461ae8e48fa2ca79ec42cfc1931183f"
 
 [[package]]
-name = "xmas-elf"
-version = "0.8.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8d29b4d8e7beaceb4e77447ba941a7600d23d0319ab52da0461abea214832d5a"
-dependencies = [
- "zero",
-]
-
-[[package]]
 name = "xtask"
 version = "0.0.1"
 dependencies = [
@@ -545,9 +524,3 @@ dependencies = [
  "serde_derive",
  "toml",
 ]
-
-[[package]]
-name = "zero"
-version = "0.1.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5f1bc8a6b2005884962297587045002d8cfb8dcec9db332f4ca216ddc5de82c5"
