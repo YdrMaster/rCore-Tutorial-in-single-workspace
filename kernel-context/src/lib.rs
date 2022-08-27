@@ -111,9 +111,7 @@ impl LocalContext {
     /// 将修改 `sscratch`、`sepc`、`sstatus` 和 `stvec`。
     #[inline]
     pub unsafe fn execute(&mut self) -> usize {
-        let sstatus: usize;
-        core::arch::asm!("csrr {}, sstatus", out(reg) sstatus);
-        let mut sstatus = build_sstatus(sstatus, self.supervisor, self.interrupt);
+        let mut sstatus = build_sstatus(self.supervisor, self.interrupt);
         core::arch::asm!(
             "   csrw sscratch, {sscratch}
                 csrw sepc    , {sepc}
@@ -136,7 +134,10 @@ impl LocalContext {
 }
 
 #[inline]
-fn build_sstatus(mut sstatus: usize, supervisor: bool, interrupt: bool) -> usize {
+fn build_sstatus(supervisor: bool, interrupt: bool) -> usize {
+    let mut sstatus: usize;
+    // 只是读 sstatus，安全的
+    unsafe { core::arch::asm!("csrr {}, sstatus", out(reg) sstatus) };
     const PREVILEGE_BIT: usize = 1 << 8;
     const INTERRUPT_BIT: usize = 1 << 5;
     match supervisor {

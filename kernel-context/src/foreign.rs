@@ -6,13 +6,31 @@
 #[repr(C)]
 pub struct ForeignPortal {
     a0: usize,              //    (a0) 目标控制流 a0
-    ra: usize,              // 1*8(a0) 目标控制流 ra
+    ra: usize,              // 1*8(a0) 目标控制流 ra      （寄存，不用初始化）
     satp: usize,            // 2*8(a0) 目标控制流 satp
     sstatus: usize,         // 3*8(a0) 目标控制流 sstatus
     sepc: usize,            // 4*8(a0) 目标控制流 sepc
     stvec: usize,           // 5*8(a0) 当前控制流 stvec   （寄存，不用初始化）
     sscratch: usize,        // 6*8(a0) 当前控制流 sscratch（寄存，不用初始化）
     execute: [usize; 1024], // 7*8(a0) 执行代码
+}
+
+impl ForeignPortal {
+    /// 初始化异界传送门。
+    pub fn runtime_init(&mut self, transit: usize) {
+        let entry = foreign_execute as *const u16;
+        for len in 1.. {
+            unsafe {
+                // 通过寻找结尾的 0，在运行时定位裸函数
+                // 裸函数的 `options(noreturn)` 会在结尾生成一个 0 指令，这是一个 unstable 特性所以不一定可靠
+                if *entry.add(len) == 0 {
+                    ((transit + 7 * 8) as *mut u16).copy_from_nonoverlapping(entry, len + 1);
+                    return;
+                }
+            }
+        }
+        unreachable!()
+    }
 }
 
 /// 异界线程上下文。
@@ -29,23 +47,22 @@ impl ForeignContext {
     /// `portal` 是线性地址空间上的传送门对象。`protal_transit` 是公共地址空间上的传送门对象。
     pub unsafe fn execute(&mut self, portal: &mut ForeignPortal, protal_transit: usize) -> usize {
         use core::mem::replace;
-
+        // 异界传送门需要特权态执行
         let supervisor = replace(&mut self.context.supervisor, true);
+        // 异界传送门不能打开中断
         let interrupt = replace(&mut self.context.interrupt, false);
-        let sstatus: usize;
-        core::arch::asm!("csrr {}, sstatus", out(reg) sstatus);
-
-        portal.sstatus = build_sstatus(sstatus, supervisor, interrupt);
-        portal.satp = self.satp;
+        // 重置异界传送门上下文
         portal.a0 = self.context.a(0);
+        portal.satp = self.satp;
+        portal.sstatus = build_sstatus(supervisor, interrupt);
         portal.sepc = self.context.sepc;
-
+        // 执行传送门代码
+        // NOTICE 危险的操作
         self.context.sepc = protal_transit + 7 * 8;
-
         *self.context.a_mut(0) = protal_transit;
         let sstatus = self.context.execute();
+        // 从传送门读取上下文
         *self.context.a_mut(0) = portal.a0;
-
         sstatus
     }
 }
@@ -53,8 +70,12 @@ impl ForeignContext {
 /// 切换地址空间然后 sret。
 ///
 /// 地址空间恢复后一切都会恢复原状。
+///
+/// 可以修改链接脚本直接链接到合适的位置，也可以运行时拷贝初始化。
+/// 直接链接只适用于单核，因为每个硬件线程需要一个不同的传送门。
 #[naked]
-unsafe extern "C" fn _foreign_execute(ctx: *mut ForeignPortal) {
+#[link_section = ".text.foreign.portal"]
+unsafe extern "C" fn foreign_execute(ctx: *mut ForeignPortal) {
     core::arch::asm!(
         // 位置无关加载
         "   .option push
@@ -104,7 +125,7 @@ unsafe extern "C" fn _foreign_execute(ctx: *mut ForeignPortal) {
         ",
         // 恢复地址空间
         "   ld    ra, 2*8(a0)
-            csrrw ra, stap, ra
+            csrrw ra, satp, ra
             sfence.vma
             sd    ra, 2*8(a0)
         ",
@@ -115,6 +136,7 @@ unsafe extern "C" fn _foreign_execute(ctx: *mut ForeignPortal) {
             csrw      stvec, a0
         ",
         // 回家！
+        // 离开异界传送门直接跳到正常上下文的 stvec
         "   jr    a0",
         "   .option pop",
         options(noreturn)
