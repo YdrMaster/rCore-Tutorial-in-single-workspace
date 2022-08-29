@@ -11,6 +11,7 @@ extern crate output;
 extern crate alloc;
 
 use self::page_table::KernelSpaceBuilder;
+use crate::{mm::global, page_table::calculate_page_count};
 use ::page_table::{PageTable, PageTableShuttle, Sv39, VAddr, VmMeta, VPN};
 use impls::Console;
 use output::log;
@@ -87,7 +88,7 @@ extern "C" fn rust_main() -> ! {
             table,
             f: |ppn| VPN::new(ppn.val()),
         };
-        shuttle.walk_mut(KernelSpaceBuilder);
+        shuttle.walk_mut(KernelSpaceBuilder(unsafe { global() }));
         // println!("{shuttle:?}");
         unsafe { satp::set(satp::Mode::Sv39, 0, kernel_root.floor().val()) };
     }
@@ -100,15 +101,18 @@ extern "C" fn rust_main() -> ! {
         println!("{vec:?}");
         println!();
     }
-    // 加载应用程序
-    extern "C" {
-        static apps: utils::AppMeta;
-    }
+
     {
         use xmas_elf::{
             header::{self, HeaderPt2, Machine},
-            program, ElfFile,
+            ElfFile,
         };
+        // 加载应用程序
+        extern "C" {
+            static apps: utils::AppMeta;
+        }
+        let mut count_apps = 0usize;
+        let mut count_pages = 0usize;
         for (i, elf) in unsafe { apps.iter_elf() }.enumerate() {
             println!(
                 "detect app[{i}] at {:?} (size: {} bytes)",
@@ -122,18 +126,15 @@ extern "C" fn rust_main() -> ! {
                 {
                     continue;
                 }
-                for program in elf.program_iter() {
-                    if let Ok(program::Type::Load) = program.get_type() {
-                        let off_file = program.offset();
-                        let end_file = off_file + program.file_size();
-                        let off_mem = program.virtual_addr();
-                        let end_mem = off_mem + program.mem_size();
-                        println!("LOAD {off_file:#08x}..{end_file:#08x} -> {off_mem:#08x}..{end_mem:#08x} with {:?}", program.flags());
-                    }
-                }
+                let n = calculate_page_count(&elf);
+                println!("this app needs {n} pages to load");
                 println!();
+                count_apps += 1;
+                count_pages += n;
             }
         }
+        println!("all {count_apps} apps need {count_pages} pages to load");
+        println!();
     }
 
     system_reset(RESET_TYPE_SHUTDOWN, RESET_REASON_NO_REASON);
@@ -205,13 +206,13 @@ mod mm {
         }
     }
 
-    /// 托管空间 1 MiB
-    static mut MEMORY: [Page; 256] = [Page::ZERO; 256];
+    /// 托管空间 4 MiB
+    static mut MEMORY: [Page; 1024] = [Page::ZERO; 1024];
     static mut GLOBAL: MutAllocator<5> = MutAllocator::<5>::new();
     #[global_allocator]
     static ALLOC: SharedAllocator<22> = SharedAllocator(RefCell::new(MutAllocator::new()));
 
-    type MutAllocator<const N: usize> = BuddyAllocator<N, UsizeBuddy, LinkedListBuddy>;
+    pub type MutAllocator<const N: usize> = BuddyAllocator<N, UsizeBuddy, LinkedListBuddy>;
 
     struct SharedAllocator<const N: usize>(RefCell<MutAllocator<N>>);
     unsafe impl<const N: usize> Sync for SharedAllocator<N> {}
@@ -240,12 +241,14 @@ mod mm {
 }
 
 mod page_table {
-    use crate::mm::{global, Page};
+    use crate::mm::{MutAllocator, Page};
+    use core::cmp::max;
     use page_table::{Decorator, Pos, Pte, Sv39, Update, VAddr, VmFlags, PPN};
+    use xmas_elf::{program, ElfFile};
 
-    pub struct KernelSpaceBuilder;
+    pub struct KernelSpaceBuilder<'a, const N: usize>(pub &'a mut MutAllocator<N>);
 
-    impl Decorator<Sv39> for KernelSpaceBuilder {
+    impl<'a, const N: usize> Decorator<Sv39> for KernelSpaceBuilder<'a, N> {
         #[inline]
         fn start(&mut self, _: Pos<Sv39>) -> Pos<Sv39> {
             Pos::new(VAddr::new(__text as usize).floor(), 0)
@@ -276,12 +279,74 @@ mod page_table {
             _pte: Pte<Sv39>,
             _target_hint: Pos<Sv39>,
         ) -> Update<Sv39> {
-            let (ptr, size) = unsafe { global() }.allocate::<Page>(Page::LAYOUT).unwrap();
+            let (ptr, size) = self.0.allocate::<Page>(Page::LAYOUT).unwrap();
             assert_eq!(size, Page::LAYOUT.size());
             let vpn = VAddr::new(ptr.as_ptr() as _).floor();
             let ppn = PPN::new(vpn.val());
             Update::Pte(unsafe { VmFlags::from_raw(1) }.build_pte(ppn), vpn)
         }
+    }
+
+    /// 计算应用程序总共需要多少个页。
+    ///
+    /// 包括存储各个加载段数据的页和页表页，以及位于低 256 GiB 最后两个 4 KiB 页的用户栈和它们的页表页。
+    pub fn calculate_page_count(elf: &ElfFile) -> usize {
+        // 需要的总页计数
+        const COUNT_512G: usize = 1; // 2 级页表
+        let mut count_1g = 0usize; // 1 级页表数量
+        let mut count_2m = 0usize; // 0 级页表数量
+        let mut count_4k = 0usize; // 0 级页数量
+
+        // NOTICE ELF 文件中程序段是按虚存位置排序的，且段间不重叠，因此可以用一个指针表示已覆盖的范围
+        let mut end_1g = 0usize; // 2 级页表覆盖范围
+        let mut end_2m = 0usize; // 1 级页表覆盖范围
+
+        for program in elf.program_iter() {
+            if let Ok(program::Type::Load) = program.get_type() {
+                let off_file = program.offset();
+                let end_file = off_file + program.file_size();
+                let off_mem = program.virtual_addr();
+                let end_mem = off_mem + program.mem_size();
+                println!("LOAD {off_file:#08x}..{end_file:#08x} -> {off_mem:#08x}..{end_mem:#08x} with {:?}", program.flags());
+
+                // 更新 0 级页数量
+                {
+                    let off_mem = off_mem as usize >> 12;
+                    let end_mem = (end_mem as usize + mask(12)) >> 12;
+                    count_4k += end_mem - off_mem;
+                }
+                // 更新 0 级页表覆盖范围
+                {
+                    let mask_2m = mask(12 + 9);
+                    end_2m = max(end_2m, off_mem as usize & !mask_2m);
+                    let end_program = (end_mem as usize + mask_2m) & !mask_2m;
+                    while end_2m < end_program {
+                        count_2m += 1;
+                        end_2m += mask_2m + 1;
+                    }
+                }
+                // 更新 1 级页表覆盖范围
+                {
+                    let mask_1g = mask(12 + 9 + 9);
+                    end_1g = max(end_1g, off_mem as usize & !mask_1g);
+                    let end_program = (end_mem as usize + mask_1g) & !mask_1g;
+                    while end_1g < end_program {
+                        count_1g += 1;
+                        end_1g += mask_1g + 1;
+                    }
+                }
+            }
+        }
+        // 补充栈空间
+        count_4k += 2;
+        count_2m += 1;
+        count_1g += 1;
+        count_4k + count_2m + count_1g + COUNT_512G
+    }
+
+    #[inline]
+    const fn mask(bits: usize) -> usize {
+        (1 << bits) - 1
     }
 
     extern "C" {
