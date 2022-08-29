@@ -105,12 +105,34 @@ extern "C" fn rust_main() -> ! {
         static apps: utils::AppMeta;
     }
     {
+        use xmas_elf::{
+            header::{self, HeaderPt2, Machine},
+            program, ElfFile,
+        };
         for (i, elf) in unsafe { apps.iter_elf() }.enumerate() {
             println!(
                 "detect app[{i}] at {:?} (size: {} bytes)",
                 elf.as_ptr(),
                 elf.len()
             );
+            let elf = ElfFile::new(elf).unwrap();
+            if let HeaderPt2::Header64(pt2) = elf.header.pt2 {
+                if pt2.type_.as_type() != header::Type::Executable
+                    || pt2.machine.as_machine() != Machine::RISC_V
+                {
+                    continue;
+                }
+                for program in elf.program_iter() {
+                    if let Ok(program::Type::Load) = program.get_type() {
+                        let off_file = program.offset();
+                        let end_file = off_file + program.file_size();
+                        let off_mem = program.virtual_addr();
+                        let end_mem = off_mem + program.mem_size();
+                        println!("LOAD {off_file:#08x}..{end_file:#08x} -> {off_mem:#08x}..{end_mem:#08x} with {:?}", program.flags());
+                    }
+                }
+                println!();
+            }
         }
     }
 
@@ -120,7 +142,8 @@ extern "C" fn rust_main() -> ! {
 
 /// Rust 异常处理函数，以异常方式关机。
 #[panic_handler]
-fn panic(_: &core::panic::PanicInfo) -> ! {
+fn panic(info: &core::panic::PanicInfo) -> ! {
+    println!("{info}");
     system_reset(RESET_TYPE_SHUTDOWN, RESET_REASON_SYSTEM_FAILURE);
     unreachable!()
 }

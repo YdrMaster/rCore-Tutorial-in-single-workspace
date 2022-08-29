@@ -102,6 +102,7 @@ dependencies = [
  "sbi-rt",
  "syscall",
  "utils",
+ "xmas-elf",
 ]
 
 [[package]]
@@ -514,6 +515,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "712e227841d057c1ee1cd2fb22fa7e5a5461ae8e48fa2ca79ec42cfc1931183f"
 
 [[package]]
+name = "xmas-elf"
+version = "0.8.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "8d29b4d8e7beaceb4e77447ba941a7600d23d0319ab52da0461abea214832d5a"
+dependencies = [
+ "zero",
+]
+
+[[package]]
 name = "xtask"
 version = "0.0.1"
 dependencies = [
@@ -524,3 +534,9 @@ dependencies = [
  "serde_derive",
  "toml",
 ]
+
+[[package]]
+name = "zero"
+version = "0.1.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "5f1bc8a6b2005884962297587045002d8cfb8dcec9db332f4ca216ddc5de82c5"

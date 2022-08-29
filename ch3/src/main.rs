@@ -138,7 +138,8 @@ extern "C" fn rust_main() -> ! {
 
 /// Rust 异常处理函数，以异常方式关机。
 #[panic_handler]
-fn panic(_: &core::panic::PanicInfo) -> ! {
+fn panic(info: &core::panic::PanicInfo) -> ! {
+    println!("{info}");
     system_reset(RESET_TYPE_SHUTDOWN, RESET_REASON_SYSTEM_FAILURE);
     unreachable!()
 }
