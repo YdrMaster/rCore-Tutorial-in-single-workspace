@@ -95,8 +95,9 @@ version = "0.0.1"
 dependencies = [
  "buddy-allocator",
  "kernel-context",
+ "kernel-vm",
  "output",
- "page-table 0.0.5",
+ "page-table",
  "r0",
  "riscv",
  "sbi-rt",
@@ -201,7 +202,8 @@ version = "0.1.0"
 name = "kernel-vm"
 version = "0.1.0"
 dependencies = [
- "page-table 0.0.4",
+ "page-table",
+ "xmas-elf",
 ]
 
 [[package]]
@@ -268,15 +270,6 @@ version = "0.0.1"
 dependencies = [
  "log",
  "spin",
-]
-
-[[package]]
-name = "page-table"
-version = "0.0.4"
-source = "git+https://github.com/YdrMaster/page-table.git?rev=534105a#534105aa373470d190df242b41892051f1916b0d"
-dependencies = [
- "cfg-if",
- "static_assertions",
 ]
 
 [[package]]

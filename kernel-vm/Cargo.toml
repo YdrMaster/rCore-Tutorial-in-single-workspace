@@ -7,4 +7,5 @@ authors = ["YdrMaster <ydrml@hotmail.com>"]
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-page-table = { git = "https://github.com/YdrMaster/page-table.git", rev = "534105a" }
+page-table = "0.0.5"
+xmas-elf = "0.8.0"

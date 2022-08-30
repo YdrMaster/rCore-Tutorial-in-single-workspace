@@ -14,5 +14,6 @@ r0 = "1.0.0"
 output = { path = "../output" }
 utils = { path = "../utils" }
 kernel-context = { path = "../kernel-context" }
+kernel-vm = { path = "../kernel-vm" }
 buddy-allocator = { git = "https://github.com/YdrMaster/buddy-allocator", rev = "5ac08b8" }
 syscall = { path = "../syscall", features = ["kernel"] }

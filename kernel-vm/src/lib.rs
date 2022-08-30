@@ -1,55 +1,57 @@
 //! 内核虚存管理。
 
 #![no_std]
-#![feature(ptr_metadata)]
 #![deny(warnings, missing_docs)]
 
-mod deque;
-mod frame_queue;
+use page_table::VmMeta;
+use xmas_elf::ElfFile;
 
-use core::ops::Range;
-use page_table::{VmMeta, PPN, VPN};
+/// 计算 `Meta` 虚存方案下加载应用程序总共需要多少个页。包括存储各个加载段数据的页和页表页。
+pub fn count_pages<Meta: VmMeta>(elf: &ElfFile) -> usize {
+    use page_table::VAddr;
+    use xmas_elf::program::Type::*;
 
-pub extern crate page_table;
+    // 至少一个根页表
+    let mut ans = 1usize;
+    // 每级已分配页表的覆盖范围
+    // elf 中程序段是按虚址升序排列的，只需要记一个末页号
+    // N 级页表需要 N-1 个号，因为根页表不需要算
+    // 所以最大 5 级页表只需要 4 个
+    let mut indices = [0usize; 4];
 
-pub use deque::Deque;
-pub use frame_queue::{FrameInfo, FrameQueue};
+    assert!(Meta::MAX_LEVEL <= indices.len());
 
-/// 页帧分配器。
-pub trait FrameAllocator<Meta: VmMeta>: Sized {
-    /// 分配一个 4 KiB 小页。
-    ///
-    /// 这个功能比较常用，独立出来可能会简化使用。
-    fn allocate_one(&self) -> Result<PPN<Meta>, AllocError>;
-
-    /// 根据 `vpn_range` 分配一组适宜映射的物理页帧。
-    ///
-    /// `vpn_range` 指示的虚存范围可能不在当前虚存空间。
-    ///
-    /// `p_to_v` 是物理页映射到当前虚地址空间的方式，因为实现会将页帧链表节点写在这些物理页帧的开头。
-    /// 可以在调用时分配一个临时的虚页。
-    ///
-    /// 这个方法需要写入其分配内存，即**侵入式**的分配。
-    fn allocate(
-        &self,
-        vpn_range: Range<VPN<Meta>>,
-        p_to_v: impl Fn(PPN<Meta>) -> VPN<Meta>,
-    ) -> Result<FrameQueue<'_, Meta, Self>, AllocError>;
-
-    /// 回收物理页。
-    ///
-    /// # Notice
-    ///
-    /// 为了简化设计，大页需要分解成小页号范围回收。
-    ///
-    /// # Safety
-    ///
-    /// 实现不要抛出异常，即使收到一个不合理的范围，例如重复回收或试图回收不在管辖范围的页号。
-    unsafe fn deallocate(&self, ppn_range: Range<PPN<Meta>>);
+    // 各级页表页号位数迭代器
+    let iter = Meta::LEVEL_BITS
+        .iter()
+        .take(Meta::MAX_LEVEL)
+        .copied()
+        .scan(0, |tail, bits| {
+            *tail += bits;
+            Some(*tail)
+        })
+        .enumerate();
+    // 遍历程序段
+    for program in elf.program_iter() {
+        if let Ok(Load) = program.get_type() {
+            let base = program.virtual_addr() as usize;
+            let size = program.mem_size() as usize;
+            let start = VAddr::<Meta>::new(base).floor().val();
+            let end = VAddr::<Meta>::new(base + size).ceil().val();
+            // 更新中间页表占用页数量
+            for (i, bits) in iter.clone() {
+                let start = core::cmp::max(indices[i], start >> bits);
+                let end = (end + (1 << bits) - 1) >> bits;
+                if end > start {
+                    indices[i] = end;
+                    ans += end - start;
+                } else {
+                    break;
+                }
+            }
+            // 更新数据页数量
+            ans += end - start;
+        }
+    }
+    ans
 }
-
-/// 分配失败。
-///
-/// 通常是因为物理页帧不足，也可能是不支持这样的分配要求，由实现决定。
-#[derive(Debug)]
-pub struct AllocError;
