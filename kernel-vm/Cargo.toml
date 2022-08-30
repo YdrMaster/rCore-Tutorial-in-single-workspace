@@ -8,4 +8,3 @@ authors = ["YdrMaster <ydrml@hotmail.com>"]
 
 [dependencies]
 page-table = "0.0.5"
-xmas-elf = "0.8.0"

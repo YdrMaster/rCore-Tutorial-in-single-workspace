@@ -203,7 +203,6 @@ name = "kernel-vm"
 version = "0.1.0"
 dependencies = [
  "page-table",
- "xmas-elf",
 ]
 
 [[package]]

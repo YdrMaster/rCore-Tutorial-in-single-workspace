@@ -14,7 +14,7 @@ use self::vm::KernelSpaceBuilder;
 use crate::mm::global;
 use ::page_table::{PageTable, PageTableShuttle, Sv39, VAddr, VmMeta, VPN};
 use impls::Console;
-use kernel_vm::Page4K;
+use kernel_vm::{Page4K, PageCounter};
 use output::log;
 use riscv::register::satp;
 use sbi_rt::*;
@@ -106,6 +106,7 @@ extern "C" fn rust_main() -> ! {
     {
         use xmas_elf::{
             header::{self, HeaderPt2, Machine},
+            program::Type::Load,
             ElfFile,
         };
         // 加载应用程序
@@ -127,7 +128,19 @@ extern "C" fn rust_main() -> ! {
                 {
                     continue;
                 }
-                let n = kernel_vm::count_pages::<Sv39>(&elf);
+                let mut counter = PageCounter::<Sv39>::new();
+                // 加载
+                counter.insert(
+                    elf.program_iter()
+                        .filter(|h| matches!(h.get_type(), Ok(Load)))
+                        .map(|h| (h.virtual_addr() as usize, h.mem_size() as usize))
+                        .map(|(base, size)| VAddr::new(base)..VAddr::new(base + size)),
+                );
+                // 栈
+                counter.insert([VAddr::new((256 << 30) - 8192)..VAddr::new(256 << 30)].into_iter());
+                // 传送门
+                counter.insert([VAddr::new((512 << 30) - 4096)..VAddr::new(512 << 30)].into_iter());
+                let n = counter.count();
                 println!("this app needs {n} pages to load");
                 println!();
                 count_apps += 1;
