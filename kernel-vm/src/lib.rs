@@ -3,8 +3,25 @@
 #![no_std]
 #![deny(warnings, missing_docs)]
 
+use core::alloc::Layout;
 use page_table::VmMeta;
 use xmas_elf::ElfFile;
+
+/// 4 KiB 页类型。
+#[repr(C, align(4096))]
+pub struct Page4K([u8; 4096]);
+
+impl Page4K {
+    /// 空白页。
+    pub const ZERO: Self = Self([0; 4096]);
+    /// 页布局。
+    pub const LAYOUT: Layout = Layout::new::<Self>();
+    /// 页虚存地址。
+    #[inline]
+    pub fn addr(&self) -> usize {
+        self as *const _ as _
+    }
+}
 
 /// 计算 `Meta` 虚存方案下加载应用程序总共需要多少个页。包括存储各个加载段数据的页和页表页。
 pub fn count_pages<Meta: VmMeta>(elf: &ElfFile) -> usize {

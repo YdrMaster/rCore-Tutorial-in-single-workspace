@@ -14,6 +14,7 @@ use self::vm::KernelSpaceBuilder;
 use crate::mm::global;
 use ::page_table::{PageTable, PageTableShuttle, Sv39, VAddr, VmMeta, VPN};
 use impls::Console;
+use kernel_vm::Page4K;
 use output::log;
 use riscv::register::satp;
 use sbi_rt::*;
@@ -75,7 +76,7 @@ extern "C" fn rust_main() -> ! {
 
     // 内核地址空间
     {
-        let kernel_root = mm::Page::ZERO;
+        let kernel_root = Page4K::ZERO;
         let kernel_root = VAddr::<Sv39>::new(kernel_root.addr());
         let table = unsafe {
             PageTable::<Sv39>::from_raw_parts(
@@ -170,6 +171,7 @@ mod mm {
         cell::RefCell,
         ptr::NonNull,
     };
+    use kernel_vm::Page4K;
 
     /// 初始化全局分配器和内核堆分配器。
     pub fn init() {
@@ -193,21 +195,8 @@ mod mm {
         &mut GLOBAL
     }
 
-    #[repr(C, align(4096))]
-    pub struct Page([u8; 4096]);
-
-    impl Page {
-        pub const ZERO: Self = Self([0; 4096]);
-        pub const LAYOUT: Layout = Layout::new::<Self>();
-
-        #[inline]
-        pub fn addr(&self) -> usize {
-            self as *const _ as _
-        }
-    }
-
     /// 托管空间 4 MiB
-    static mut MEMORY: [Page; 1024] = [Page::ZERO; 1024];
+    static mut MEMORY: [Page4K; 1024] = [Page4K::ZERO; 1024];
     static mut GLOBAL: MutAllocator<5> = MutAllocator::<5>::new();
     #[global_allocator]
     static ALLOC: SharedAllocator<22> = SharedAllocator(RefCell::new(MutAllocator::new()));
@@ -221,9 +210,9 @@ mod mm {
         unsafe fn alloc(&self, layout: Layout) -> *mut u8 {
             let mut inner = self.0.borrow_mut();
             loop {
-                if let Ok((ptr, _)) = inner.allocate::<u8>(layout) {
+                if let Ok((ptr, _)) = inner.allocate_layout::<u8>(layout) {
                     return ptr.as_ptr();
-                } else if let Ok((ptr, size)) = GLOBAL.allocate::<u8>(layout) {
+                } else if let Ok((ptr, size)) = GLOBAL.allocate_layout::<u8>(layout) {
                     inner.transfer(ptr, size);
                 } else {
                     handle_alloc_error(layout)
@@ -241,7 +230,8 @@ mod mm {
 }
 
 mod vm {
-    use crate::mm::{MutAllocator, Page};
+    use crate::mm::MutAllocator;
+    use kernel_vm::Page4K;
     use page_table::{Decorator, Pos, Pte, Sv39, Update, VAddr, VmFlags, PPN};
 
     pub struct KernelSpaceBuilder<'a, const N: usize>(pub &'a mut MutAllocator<N>);
@@ -277,8 +267,8 @@ mod vm {
             _pte: Pte<Sv39>,
             _target_hint: Pos<Sv39>,
         ) -> Update<Sv39> {
-            let (ptr, size) = self.0.allocate::<Page>(Page::LAYOUT).unwrap();
-            assert_eq!(size, Page::LAYOUT.size());
+            let (ptr, size) = self.0.allocate_type::<Page4K>().unwrap();
+            assert_eq!(size, Page4K::LAYOUT.size());
             let vpn = VAddr::new(ptr.as_ptr() as _).floor();
             let ppn = PPN::new(vpn.val());
             Update::Pte(unsafe { VmFlags::from_raw(1) }.build_pte(ppn), vpn)

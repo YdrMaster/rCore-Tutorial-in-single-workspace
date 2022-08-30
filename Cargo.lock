@@ -40,7 +40,7 @@ checksum = "bef38d45163c2f1dde094a7dfd33ccf595c92905c8f8f4fdc18d06fb1037718a"
 [[package]]
 name = "buddy-allocator"
 version = "0.0.1"
-source = "git+https://github.com/YdrMaster/buddy-allocator?rev=5ac08b8#5ac08b82fb1a200b50460ef70e244a39938eaba8"
+source = "git+https://github.com/YdrMaster/buddy-allocator?rev=a11bdec#a11bdec815ed463c0af08e0b7b226509e35f2525"
 
 [[package]]
 name = "cfg-if"
