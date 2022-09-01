@@ -4,18 +4,19 @@ use core::{
     alloc::{GlobalAlloc, Layout},
     ptr::NonNull,
 };
+use kernel_vm::{init_allocator, PageAllocator};
 use output::log;
 
 /// 初始化全局分配器和内核堆分配器。
 pub fn init() {
     /// 4 KiB 页类型。
     #[repr(C, align(4096))]
-    pub struct Pages<const N: usize>([u8; N]);
+    pub struct Memory<const N: usize>([u8; N]);
 
     const MEMORY_SIZE: usize = 4 << 20;
 
     /// 托管空间 4 MiB
-    static mut MEMORY: Pages<MEMORY_SIZE> = Pages([0u8; MEMORY_SIZE]);
+    static mut MEMORY: Memory<MEMORY_SIZE> = Memory([0u8; MEMORY_SIZE]);
     unsafe {
         let ptr = NonNull::new(MEMORY.0.as_mut_ptr()).unwrap();
         log::info!(
@@ -26,7 +27,7 @@ pub fn init() {
         PAGE.init(12, ptr);
         HEAP.init(3, ptr);
         PAGE.transfer(ptr, MEMORY_SIZE);
-        kernel_vm::init_allocator(&PageAllocator);
+        init_allocator(&Pages);
     }
 }
 
@@ -47,10 +48,10 @@ type MutAllocator<const N: usize> = BuddyAllocator<N, UsizeBuddy, LinkedListBudd
 pub static mut PAGE: MutAllocator<5> = MutAllocator::new();
 static mut HEAP: MutAllocator<32> = MutAllocator::new();
 
-struct GlobAllocator;
-struct PageAllocator;
+struct Global;
+struct Pages;
 
-impl kernel_vm::PageAllocator for PageAllocator {
+impl PageAllocator for Pages {
     #[inline]
     fn allocate(&self, bits: usize) -> NonNull<u8> {
         let size = 1 << bits;
@@ -61,14 +62,15 @@ impl kernel_vm::PageAllocator for PageAllocator {
 
     #[inline]
     fn deallocate(&self, ptr: NonNull<u8>, bits: usize) {
+        log::warn!("deallocate {ptr:#x?}");
         unsafe { PAGE.deallocate(ptr, 1 << bits) };
     }
 }
 
 #[global_allocator]
-static GLOBAL: GlobAllocator = GlobAllocator;
+static GLOBAL: Global = Global;
 
-unsafe impl GlobalAlloc for GlobAllocator {
+unsafe impl GlobalAlloc for Global {
     #[inline]
     unsafe fn alloc(&self, layout: Layout) -> *mut u8 {
         if let Ok((ptr, _)) = HEAP.allocate_layout::<u8>(layout) {

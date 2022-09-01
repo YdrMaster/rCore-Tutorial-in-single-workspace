@@ -15,5 +15,5 @@ output = { path = "../output" }
 utils = { path = "../utils" }
 kernel-context = { path = "../kernel-context" }
 kernel-vm = { path = "../kernel-vm" }
-buddy-allocator = { git = "https://github.com/YdrMaster/buddy-allocator", rev = "a11bdec" }
+buddy-allocator = { git = "https://github.com/YdrMaster/buddy-allocator", rev = "4795c98" }
 syscall = { path = "../syscall", features = ["kernel"] }

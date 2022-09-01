@@ -80,11 +80,10 @@ extern "C" fn rust_main() -> ! {
             static apps: utils::AppMeta;
         }
         for (i, elf) in unsafe { apps.iter_elf() }.enumerate() {
-            println!(
-                "detect app[{i}] at {:?} (size: {} bytes)",
-                elf.as_ptr(),
-                elf.len()
-            );
+            let base = elf.as_ptr() as usize;
+            println!("detect app[{i}]: {base:#x}..{:#x}", base + elf.len());
+        }
+        for elf in unsafe { apps.iter_elf() } {
             if let Some(process) = Process::new(ElfFile::new(elf).unwrap()) {
                 processes.push(process);
             }
