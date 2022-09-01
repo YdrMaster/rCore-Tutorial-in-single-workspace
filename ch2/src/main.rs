@@ -29,11 +29,8 @@ unsafe extern "C" fn _start() -> ! {
     static mut STACK: [u8; STACK_SIZE] = [0u8; STACK_SIZE];
 
     core::arch::asm!(
-        "   la  sp, {stack}
-            li  t0, {stack_size}
-            add sp, sp, t0
-            j   {main}
-        ",
+        "la sp, {stack} + {stack_size}",
+        "j  {main}",
         stack_size = const STACK_SIZE,
         stack      =   sym STACK,
         main       =   sym rust_main,
