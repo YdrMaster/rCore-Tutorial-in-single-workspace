@@ -21,7 +21,7 @@ use kernel_context::LocalContext;
 use kernel_vm::AddressSpace;
 use mm::PAGE;
 use output::log;
-use page_table::{VmFlags, PPN, VPN};
+use page_table::{MmuMeta, VmFlags, PPN, VPN};
 use riscv::register::satp;
 use sbi_rt::*;
 use xmas_elf::{
@@ -239,11 +239,12 @@ impl Process {
             }
         }
         unsafe {
+            const STACK_SIZE: usize = 2 << Sv39::PAGE_BITS;
             let (pages, size) = PAGE
-                .allocate_layout::<u8>(Layout::from_size_align_unchecked(2 << 12, 1 << 12))
+                .allocate_layout::<u8>(Layout::from_size_align_unchecked(STACK_SIZE, 1 << 12))
                 .unwrap();
-            assert_eq!(size, 2 << 12);
-            core::slice::from_raw_parts_mut(pages.as_ptr(), 2 << 12).fill(0);
+            assert_eq!(size, STACK_SIZE);
+            core::slice::from_raw_parts_mut(pages.as_ptr(), STACK_SIZE).fill(0);
             address_space.push(
                 VPN::new((1 << 26) - 2)..VPN::new(1 << 26),
                 PPN::new(pages.as_ptr() as usize >> 12),
