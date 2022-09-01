@@ -19,12 +19,15 @@ use alloc::vec::Vec;
 use impls::Console;
 use kernel_context::LocalContext;
 use kernel_vm::AddressSpace;
+use mm::PAGE;
 use output::log;
-use page_table::{VmFlags, PPN};
+use page_table::{VmFlags, PPN, VPN};
 use riscv::register::satp;
 use sbi_rt::*;
-
-use crate::mm::PAGE;
+use xmas_elf::{
+    header::{self, HeaderPt2, Machine},
+    ElfFile,
+};
 
 // 应用程序内联进来。
 core::arch::global_asm!(include_str!(env!("APP_ASM")));
@@ -72,10 +75,6 @@ extern "C" fn rust_main() -> ! {
     let _ks = kernel_space();
     let mut processes = Vec::<Process>::new();
     {
-        use xmas_elf::{
-            header::{self, HeaderPt2, Machine},
-            ElfFile,
-        };
         // 加载应用程序
         extern "C" {
             static apps: utils::AppMeta;
@@ -86,35 +85,8 @@ extern "C" fn rust_main() -> ! {
                 elf.as_ptr(),
                 elf.len()
             );
-            let elf = ElfFile::new(elf).unwrap();
-            if let HeaderPt2::Header64(pt2) = elf.header.pt2 {
-                if pt2.type_.as_type() != header::Type::Executable
-                    || pt2.machine.as_machine() != Machine::RISC_V
-                {
-                    continue;
-                }
-                let _address_space = AddressSpace::<Sv39>::new(0);
-                for program in elf.program_iter() {
-                    let off_file = program.offset();
-                    let end_file = off_file + program.file_size();
-                    let off_mem = program.virtual_addr();
-                    let end_mem = off_mem + program.mem_size();
-                    let svpn = VAddr::<Sv39>::new(off_mem as _).floor();
-                    let evpn = VAddr::<Sv39>::new(end_mem as _).ceil();
-                    let (_pages, size) = unsafe {
-                        PAGE.allocate_layout::<u8>(Layout::from_size_align_unchecked(
-                            (evpn.val() - svpn.val()) << 12,
-                            1 << 12,
-                        ))
-                        .unwrap()
-                    };
-                    assert_eq!(size, (evpn.val() - svpn.val()) << 12);
-                    println!("LOAD {off_file:#08x}..{end_file:#08x} -> {off_mem:#08x}..{end_mem:#08x} with {:?}", program.flags());
-                }
-                processes.push(Process {
-                    _context: LocalContext::user(pt2.entry_point as _),
-                    _address_space,
-                });
+            if let Some(process) = Process::new(ElfFile::new(elf).unwrap()) {
+                processes.push(process);
             }
         }
     }
@@ -142,12 +114,6 @@ mod impls {
             sbi_rt::legacy::console_putchar(c as _);
         }
     }
-}
-
-/// 进程。
-struct Process {
-    _context: LocalContext,
-    _address_space: AddressSpace<Sv39>,
 }
 
 fn kernel_space() -> AddressSpace<Sv39> {
@@ -200,4 +166,95 @@ fn kernel_space() -> AddressSpace<Sv39> {
     }
     unsafe { satp::set(satp::Mode::Sv39, 0, space.root_ppn().unwrap().val()) };
     space
+}
+
+/// 进程。
+struct Process {
+    _context: LocalContext,
+    _address_space: AddressSpace<Sv39>,
+}
+
+impl Process {
+    fn new(elf: ElfFile) -> Option<Self> {
+        let entry = match elf.header.pt2 {
+            HeaderPt2::Header64(pt2)
+                if pt2.type_.as_type() == header::Type::Executable
+                    && pt2.machine.as_machine() == Machine::RISC_V =>
+            {
+                pt2.entry_point as usize
+            }
+            _ => None?,
+        };
+
+        let mut address_space = AddressSpace::<Sv39>::new(0);
+        for program in elf.program_iter() {
+            if !matches!(program.get_type(), Ok(xmas_elf::program::Type::Load)) {
+                continue;
+            }
+
+            const PAGE_MASK: usize = (1 << 12) - 1;
+
+            let off_file = program.offset() as usize;
+            let len_file = program.file_size() as usize;
+            let off_mem = program.virtual_addr() as usize;
+            let end_mem = off_mem + program.mem_size() as usize;
+            assert_eq!(off_file & PAGE_MASK, off_mem & PAGE_MASK);
+
+            let svpn = VAddr::<Sv39>::new(off_mem).floor();
+            let evpn = VAddr::<Sv39>::new(end_mem).ceil();
+            let (pages, size) = unsafe {
+                PAGE.allocate_layout::<u8>(Layout::from_size_align_unchecked(
+                    (evpn.val() - svpn.val()) << 12,
+                    1 << 12,
+                ))
+                .unwrap()
+            };
+            assert_eq!(size, (evpn.val() - svpn.val()) << 12);
+
+            let ptr = pages.as_ptr();
+            let off_inside = off_mem & PAGE_MASK;
+            unsafe {
+                use core::slice::from_raw_parts_mut;
+                from_raw_parts_mut(ptr, off_inside).fill(0);
+                pages
+                    .as_ptr()
+                    .add(off_inside)
+                    .copy_from_nonoverlapping(elf.input[off_file..].as_ptr(), len_file);
+                let off_inside = off_inside + len_file;
+                from_raw_parts_mut(ptr.add(off_inside), size - off_inside).fill(0);
+                let mut flags = 1usize;
+                if program.flags().is_read() {
+                    flags |= 0b0010;
+                }
+                if program.flags().is_write() {
+                    flags |= 0b0100;
+                }
+                if program.flags().is_execute() {
+                    flags |= 0b1000;
+                }
+                address_space.push(
+                    svpn..evpn,
+                    PPN::new(ptr as usize >> 12),
+                    VmFlags::from_raw(flags),
+                );
+            }
+        }
+        unsafe {
+            let (pages, size) = PAGE
+                .allocate_layout::<u8>(Layout::from_size_align_unchecked(2 << 12, 1 << 12))
+                .unwrap();
+            assert_eq!(size, 2 << 12);
+            core::slice::from_raw_parts_mut(pages.as_ptr(), 2 << 12).fill(0);
+            address_space.push(
+                VPN::new((1 << 26) - 2)..VPN::new(1 << 26),
+                PPN::new(pages.as_ptr() as usize >> 12),
+                VmFlags::from_raw(0b0111),
+            );
+        }
+
+        Some(Self {
+            _context: LocalContext::user(entry),
+            _address_space: address_space,
+        })
+    }
 }
