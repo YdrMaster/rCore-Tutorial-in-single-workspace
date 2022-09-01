@@ -55,15 +55,11 @@ unsafe extern "C" fn _start() -> ! {
 
 extern "C" fn rust_main() -> ! {
     // bss 段清零
-    extern "C" {
-        static mut sbss: u64;
-        static mut ebss: u64;
-    }
-    unsafe { r0::zero_bss(&mut sbss, &mut ebss) };
+    utils::zero_bss();
     // 初始化 `output`
     output::init_console(&Console);
     output::set_log_level(option_env!("LOG"));
-    utils::test_log();
+    output::test_log();
     // 初始化内核堆
     mm::init();
     mm::test();

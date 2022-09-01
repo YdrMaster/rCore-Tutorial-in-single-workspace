@@ -1,7 +1,7 @@
 //! 内核虚存管理。
 
 #![no_std]
-// #![deny(warnings, missing_docs)]
+#![deny(warnings)] //, missing_docs)]
 
 mod space;
 

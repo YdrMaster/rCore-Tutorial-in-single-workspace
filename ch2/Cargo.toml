@@ -7,7 +7,6 @@ authors = ["YdrMaster <ydrml@hotmail.com>"]
 [dependencies]
 sbi-rt = { git = "https://github.com/rustsbi/sbi-rt", branch = "dev" }
 riscv = "0.8.0"
-r0 = "1.0.0"
 
 output = { path = "../output" }
 utils = { path = "../utils" }

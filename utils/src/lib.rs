@@ -3,24 +3,16 @@
 #![no_std]
 #![deny(warnings, missing_docs)]
 
-/// 打印一些测试信息。
-pub fn test_log() {
-    use output::*;
-    println!(
-        r"
-  ______        __                _         __
- /_  __/__  __ / /_ ____   _____ (_)____ _ / /
-  / /  / / / // __// __ \ / ___// // __ `// /
- / /  / /_/ // /_ / /_/ // /   / // /_/ // /
-/_/   \__,_/ \__/ \____//_/   /_/ \__,_//_/
-==========================================="
-    );
-    log::trace!("LOG TEST >> Hello, world!");
-    log::debug!("LOG TEST >> Hello, world!");
-    log::info!("LOG TEST >> Hello, world!");
-    log::warn!("LOG TEST >> Hello, world!");
-    log::error!("LOG TEST >> Hello, world!");
-    println!();
+/// bss 段清零。
+///
+/// 需要定义 sbss 和 ebss 全局符号才能定位 bss。
+#[inline]
+pub fn zero_bss() {
+    extern "C" {
+        static mut sbss: u64;
+        static mut ebss: u64;
+    }
+    unsafe { r0::zero_bss(&mut sbss, &mut ebss) };
 }
 
 /// 应用程序元数据
