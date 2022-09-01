@@ -203,6 +203,7 @@ name = "kernel-vm"
 version = "0.1.0"
 dependencies = [
  "page-table",
+ "spin",
 ]
 
 [[package]]

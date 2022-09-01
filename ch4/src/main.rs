@@ -10,12 +10,11 @@ extern crate output;
 #[macro_use]
 extern crate alloc;
 
-use self::vm::KernelSpaceBuilder;
-use crate::mm::global;
-use ::page_table::{PageTable, PageTableShuttle, Sv39, VAddr, VmMeta, VPN};
+use ::page_table::{Sv39, VAddr};
 use impls::Console;
-use kernel_vm::{Page4K, PageCounter};
+use kernel_vm::AddressSpace;
 use output::log;
+use page_table::{VmFlags, PPN};
 use riscv::register::satp;
 use sbi_rt::*;
 
@@ -66,33 +65,45 @@ extern "C" fn rust_main() -> ! {
         fn __data();
         fn __end();
     }
-    log::info!("__text ----> {:#10x}", __text as usize);
-    log::info!("__transit -> {:#10x}", __transit as usize);
-    log::info!("__rodata --> {:#10x}", __rodata as usize);
-    log::info!("__data ----> {:#10x}", __data as usize);
-    log::info!("__end -----> {:#10x}", __end as usize);
+    let _text = VAddr::<Sv39>::new(__text as _);
+    let _transit = VAddr::<Sv39>::new(__transit as _);
+    let _rodata = VAddr::<Sv39>::new(__rodata as _);
+    let _data = VAddr::<Sv39>::new(__data as _);
+    let _end = VAddr::<Sv39>::new(__end as _);
+    log::info!("__text ----> {:#10x}", _text.val());
+    log::info!("__transit -> {:#10x}", _transit.val());
+    log::info!("__rodata --> {:#10x}", _rodata.val());
+    log::info!("__data ----> {:#10x}", _data.val());
+    log::info!("__end -----> {:#10x}", _end.val());
     println!();
     mm::init();
 
     // 内核地址空间
-    {
-        let kernel_root = Page4K::ZERO;
-        let kernel_root = VAddr::<Sv39>::new(kernel_root.addr());
-        let table = unsafe {
-            PageTable::<Sv39>::from_raw_parts(
-                kernel_root.val() as *mut _,
-                VPN::ZERO,
-                Sv39::MAX_LEVEL,
-            )
-        };
-        let mut shuttle = PageTableShuttle {
-            table,
-            f: |ppn| VPN::new(ppn.val()),
-        };
-        shuttle.walk_mut(KernelSpaceBuilder(unsafe { global() }));
-        // println!("{shuttle:?}");
-        unsafe { satp::set(satp::Mode::Sv39, 0, kernel_root.floor().val()) };
-    }
+    let mut space = AddressSpace::<Sv39>::new(0);
+    space.push(
+        _text.floor().._transit.ceil(),
+        PPN::new(_text.floor().val()),
+        unsafe { VmFlags::from_raw(0b1011) },
+    );
+    space.push(
+        _transit.floor().._rodata.ceil(),
+        PPN::new(_transit.floor().val()),
+        unsafe { VmFlags::from_raw(0b1111) },
+    );
+    space.push(
+        _rodata.floor().._data.ceil(),
+        PPN::new(_rodata.floor().val()),
+        unsafe { VmFlags::from_raw(0b0011) },
+    );
+    space.push(
+        _data.floor().._end.ceil(),
+        PPN::new(_data.floor().val()),
+        unsafe { VmFlags::from_raw(0b0111) },
+    );
+    // println!("{:?}", space.shuttle().unwrap());
+    println!("page count = {:?}", space.page_count());
+    println!("{:#?}", space.segments());
+    unsafe { satp::set(satp::Mode::Sv39, 0, space.root_ppn().unwrap().val()) };
     // 测试内核堆分配
     {
         let mut vec = vec![0; 256];
@@ -106,15 +117,12 @@ extern "C" fn rust_main() -> ! {
     {
         use xmas_elf::{
             header::{self, HeaderPt2, Machine},
-            program::Type::Load,
             ElfFile,
         };
         // 加载应用程序
         extern "C" {
             static apps: utils::AppMeta;
         }
-        let mut count_apps = 0usize;
-        let mut count_pages = 0usize;
         for (i, elf) in unsafe { apps.iter_elf() }.enumerate() {
             println!(
                 "detect app[{i}] at {:?} (size: {} bytes)",
@@ -128,27 +136,8 @@ extern "C" fn rust_main() -> ! {
                 {
                     continue;
                 }
-                let mut counter = PageCounter::<Sv39>::new();
-                // 加载
-                counter.insert(
-                    elf.program_iter()
-                        .filter(|h| matches!(h.get_type(), Ok(Load)))
-                        .map(|h| (h.virtual_addr() as usize, h.mem_size() as usize))
-                        .map(|(base, size)| VAddr::new(base)..VAddr::new(base + size)),
-                );
-                // 栈
-                counter.insert([VAddr::new((256 << 30) - 8192)..VAddr::new(256 << 30)].into_iter());
-                // 传送门
-                counter.insert([VAddr::new((512 << 30) - 4096)..VAddr::new(512 << 30)].into_iter());
-                let n = counter.count();
-                println!("this app needs {n} pages to load");
-                println!();
-                count_apps += 1;
-                count_pages += n;
             }
         }
-        println!("all {count_apps} apps need {count_pages} pages to load");
-        println!();
     }
 
     system_reset(RESET_TYPE_SHUTDOWN, RESET_REASON_NO_REASON);
@@ -181,13 +170,14 @@ mod mm {
     use buddy_allocator::{BuddyAllocator, LinkedListBuddy, UsizeBuddy};
     use core::{
         alloc::{GlobalAlloc, Layout},
-        cell::RefCell,
         ptr::NonNull,
     };
     use kernel_vm::Page4K;
 
     /// 初始化全局分配器和内核堆分配器。
     pub fn init() {
+        /// 托管空间 4 MiB
+        static mut MEMORY: [Page4K; 128] = [Page4K::ZERO; 128];
         unsafe {
             let ptr = NonNull::new(MEMORY.as_mut_ptr()).unwrap();
             let len = core::mem::size_of_val(&MEMORY);
@@ -196,37 +186,46 @@ mod mm {
                 ptr.as_ptr() as usize,
                 ptr.as_ptr() as usize + len
             );
-            GLOBAL.init(12, ptr);
-            GLOBAL.transfer(ptr, len);
-            ALLOC.0.borrow_mut().init(3, ptr);
+            PAGE.init(12, ptr);
+            HEAP.init(3, ptr);
+            PAGE.transfer(ptr, len);
+            kernel_vm::init_allocator(&PageAllocator);
         }
     }
 
-    /// 获取全局分配器。
-    #[inline]
-    pub unsafe fn global() -> &'static mut MutAllocator<5> {
-        &mut GLOBAL
+    type MutAllocator<const N: usize> = BuddyAllocator<N, UsizeBuddy, LinkedListBuddy>;
+    static mut PAGE: MutAllocator<5> = MutAllocator::new();
+    static mut HEAP: MutAllocator<22> = MutAllocator::new();
+
+    struct GlobAllocator;
+    struct PageAllocator;
+
+    impl kernel_vm::PageAllocator for PageAllocator {
+        #[inline]
+        fn allocate(&self, bits: usize) -> NonNull<u8> {
+            let size = 1 << bits;
+            unsafe { PAGE.allocate_layout(Layout::from_size_align_unchecked(size, size)) }
+                .unwrap()
+                .0
+        }
+
+        #[inline]
+        fn deallocate(&self, ptr: NonNull<u8>, bits: usize) {
+            unsafe { PAGE.deallocate(ptr, 1 << bits) };
+        }
     }
 
-    /// 托管空间 4 MiB
-    static mut MEMORY: [Page4K; 1024] = [Page4K::ZERO; 1024];
-    static mut GLOBAL: MutAllocator<5> = MutAllocator::<5>::new();
     #[global_allocator]
-    static ALLOC: SharedAllocator<22> = SharedAllocator(RefCell::new(MutAllocator::new()));
+    static GLOBAL: GlobAllocator = GlobAllocator;
 
-    pub type MutAllocator<const N: usize> = BuddyAllocator<N, UsizeBuddy, LinkedListBuddy>;
-
-    struct SharedAllocator<const N: usize>(RefCell<MutAllocator<N>>);
-    unsafe impl<const N: usize> Sync for SharedAllocator<N> {}
-    unsafe impl<const N: usize> GlobalAlloc for SharedAllocator<N> {
+    unsafe impl GlobalAlloc for GlobAllocator {
         #[inline]
         unsafe fn alloc(&self, layout: Layout) -> *mut u8 {
-            let mut inner = self.0.borrow_mut();
             loop {
-                if let Ok((ptr, _)) = inner.allocate_layout::<u8>(layout) {
+                if let Ok((ptr, _)) = HEAP.allocate_layout::<u8>(layout) {
                     return ptr.as_ptr();
-                } else if let Ok((ptr, size)) = GLOBAL.allocate_layout::<u8>(layout) {
-                    inner.transfer(ptr, size);
+                } else if let Ok((ptr, size)) = PAGE.allocate_layout::<u8>(layout) {
+                    HEAP.transfer(ptr, size);
                 } else {
                     handle_alloc_error(layout)
                 }
@@ -235,64 +234,7 @@ mod mm {
 
         #[inline]
         unsafe fn dealloc(&self, ptr: *mut u8, layout: Layout) {
-            self.0
-                .borrow_mut()
-                .deallocate(NonNull::new(ptr).unwrap(), layout.size())
+            HEAP.deallocate(NonNull::new(ptr).unwrap(), layout.size())
         }
-    }
-}
-
-mod vm {
-    use crate::mm::MutAllocator;
-    use kernel_vm::Page4K;
-    use page_table::{Decorator, Pos, Pte, Sv39, Update, VAddr, VmFlags, PPN};
-
-    pub struct KernelSpaceBuilder<'a, const N: usize>(pub &'a mut MutAllocator<N>);
-
-    impl<'a, const N: usize> Decorator<Sv39> for KernelSpaceBuilder<'a, N> {
-        #[inline]
-        fn start(&mut self, _: Pos<Sv39>) -> Pos<Sv39> {
-            Pos::new(VAddr::new(__text as usize).floor(), 0)
-        }
-
-        #[inline]
-        fn arrive(&mut self, pte: &mut Pte<Sv39>, target_hint: Pos<Sv39>) -> Pos<Sv39> {
-            let addr = target_hint.vpn.base().val();
-            let bits = if addr < __transit as usize {
-                0b1011 // X_RV <- .text
-            } else if addr < __rodata as usize {
-                0b1111 // XWRV <- .trampline
-            } else if addr < __data as usize {
-                0b0011 // __RV <- .rodata
-            } else if addr < __end as usize {
-                0b0111 // _WRV <- .data + .bss
-            } else {
-                return Pos::stop(); // end of kernel sections
-            };
-            *pte = unsafe { VmFlags::from_raw(bits) }.build_pte(PPN::new(target_hint.vpn.val()));
-            target_hint.next()
-        }
-
-        #[inline]
-        fn meet(
-            &mut self,
-            _level: usize,
-            _pte: Pte<Sv39>,
-            _target_hint: Pos<Sv39>,
-        ) -> Update<Sv39> {
-            let (ptr, size) = self.0.allocate_type::<Page4K>().unwrap();
-            assert_eq!(size, Page4K::LAYOUT.size());
-            let vpn = VAddr::new(ptr.as_ptr() as _).floor();
-            let ppn = PPN::new(vpn.val());
-            Update::Pte(unsafe { VmFlags::from_raw(1) }.build_pte(ppn), vpn)
-        }
-    }
-
-    extern "C" {
-        fn __text();
-        fn __transit();
-        fn __rodata();
-        fn __data();
-        fn __end();
     }
 }
