@@ -3,19 +3,31 @@
 /// 异界传送门。
 ///
 /// 必须位于公共地址空间中。
-#[repr(C)]
+#[repr(C, align(4096))]
 pub struct ForeignPortal {
-    a0: usize,              //    (a0) 目标控制流 a0
-    ra: usize,              // 1*8(a0) 目标控制流 ra      （寄存，不用初始化）
-    satp: usize,            // 2*8(a0) 目标控制流 satp
-    sstatus: usize,         // 3*8(a0) 目标控制流 sstatus
-    sepc: usize,            // 4*8(a0) 目标控制流 sepc
-    stvec: usize,           // 5*8(a0) 当前控制流 stvec   （寄存，不用初始化）
-    sscratch: usize,        // 6*8(a0) 当前控制流 sscratch（寄存，不用初始化）
-    execute: [usize; 1024], // 7*8(a0) 执行代码
+    a0: usize,             //    (a0) 目标控制流 a0
+    ra: usize,             // 1*8(a0) 目标控制流 ra      （寄存，不用初始化）
+    satp: usize,           // 2*8(a0) 目标控制流 satp
+    sstatus: usize,        // 3*8(a0) 目标控制流 sstatus
+    sepc: usize,           // 4*8(a0) 目标控制流 sepc
+    stvec: usize,          // 5*8(a0) 当前控制流 stvec   （寄存，不用初始化）
+    sscratch: usize,       // 6*8(a0) 当前控制流 sscratch（寄存，不用初始化）
+    execute: [usize; 256], // 7*8(a0) 执行代码
 }
 
 impl ForeignPortal {
+    /// 空的异界传送门。
+    pub const EMPTY: Self = Self {
+        a0: 0,
+        ra: 0,
+        satp: 0,
+        sstatus: 0,
+        sepc: 0,
+        stvec: 0,
+        sscratch: 0,
+        execute: [0; 256],
+    };
+
     /// 初始化异界传送门。
     pub fn runtime_init(&mut self, transit: usize) {
         let entry = foreign_execute as *const u16;

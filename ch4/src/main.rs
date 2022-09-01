@@ -12,10 +12,9 @@ extern crate output;
 #[macro_use]
 extern crate alloc;
 
-use core::alloc::Layout;
-
 use ::page_table::{Sv39, VAddr};
 use alloc::vec::Vec;
+use core::alloc::Layout;
 use impls::Console;
 use kernel_context::LocalContext;
 use kernel_vm::AddressSpace;
@@ -74,21 +73,20 @@ extern "C" fn rust_main() -> ! {
     // 建立内核地址空间
     let _ks = kernel_space();
     let mut processes = Vec::<Process>::new();
-    {
-        // 加载应用程序
-        extern "C" {
-            static apps: utils::AppMeta;
-        }
-        for (i, elf) in unsafe { apps.iter_elf() }.enumerate() {
-            let base = elf.as_ptr() as usize;
-            println!("detect app[{i}]: {base:#x}..{:#x}", base + elf.len());
-        }
-        for elf in unsafe { apps.iter_elf() } {
-            if let Some(process) = Process::new(ElfFile::new(elf).unwrap()) {
-                processes.push(process);
-            }
+    // 加载应用程序
+    extern "C" {
+        static apps: utils::AppMeta;
+    }
+    for (i, elf) in unsafe { apps.iter_elf() }.enumerate() {
+        let base = elf.as_ptr() as usize;
+        println!("detect app[{i}]: {base:#x}..{:#x}", base + elf.len());
+        if let Some(process) = Process::new(ElfFile::new(elf).unwrap()) {
+            processes.push(process);
         }
     }
+    // 异界传送门
+    // let _portal = ForeignPortal::EMPTY;
+    // portal.runtime_init((!0) << 12);
 
     system_reset(RESET_TYPE_SHUTDOWN, RESET_REASON_NO_REASON);
     unreachable!()
@@ -163,6 +161,7 @@ fn kernel_space() -> AddressSpace<Sv39> {
     for seg in space.segments() {
         log::info!("{seg}");
     }
+    println!();
     unsafe { satp::set(satp::Mode::Sv39, 0, space.root_ppn().unwrap().val()) };
     space
 }
@@ -250,6 +249,11 @@ impl Process {
                 PPN::new(pages.as_ptr() as usize >> 12),
                 VmFlags::from_raw(0b0111),
             );
+        }
+
+        log::info!("kernel page count = {:?}", address_space.page_count());
+        for seg in address_space.segments() {
+            log::info!("{seg}");
         }
 
         Some(Self {
