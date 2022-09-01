@@ -102,7 +102,9 @@ extern "C" fn rust_main() -> ! {
     );
     // println!("{:?}", space.shuttle().unwrap());
     println!("page count = {:?}", space.page_count());
-    println!("{:#?}", space.segments());
+    for seg in space.segments() {
+        println!("{seg}");
+    }
     unsafe { satp::set(satp::Mode::Sv39, 0, space.root_ppn().unwrap().val()) };
     // 测试内核堆分配
     {
@@ -136,6 +138,7 @@ extern "C" fn rust_main() -> ! {
                 {
                     continue;
                 }
+                for _segment in elf.program_iter() {}
             }
         }
     }
@@ -172,23 +175,27 @@ mod mm {
         alloc::{GlobalAlloc, Layout},
         ptr::NonNull,
     };
-    use kernel_vm::Page4K;
 
     /// 初始化全局分配器和内核堆分配器。
     pub fn init() {
+        /// 4 KiB 页类型。
+        #[repr(C, align(4096))]
+        pub struct Pages<const N: usize>([u8; N]);
+
+        const MEMORY_SIZE: usize = 4 << 20;
+
         /// 托管空间 4 MiB
-        static mut MEMORY: [Page4K; 128] = [Page4K::ZERO; 128];
+        static mut MEMORY: Pages<MEMORY_SIZE> = Pages([0u8; MEMORY_SIZE]);
         unsafe {
-            let ptr = NonNull::new(MEMORY.as_mut_ptr()).unwrap();
-            let len = core::mem::size_of_val(&MEMORY);
+            let ptr = NonNull::new(MEMORY.0.as_mut_ptr()).unwrap();
             println!(
                 "MEMORY = {:#x}..{:#x}",
                 ptr.as_ptr() as usize,
-                ptr.as_ptr() as usize + len
+                ptr.as_ptr() as usize + MEMORY_SIZE
             );
             PAGE.init(12, ptr);
             HEAP.init(3, ptr);
-            PAGE.transfer(ptr, len);
+            PAGE.transfer(ptr, MEMORY_SIZE);
             kernel_vm::init_allocator(&PageAllocator);
         }
     }
