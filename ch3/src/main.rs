@@ -27,17 +27,14 @@ const APP_CAPACITY: usize = 32;
 #[no_mangle]
 #[link_section = ".text.entry"]
 unsafe extern "C" fn _start() -> ! {
-    const STACK_SIZE: usize = 2 * 4096;
+    const STACK_SIZE: usize = (APP_CAPACITY + 2) * 4096;
 
     #[link_section = ".bss.uninit"]
     static mut STACK: [u8; STACK_SIZE] = [0u8; STACK_SIZE];
 
     core::arch::asm!(
-        "   la  sp, {stack}
-            li  t0, {stack_size}
-            add sp, sp, t0
-            j   {main}
-        ",
+        "la sp, {stack} + {stack_size}",
+        "j  {main}",
         stack_size = const STACK_SIZE,
         stack      =   sym STACK,
         main       =   sym rust_main,
@@ -47,16 +44,11 @@ unsafe extern "C" fn _start() -> ! {
 
 extern "C" fn rust_main() -> ! {
     // bss 段清零
-    extern "C" {
-        static mut sbss: u64;
-        static mut ebss: u64;
-    }
-    unsafe { r0::zero_bss(&mut sbss, &mut ebss) };
+    utils::zero_bss();
     // 初始化 `output`
     output::init_console(&Console);
     output::set_log_level(option_env!("LOG"));
-    utils::test_log();
-
+    output::test_log();
     // 初始化 syscall
     syscall::init_io(&SyscallContext);
     syscall::init_process(&SyscallContext);
@@ -67,13 +59,13 @@ extern "C" fn rust_main() -> ! {
         static apps: utils::AppMeta;
     }
     // 任务控制块
-    static mut TCBS: [TaskControlBlock; APP_CAPACITY] = [TaskControlBlock::ZERO; APP_CAPACITY];
+    let mut tcbs = [TaskControlBlock::ZERO; APP_CAPACITY];
     let mut index_mod = 0;
     // 初始化
     for (i, entry) in unsafe { apps.iter_static() }.enumerate() {
-        index_mod += 1;
         log::info!("load app{i} to {entry:#x}");
-        unsafe { TCBS[i].init(entry) };
+        tcbs[i].init(entry);
+        index_mod += 1;
     }
     println!();
     // 打开中断
@@ -82,7 +74,7 @@ extern "C" fn rust_main() -> ! {
     let mut remain = index_mod;
     let mut i = 0usize;
     while remain > 0 {
-        let tcb = unsafe { &mut TCBS[i] };
+        let tcb = &mut tcbs[i];
         if !tcb.finish {
             loop {
                 #[cfg(not(feature = "coop"))]

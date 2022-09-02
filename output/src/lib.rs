@@ -1,5 +1,7 @@
-﻿#![no_std]
-#![deny(warnings)]
+﻿//! 提供 `print!`、`println!` 和 `log::Log`。
+
+#![no_std]
+#![deny(warnings, missing_docs)]
 
 use core::{
     fmt::{Arguments, Write},
@@ -41,6 +43,25 @@ pub fn set_log_level(env: Option<&str>) {
     log::set_max_level(env.and_then(|s| Lv::from_str(s).ok()).unwrap_or(Lv::Trace));
 }
 
+/// 打印一些测试信息。
+pub fn test_log() {
+    println!(
+        r"
+  ______        __                _         __
+ /_  __/__  __ / /_ ____   _____ (_)____ _ / /
+  / /  / / / // __// __ \ / ___// // __ `// /
+ / /  / /_/ // /_ / /_/ // /   / // /_/ // /
+/_/   \__,_/ \__/ \____//_/   /_/ \__,_//_/
+==========================================="
+    );
+    log::trace!("LOG TEST >> Hello, world!");
+    log::debug!("LOG TEST >> Hello, world!");
+    log::info!("LOG TEST >> Hello, world!");
+    log::warn!("LOG TEST >> Hello, world!");
+    log::error!("LOG TEST >> Hello, world!");
+    println!();
+}
+
 /// 打印。
 ///
 /// 给宏用的，用户不会直接调它。
@@ -50,6 +71,7 @@ pub fn _print(args: Arguments) {
     Logger.write_fmt(args).unwrap();
 }
 
+/// 格式化打印。
 #[macro_export]
 macro_rules! print {
     ($($arg:tt)*) => {
@@ -57,6 +79,7 @@ macro_rules! print {
     }
 }
 
+/// 格式化打印并换行。
 #[macro_export]
 macro_rules! println {
     () => ($crate::print!("\n"));

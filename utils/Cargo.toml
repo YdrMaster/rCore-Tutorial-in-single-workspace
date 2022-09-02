@@ -7,4 +7,4 @@ authors = ["YdrMaster <ydrml@hotmail.com>"]
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-output = { path = "../output" }
+r0 = "1.0.0"

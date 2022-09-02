@@ -7,7 +7,7 @@ use syscall::SyscallId;
 pub struct TaskControlBlock {
     ctx: LocalContext,
     pub finish: bool,
-    stack: [u8; 4096],
+    stack: [usize; 256],
 }
 
 /// 调度事件。
@@ -22,7 +22,7 @@ impl TaskControlBlock {
     pub const ZERO: Self = Self {
         ctx: LocalContext::empty(),
         finish: false,
-        stack: [0; 4096],
+        stack: [0; 256],
     };
 
     /// 初始化一个任务。
@@ -30,7 +30,7 @@ impl TaskControlBlock {
         self.stack.fill(0);
         self.finish = false;
         self.ctx = LocalContext::user(entry);
-        *self.ctx.sp_mut() = self.stack.as_ptr() as usize + self.stack.len();
+        *self.ctx.sp_mut() = self.stack.as_ptr() as usize + core::mem::size_of_val(&self.stack);
     }
 
     /// 执行此任务。

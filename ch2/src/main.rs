@@ -29,11 +29,8 @@ unsafe extern "C" fn _start() -> ! {
     static mut STACK: [u8; STACK_SIZE] = [0u8; STACK_SIZE];
 
     core::arch::asm!(
-        "   la  sp, {stack}
-            li  t0, {stack_size}
-            add sp, sp, t0
-            j   {main}
-        ",
+        "la sp, {stack} + {stack_size}",
+        "j  {main}",
         stack_size = const STACK_SIZE,
         stack      =   sym STACK,
         main       =   sym rust_main,
@@ -43,16 +40,11 @@ unsafe extern "C" fn _start() -> ! {
 
 extern "C" fn rust_main() -> ! {
     // bss 段清零
-    extern "C" {
-        static mut sbss: u64;
-        static mut ebss: u64;
-    }
-    unsafe { r0::zero_bss(&mut sbss, &mut ebss) };
+    utils::zero_bss();
     // 初始化 `output`
     output::init_console(&Console);
     output::set_log_level(option_env!("LOG"));
-    utils::test_log();
-
+    output::test_log();
     // 初始化 syscall
     syscall::init_io(&SyscallContext);
     syscall::init_process(&SyscallContext);
@@ -66,8 +58,8 @@ extern "C" fn rust_main() -> ! {
         // 初始化上下文
         let mut ctx = LocalContext::user(app_base);
         // 设置用户栈
-        let mut user_stack = [0u8; 4096];
-        *ctx.sp_mut() = user_stack.as_mut_ptr() as usize + user_stack.len();
+        let mut user_stack = [0usize; 256];
+        *ctx.sp_mut() = user_stack.as_mut_ptr() as usize + core::mem::size_of_val(&user_stack);
         // 执行应用程序
         loop {
             unsafe { ctx.execute() };
