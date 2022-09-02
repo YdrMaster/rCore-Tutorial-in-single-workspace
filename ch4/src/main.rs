@@ -5,6 +5,7 @@
 #![deny(warnings)]
 
 mod mm;
+mod process;
 
 #[macro_use]
 extern crate output;
@@ -12,24 +13,17 @@ extern crate output;
 #[macro_use]
 extern crate alloc;
 
+use crate::{impls::SyscallContext, process::Process};
 use ::page_table::{Sv39, VAddr};
 use alloc::vec::Vec;
-use core::alloc::Layout;
 use impls::Console;
-use kernel_context::{
-    foreign::{ForeignContext, ForeignPortal},
-    LocalContext,
-};
+use kernel_context::foreign::ForeignPortal;
 use kernel_vm::AddressSpace;
-use mm::PAGE;
 use output::log;
 use page_table::{MmuMeta, VmFlags, PPN, VPN};
 use riscv::register::*;
 use sbi_rt::*;
-use xmas_elf::{
-    header::{self, HeaderPt2, Machine},
-    ElfFile,
-};
+use xmas_elf::ElfFile;
 
 // 应用程序内联进来。
 core::arch::global_asm!(include_str!(env!("APP_ASM")));
@@ -63,6 +57,11 @@ extern "C" fn rust_main() -> ! {
     output::init_console(&Console);
     output::set_log_level(option_env!("LOG"));
     output::test_log();
+    // 初始化 syscall
+    syscall::init_io(&SyscallContext);
+    syscall::init_process(&SyscallContext);
+    syscall::init_scheduling(&SyscallContext);
+    syscall::init_clock(&SyscallContext);
     // 初始化内核堆
     mm::init();
     mm::test();
@@ -88,12 +87,38 @@ extern "C" fn rust_main() -> ! {
     processes
         .iter_mut()
         .for_each(|proc| map_portal(&mut proc.address_space, &portal));
-    unsafe {
-        processes[0]
-            .context
-            .execute(&mut portal, !0 << Sv39::PAGE_BITS);
-    };
-    println!("{:?}", scause::read().cause());
+    let ctx = &mut processes[0].context;
+    loop {
+        unsafe { ctx.execute(&mut portal, !0 << Sv39::PAGE_BITS) };
+        match scause::read().cause() {
+            scause::Trap::Exception(scause::Exception::UserEnvCall) => {
+                use syscall::SyscallId as Id;
+
+                let ctx = &mut ctx.context;
+                let id: Id = ctx.a(7).into();
+                log::info!("id = {id:?}");
+                break;
+                // let args = [ctx.a(0), ctx.a(1), ctx.a(2), ctx.a(3), ctx.a(4), ctx.a(5)];
+                // match syscall::handle(id, args) {
+                //     Ret::Done(ret) => match id {
+                //         Id::EXIT => break,
+                //         _ => {
+                //             *ctx.a_mut(0) = ret as _;
+                //             ctx.move_next();
+                //         }
+                //     },
+                //     Ret::Unsupported(id) => {
+                //         log::error!("unsupported syscall: {id:?}");
+                //         break;
+                //     }
+                // }
+            }
+            e => {
+                log::error!("unsupported trap: {e:?}");
+                break;
+            }
+        }
+    }
     system_reset(RESET_TYPE_SHUTDOWN, RESET_REASON_NO_REASON);
     unreachable!()
 }
@@ -104,19 +129,6 @@ fn panic(info: &core::panic::PanicInfo) -> ! {
     println!("{info}");
     system_reset(RESET_TYPE_SHUTDOWN, RESET_REASON_SYSTEM_FAILURE);
     unreachable!()
-}
-
-/// 各种接口库的实现
-mod impls {
-    pub struct Console;
-
-    impl output::Console for Console {
-        #[inline]
-        fn put_char(&self, c: u8) {
-            #[allow(deprecated)]
-            sbi_rt::legacy::console_putchar(c as _);
-        }
-    }
 }
 
 fn kernel_space() -> AddressSpace<Sv39> {
@@ -175,104 +187,70 @@ fn map_portal(space: &mut AddressSpace<Sv39>, portal: &ForeignPortal) {
     );
 }
 
-/// 进程。
-struct Process {
-    context: ForeignContext,
-    address_space: AddressSpace<Sv39>,
-}
+/// 各种接口库的实现。
+mod impls {
+    use syscall::*;
 
-impl Process {
-    fn new(elf: ElfFile) -> Option<Self> {
-        let entry = match elf.header.pt2 {
-            HeaderPt2::Header64(pt2)
-                if pt2.type_.as_type() == header::Type::Executable
-                    && pt2.machine.as_machine() == Machine::RISC_V =>
-            {
-                pt2.entry_point as usize
-            }
-            _ => None?,
-        };
+    pub struct Console;
 
-        let mut address_space = AddressSpace::<Sv39>::new(0);
-        for program in elf.program_iter() {
-            if !matches!(program.get_type(), Ok(xmas_elf::program::Type::Load)) {
-                continue;
-            }
-
-            const PAGE_MASK: usize = (1 << 12) - 1;
-
-            let off_file = program.offset() as usize;
-            let len_file = program.file_size() as usize;
-            let off_mem = program.virtual_addr() as usize;
-            let end_mem = off_mem + program.mem_size() as usize;
-            assert_eq!(off_file & PAGE_MASK, off_mem & PAGE_MASK);
-
-            let svpn = VAddr::<Sv39>::new(off_mem).floor();
-            let evpn = VAddr::<Sv39>::new(end_mem).ceil();
-            let (pages, size) = unsafe {
-                PAGE.allocate_layout::<u8>(Layout::from_size_align_unchecked(
-                    (evpn.val() - svpn.val()) << 12,
-                    1 << 12,
-                ))
-                .unwrap()
-            };
-            assert_eq!(size, (evpn.val() - svpn.val()) << 12);
-
-            let mut flags = 0b10001;
-            if program.flags().is_read() {
-                flags |= 0b0010;
-            }
-            if program.flags().is_write() {
-                flags |= 0b0100;
-            }
-            if program.flags().is_execute() {
-                flags |= 0b1000;
-            }
-
-            unsafe {
-                use core::slice::from_raw_parts_mut;
-
-                let mut ptr = pages.as_ptr();
-                from_raw_parts_mut(ptr, off_mem & PAGE_MASK).fill(0);
-                ptr = ptr.add(off_mem & PAGE_MASK);
-                ptr.copy_from_nonoverlapping(elf.input[off_file..].as_ptr(), len_file);
-                ptr = ptr.add(len_file);
-                from_raw_parts_mut(ptr, (1 << 12) - ((off_file + len_file) & PAGE_MASK)).fill(0);
-            }
-
-            address_space.push(
-                svpn..evpn,
-                PPN::new(pages.as_ptr() as usize >> 12),
-                unsafe { VmFlags::from_raw(flags) },
-            );
+    impl output::Console for Console {
+        #[inline]
+        fn put_char(&self, c: u8) {
+            #[allow(deprecated)]
+            sbi_rt::legacy::console_putchar(c as _);
         }
-        unsafe {
-            const STACK_SIZE: usize = 2 << Sv39::PAGE_BITS;
-            let (pages, size) = PAGE
-                .allocate_layout::<u8>(Layout::from_size_align_unchecked(STACK_SIZE, 1 << 12))
-                .unwrap();
-            assert_eq!(size, STACK_SIZE);
-            core::slice::from_raw_parts_mut(pages.as_ptr(), STACK_SIZE).fill(0);
-            address_space.push(
-                VPN::new((1 << 26) - 2)..VPN::new(1 << 26),
-                PPN::new(pages.as_ptr() as usize >> 12),
-                VmFlags::from_raw(0b10111),
-            );
-        }
+    }
 
-        log::info!("process entry = {:#x}", entry);
-        log::info!("process page count = {:?}", address_space.page_count());
-        for seg in address_space.segments() {
-            log::info!("{seg}");
-        }
-        // log::debug!("\n{:?}", address_space.shuttle().unwrap());
+    pub struct SyscallContext;
 
-        let mut context = LocalContext::user(entry);
-        let satp = (8 << 60) | address_space.root_ppn().unwrap().val();
-        *context.sp_mut() = 1 << 38;
-        Some(Self {
-            context: ForeignContext { context, satp },
-            address_space,
-        })
+    impl IO for SyscallContext {
+        #[inline]
+        fn write(&self, fd: usize, buf: usize, count: usize) -> isize {
+            use output::log::*;
+
+            if fd == 0 {
+                print!("{}", unsafe {
+                    core::str::from_utf8_unchecked(core::slice::from_raw_parts(
+                        buf as *const u8,
+                        count,
+                    ))
+                });
+                count as _
+            } else {
+                error!("unsupported fd: {fd}");
+                -1
+            }
+        }
+    }
+
+    impl Process for SyscallContext {
+        #[inline]
+        fn exit(&self, _status: usize) -> isize {
+            0
+        }
+    }
+
+    impl Scheduling for SyscallContext {
+        #[inline]
+        fn sched_yield(&self) -> isize {
+            0
+        }
+    }
+
+    impl Clock for SyscallContext {
+        #[inline]
+        fn clock_gettime(&self, clock_id: ClockId, tp: usize) -> isize {
+            match clock_id {
+                ClockId::CLOCK_MONOTONIC => {
+                    let time = riscv::register::time::read() * 10000 / 125;
+                    *unsafe { &mut *(tp as *mut TimeSpec) } = TimeSpec {
+                        tv_sec: time / 1_000_000_000,
+                        tv_nsec: time % 1_000_000_000,
+                    };
+                    0
+                }
+                _ => -1,
+            }
+        }
     }
 }

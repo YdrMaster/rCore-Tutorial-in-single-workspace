@@ -58,6 +58,12 @@ impl ForeignPortal {
         }
         unreachable!()
     }
+
+    /// 函数段的偏移。
+    #[inline]
+    fn execute_offset(&self) -> usize {
+        self.execute.as_ptr() as usize - self as *const _ as usize
+    }
 }
 
 /// 异界线程上下文。
@@ -80,14 +86,14 @@ impl ForeignContext {
         let supervisor = replace(&mut self.context.supervisor, true);
         // 异界传送门不能打开中断
         let interrupt = replace(&mut self.context.interrupt, false);
-        // 重置异界传送门上下文
+        // 重置传送门上下文
         portal.a0 = self.context.a(0);
         portal.satp = self.satp;
         portal.sstatus = build_sstatus(supervisor, interrupt);
         portal.sepc = self.context.sepc;
         // 执行传送门代码
         // NOTICE 危险的操作
-        self.context.sepc = protal_transit + 7 * 8;
+        self.context.sepc = protal_transit + portal.execute_offset();
         *self.context.a_mut(0) = protal_transit;
         let sstatus = self.context.execute();
         // 恢复线程属性
