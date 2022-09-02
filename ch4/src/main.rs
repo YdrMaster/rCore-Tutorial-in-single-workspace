@@ -16,12 +16,15 @@ use ::page_table::{Sv39, VAddr};
 use alloc::vec::Vec;
 use core::alloc::Layout;
 use impls::Console;
-use kernel_context::{foreign::ForeignPortal, LocalContext};
+use kernel_context::{
+    foreign::{ForeignContext, ForeignPortal},
+    LocalContext,
+};
 use kernel_vm::AddressSpace;
 use mm::PAGE;
 use output::log;
 use page_table::{MmuMeta, VmFlags, PPN, VPN};
-use riscv::register::satp;
+use riscv::register::*;
 use sbi_rt::*;
 use xmas_elf::{
     header::{self, HeaderPt2, Machine},
@@ -78,14 +81,19 @@ extern "C" fn rust_main() -> ! {
         }
     }
     // 异界传送门
-    let portal = ForeignPortal::new();
-    const PORTAL: VPN<Sv39> = VPN::MAX; // 虚地址最后一页给传送门
-    ks.push(
-        PORTAL..PORTAL + 1,
-        PPN::new(&portal as *const _ as usize >> 12),
-        unsafe { VmFlags::from_raw(0b1111) },
-    );
-
+    // 可以直接放在栈上
+    let mut portal = ForeignPortal::new();
+    // 传送门映射到所有地址空间
+    map_portal(&mut ks, &portal);
+    processes
+        .iter_mut()
+        .for_each(|proc| map_portal(&mut proc.address_space, &portal));
+    unsafe {
+        processes[0]
+            .context
+            .execute(&mut portal, !0 << Sv39::PAGE_BITS);
+    };
+    println!("{:?}", scause::read().cause());
     system_reset(RESET_TYPE_SHUTDOWN, RESET_REASON_NO_REASON);
     unreachable!()
 }
@@ -156,10 +164,21 @@ fn kernel_space() -> AddressSpace<Sv39> {
     space
 }
 
+#[inline]
+fn map_portal(space: &mut AddressSpace<Sv39>, portal: &ForeignPortal) {
+    const PORTAL: VPN<Sv39> = VPN::MAX; // 虚地址最后一页给传送门
+    const FLAGS: VmFlags<Sv39> = unsafe { VmFlags::from_raw(0b1111) };
+    space.push(
+        PORTAL..PORTAL + 1,
+        PPN::new(portal as *const _ as usize >> Sv39::PAGE_BITS),
+        FLAGS,
+    );
+}
+
 /// 进程。
 struct Process {
-    _context: LocalContext,
-    _address_space: AddressSpace<Sv39>,
+    context: ForeignContext,
+    address_space: AddressSpace<Sv39>,
 }
 
 impl Process {
@@ -210,7 +229,7 @@ impl Process {
                     .copy_from_nonoverlapping(elf.input[off_file..].as_ptr(), len_file);
                 let off_inside = off_inside + len_file;
                 from_raw_parts_mut(ptr.add(off_inside), size - off_inside).fill(0);
-                let mut flags = 1usize;
+                let mut flags = 10001usize;
                 if program.flags().is_read() {
                     flags |= 0b0010;
                 }
@@ -246,9 +265,13 @@ impl Process {
             log::info!("{seg}");
         }
 
+        let satp = (8 << 60) | address_space.root_ppn().unwrap().val();
         Some(Self {
-            _context: LocalContext::user(entry),
-            _address_space: address_space,
+            context: ForeignContext {
+                context: LocalContext::user(entry),
+                satp,
+            },
+            address_space,
         })
     }
 }

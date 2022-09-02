@@ -188,7 +188,7 @@ unsafe extern "C" fn execute_naked() {
         ",
         // 位置无关加载
         "   .option push
-            .option pic
+            .option nopic
         ",
         // 保存调度上下文
         "   addi sp, sp, -32*8

@@ -45,13 +45,13 @@ impl ForeignPortal {
         let entry = foreign_execute as *const u16;
         for len in 1.. {
             unsafe {
-                // 通过寻找结尾的 0，在运行时定位裸函数
+                // 通过寻找结尾的 `jr a0` 和 0，在运行时定位裸函数
                 // 裸函数的 `options(noreturn)` 会在结尾生成一个 0 指令，这是一个 unstable 特性所以不一定可靠
-                if *entry.add(len) == 0 {
-                    assert!(len < ans.execute.len());
+                if *entry.add(len) == 0x8502 && *entry.add(len + 1) == 0 {
+                    assert!(len + 2 <= ans.execute.len());
                     ans.execute
                         .as_mut_ptr()
-                        .copy_from_nonoverlapping(entry, len + 1);
+                        .copy_from_nonoverlapping(entry, len + 2);
                     return ans;
                 }
             }
@@ -64,8 +64,10 @@ impl ForeignPortal {
 ///
 /// 不在当前地址空间的线程。
 pub struct ForeignContext {
-    context: LocalContext,
-    satp: usize,
+    /// 目标地址空间上的线程上下文。
+    pub context: LocalContext,
+    /// 目标地址空间。
+    pub satp: usize,
 }
 
 impl ForeignContext {
@@ -88,6 +90,9 @@ impl ForeignContext {
         self.context.sepc = protal_transit + 7 * 8;
         *self.context.a_mut(0) = protal_transit;
         let sstatus = self.context.execute();
+        // 恢复线程属性
+        self.context.supervisor = supervisor;
+        self.context.interrupt = interrupt;
         // 从传送门读取上下文
         *self.context.a_mut(0) = portal.a0;
         sstatus
@@ -106,7 +111,7 @@ unsafe extern "C" fn foreign_execute(ctx: *mut ForeignPortal) {
     core::arch::asm!(
         // 位置无关加载
         "   .option push
-            .option pic
+            .option nopic
         ",
         // 保存 ra，ra 会用来寄存
         "   sd    ra, 1*8(a0)",
