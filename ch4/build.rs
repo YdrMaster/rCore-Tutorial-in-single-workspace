@@ -15,28 +15,18 @@ OUTPUT_ARCH(riscv)
 ENTRY(_start)
 SECTIONS {
     . = 0x80200000;
-    __text = .;
     .text : {
+        __text = .;
         *(.text.entry)
         *(.text .text.*)
     }
-    . = ALIGN(4K);
-    __transit = .;
-    .transit : {
-        KEEP(*(.transit))
-        KEEP(*(.transit.entry .transit.entry.*))
-        . = __transit + 4K;
-        __transit_end = .;
-    }
-    . = ALIGN(4K);
-    __rodata = .;
-    .rodata : {
+    .rodata : ALIGN(4K) {
+        __rodata = .;
         *(.rodata .rodata.*)
         *(.srodata .srodata.*)
     }
-    . = ALIGN(4K);
-    __data = .;
-    .data : {
+    .data : ALIGN(4K) {
+        __data = .;
         *(.data .data.*)
         *(.sdata .sdata.*)
     }
@@ -45,8 +35,7 @@ SECTIONS {
         sbss = ALIGN(8);
         *(.bss .bss.*)
         *(.sbss .sbss.*)
-        ebss = ALIGN(8);
+        ebss = .;
     }
-    . = ALIGN(4K);
     __end = .;
 }";

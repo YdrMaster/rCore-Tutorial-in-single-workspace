@@ -64,7 +64,7 @@ extern "C" fn rust_main() -> ! {
     mm::init();
     mm::test();
     // 建立内核地址空间
-    let _ks = kernel_space();
+    let mut ks = kernel_space();
     let mut processes = Vec::<Process>::new();
     // 加载应用程序
     extern "C" {
@@ -78,7 +78,13 @@ extern "C" fn rust_main() -> ! {
         }
     }
     // 异界传送门
-    let _portal = ForeignPortal::new();
+    let portal = ForeignPortal::new();
+    const PORTAL: VPN<Sv39> = VPN::MAX; // 虚地址最后一页给传送门
+    ks.push(
+        PORTAL..PORTAL + 1,
+        PPN::new(&portal as *const _ as usize >> 12),
+        unsafe { VmFlags::from_raw(0b1111) },
+    );
 
     system_reset(RESET_TYPE_SHUTDOWN, RESET_REASON_NO_REASON);
     unreachable!()
@@ -109,18 +115,15 @@ fn kernel_space() -> AddressSpace<Sv39> {
     // 打印段位置
     extern "C" {
         fn __text();
-        fn __transit();
         fn __rodata();
         fn __data();
         fn __end();
     }
     let _text = VAddr::<Sv39>::new(__text as _);
-    let _transit = VAddr::<Sv39>::new(__transit as _);
     let _rodata = VAddr::<Sv39>::new(__rodata as _);
     let _data = VAddr::<Sv39>::new(__data as _);
     let _end = VAddr::<Sv39>::new(__end as _);
     log::info!("__text ----> {:#10x}", _text.val());
-    log::info!("__transit -> {:#10x}", _transit.val());
     log::info!("__rodata --> {:#10x}", _rodata.val());
     log::info!("__data ----> {:#10x}", _data.val());
     log::info!("__end -----> {:#10x}", _end.val());
@@ -129,14 +132,9 @@ fn kernel_space() -> AddressSpace<Sv39> {
     // 内核地址空间
     let mut space = AddressSpace::<Sv39>::new(0);
     space.push(
-        _text.floor().._transit.ceil(),
+        _text.floor().._rodata.ceil(),
         PPN::new(_text.floor().val()),
         unsafe { VmFlags::from_raw(0b1011) },
-    );
-    space.push(
-        _transit.floor().._rodata.ceil(),
-        PPN::new(_transit.floor().val()),
-        unsafe { VmFlags::from_raw(0b1111) },
     );
     space.push(
         _rodata.floor().._data.ceil(),
