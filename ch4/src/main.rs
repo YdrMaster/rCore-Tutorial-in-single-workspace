@@ -218,33 +218,33 @@ impl Process {
             };
             assert_eq!(size, (evpn.val() - svpn.val()) << 12);
 
-            let ptr = pages.as_ptr();
-            let off_inside = off_mem & PAGE_MASK;
+            let mut flags = 0b10001;
+            if program.flags().is_read() {
+                flags |= 0b0010;
+            }
+            if program.flags().is_write() {
+                flags |= 0b0100;
+            }
+            if program.flags().is_execute() {
+                flags |= 0b1000;
+            }
+
             unsafe {
                 use core::slice::from_raw_parts_mut;
-                from_raw_parts_mut(ptr, off_inside).fill(0);
-                pages
-                    .as_ptr()
-                    .add(off_inside)
-                    .copy_from_nonoverlapping(elf.input[off_file..].as_ptr(), len_file);
-                let off_inside = off_inside + len_file;
-                from_raw_parts_mut(ptr.add(off_inside), size - off_inside).fill(0);
-                let mut flags = 10001usize;
-                if program.flags().is_read() {
-                    flags |= 0b0010;
-                }
-                if program.flags().is_write() {
-                    flags |= 0b0100;
-                }
-                if program.flags().is_execute() {
-                    flags |= 0b1000;
-                }
-                address_space.push(
-                    svpn..evpn,
-                    PPN::new(ptr as usize >> 12),
-                    VmFlags::from_raw(flags),
-                );
+
+                let mut ptr = pages.as_ptr();
+                from_raw_parts_mut(ptr, off_mem & PAGE_MASK).fill(0);
+                ptr = ptr.add(off_mem & PAGE_MASK);
+                ptr.copy_from_nonoverlapping(elf.input[off_file..].as_ptr(), len_file);
+                ptr = ptr.add(len_file);
+                from_raw_parts_mut(ptr, (1 << 12) - ((off_file + len_file) & PAGE_MASK)).fill(0);
             }
+
+            address_space.push(
+                svpn..evpn,
+                PPN::new(pages.as_ptr() as usize >> 12),
+                unsafe { VmFlags::from_raw(flags) },
+            );
         }
         unsafe {
             const STACK_SIZE: usize = 2 << Sv39::PAGE_BITS;
@@ -256,21 +256,22 @@ impl Process {
             address_space.push(
                 VPN::new((1 << 26) - 2)..VPN::new(1 << 26),
                 PPN::new(pages.as_ptr() as usize >> 12),
-                VmFlags::from_raw(0b0111),
+                VmFlags::from_raw(0b10111),
             );
         }
 
-        log::info!("kernel page count = {:?}", address_space.page_count());
+        log::info!("process entry = {:#x}", entry);
+        log::info!("process page count = {:?}", address_space.page_count());
         for seg in address_space.segments() {
             log::info!("{seg}");
         }
+        // log::debug!("\n{:?}", address_space.shuttle().unwrap());
 
+        let mut context = LocalContext::user(entry);
         let satp = (8 << 60) | address_space.root_ppn().unwrap().val();
+        *context.sp_mut() = 1 << 38;
         Some(Self {
-            context: ForeignContext {
-                context: LocalContext::user(entry),
-                satp,
-            },
+            context: ForeignContext { context, satp },
             address_space,
         })
     }
