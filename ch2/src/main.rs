@@ -58,8 +58,8 @@ extern "C" fn rust_main() -> ! {
         // 初始化上下文
         let mut ctx = LocalContext::user(app_base);
         // 设置用户栈
-        let mut user_stack = [0u8; 4096];
-        *ctx.sp_mut() = user_stack.as_mut_ptr() as usize + user_stack.len();
+        let mut user_stack = [0usize; 256];
+        *ctx.sp_mut() = user_stack.as_mut_ptr() as usize + core::mem::size_of_val(&user_stack);
         // 执行应用程序
         loop {
             unsafe { ctx.execute() };

@@ -16,7 +16,7 @@ use ::page_table::{Sv39, VAddr};
 use alloc::vec::Vec;
 use core::alloc::Layout;
 use impls::Console;
-use kernel_context::LocalContext;
+use kernel_context::{foreign::ForeignPortal, LocalContext};
 use kernel_vm::AddressSpace;
 use mm::PAGE;
 use output::log;
@@ -38,7 +38,7 @@ core::arch::global_asm!(include_str!(env!("APP_ASM")));
 #[no_mangle]
 #[link_section = ".text.entry"]
 unsafe extern "C" fn _start() -> ! {
-    const STACK_SIZE: usize = 4 * 4096;
+    const STACK_SIZE: usize = 6 * 4096;
 
     #[link_section = ".bss.uninit"]
     static mut STACK: [u8; STACK_SIZE] = [0u8; STACK_SIZE];
@@ -78,8 +78,7 @@ extern "C" fn rust_main() -> ! {
         }
     }
     // 异界传送门
-    // let _portal = ForeignPortal::EMPTY;
-    // portal.runtime_init((!0) << 12);
+    let _portal = ForeignPortal::new();
 
     system_reset(RESET_TYPE_SHUTDOWN, RESET_REASON_NO_REASON);
     unreachable!()

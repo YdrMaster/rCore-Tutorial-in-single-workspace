@@ -27,7 +27,7 @@ const APP_CAPACITY: usize = 32;
 #[no_mangle]
 #[link_section = ".text.entry"]
 unsafe extern "C" fn _start() -> ! {
-    const STACK_SIZE: usize = 2 * 4096;
+    const STACK_SIZE: usize = (APP_CAPACITY + 2) * 4096;
 
     #[link_section = ".bss.uninit"]
     static mut STACK: [u8; STACK_SIZE] = [0u8; STACK_SIZE];
@@ -59,13 +59,13 @@ extern "C" fn rust_main() -> ! {
         static apps: utils::AppMeta;
     }
     // 任务控制块
-    static mut TCBS: [TaskControlBlock; APP_CAPACITY] = [TaskControlBlock::ZERO; APP_CAPACITY];
+    let mut tcbs = [TaskControlBlock::ZERO; APP_CAPACITY];
     let mut index_mod = 0;
     // 初始化
     for (i, entry) in unsafe { apps.iter_static() }.enumerate() {
-        index_mod += 1;
         log::info!("load app{i} to {entry:#x}");
-        unsafe { TCBS[i].init(entry) };
+        tcbs[i].init(entry);
+        index_mod += 1;
     }
     println!();
     // 打开中断
@@ -74,7 +74,7 @@ extern "C" fn rust_main() -> ! {
     let mut remain = index_mod;
     let mut i = 0usize;
     while remain > 0 {
-        let tcb = unsafe { &mut TCBS[i] };
+        let tcb = &mut tcbs[i];
         if !tcb.finish {
             loop {
                 #[cfg(not(feature = "coop"))]

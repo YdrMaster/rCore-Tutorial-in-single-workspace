@@ -1,18 +1,20 @@
-﻿use crate::{build_sstatus, LocalContext};
+﻿use core::mem::MaybeUninit;
+
+use crate::{build_sstatus, LocalContext};
 
 /// 异界传送门。
 ///
 /// 必须位于公共地址空间中。
 #[repr(C, align(4096))]
 pub struct ForeignPortal {
-    a0: usize,             //    (a0) 目标控制流 a0
-    ra: usize,             // 1*8(a0) 目标控制流 ra      （寄存，不用初始化）
-    satp: usize,           // 2*8(a0) 目标控制流 satp
-    sstatus: usize,        // 3*8(a0) 目标控制流 sstatus
-    sepc: usize,           // 4*8(a0) 目标控制流 sepc
-    stvec: usize,          // 5*8(a0) 当前控制流 stvec   （寄存，不用初始化）
-    sscratch: usize,       // 6*8(a0) 当前控制流 sscratch（寄存，不用初始化）
-    execute: [usize; 256], // 7*8(a0) 执行代码
+    a0: usize,           //    (a0) 目标控制流 a0
+    ra: usize,           // 1*8(a0) 目标控制流 ra      （寄存，不用初始化）
+    satp: usize,         // 2*8(a0) 目标控制流 satp
+    sstatus: usize,      // 3*8(a0) 目标控制流 sstatus
+    sepc: usize,         // 4*8(a0) 目标控制流 sepc
+    stvec: usize,        // 5*8(a0) 当前控制流 stvec   （寄存，不用初始化）
+    sscratch: usize,     // 6*8(a0) 当前控制流 sscratch（寄存，不用初始化）
+    execute: [u16; 256], // 7*8(a0) 执行代码
 }
 
 impl ForeignPortal {
@@ -28,16 +30,29 @@ impl ForeignPortal {
         execute: [0; 256],
     };
 
-    /// 初始化异界传送门。
-    pub fn runtime_init(&mut self, transit: usize) {
+    /// 部署异界传送门。
+    pub fn new() -> Self {
+        let mut ans = Self {
+            a0: 0,
+            ra: 0,
+            satp: 0,
+            sstatus: 0,
+            sepc: 0,
+            stvec: 0,
+            sscratch: 0,
+            execute: unsafe { MaybeUninit::uninit().assume_init() },
+        };
         let entry = foreign_execute as *const u16;
         for len in 1.. {
             unsafe {
                 // 通过寻找结尾的 0，在运行时定位裸函数
                 // 裸函数的 `options(noreturn)` 会在结尾生成一个 0 指令，这是一个 unstable 特性所以不一定可靠
                 if *entry.add(len) == 0 {
-                    ((transit + 7 * 8) as *mut u16).copy_from_nonoverlapping(entry, len + 1);
-                    return;
+                    assert!(len < ans.execute.len());
+                    ans.execute
+                        .as_mut_ptr()
+                        .copy_from_nonoverlapping(entry, len + 1);
+                    return ans;
                 }
             }
         }
