@@ -92,9 +92,10 @@ extern "C" fn rust_main() -> ! {
             .iter_mut()
             .for_each(|proc| map_portal(&mut proc.address_space, &portal))
     };
-    let ctx = unsafe { &mut PROCESSES[0].context };
-    loop {
-        unsafe { ctx.execute(&mut portal, VPN::<Sv39>::MAX.base().val()) };
+    const PROTAL_TRANSIT: usize = VPN::<Sv39>::MAX.base().val();
+    while !unsafe { PROCESSES.is_empty() } {
+        let ctx = unsafe { &mut PROCESSES[0].context };
+        unsafe { ctx.execute(&mut portal, PROTAL_TRANSIT) };
         match scause::read().cause() {
             scause::Trap::Exception(scause::Exception::UserEnvCall) => {
                 use syscall::{SyscallId as Id, SyscallResult as Ret};
@@ -104,7 +105,9 @@ extern "C" fn rust_main() -> ! {
                 let args = [ctx.a(0), ctx.a(1), ctx.a(2), ctx.a(3), ctx.a(4), ctx.a(5)];
                 match syscall::handle(Caller { entity: 0, flow: 0 }, id, args) {
                     Ret::Done(ret) => match id {
-                        Id::EXIT => break,
+                        Id::EXIT => unsafe {
+                            PROCESSES.remove(0);
+                        },
                         _ => {
                             *ctx.a_mut(0) = ret as _;
                             ctx.move_next();
@@ -112,27 +115,13 @@ extern "C" fn rust_main() -> ! {
                     },
                     Ret::Unsupported(_) => {
                         log::info!("id = {id:?}");
-                        break;
+                        unsafe { PROCESSES.remove(0) };
                     }
                 }
-
-                // match syscall::handle(id, args) {
-                //     Ret::Done(ret) => match id {
-                //         Id::EXIT => break,
-                //         _ => {
-                //             *ctx.a_mut(0) = ret as _;
-                //             ctx.move_next();
-                //         }
-                //     },
-                //     Ret::Unsupported(id) => {
-                //         log::error!("unsupported syscall: {id:?}");
-                //         break;
-                //     }
-                // }
             }
             e => {
                 log::error!("unsupported trap: {e:?}");
-                break;
+                unsafe { PROCESSES.remove(0) };
             }
         }
     }
@@ -203,6 +192,7 @@ fn map_portal(space: &mut AddressSpace<Sv39>, portal: &ForeignPortal) {
 mod impls {
     use crate::PROCESSES;
     use kernel_vm::page_table::{Sv39, VAddr, VmFlags};
+    use output::log;
     use syscall::*;
 
     pub struct Console;
@@ -220,8 +210,6 @@ mod impls {
     impl IO for SyscallContext {
         #[inline]
         fn write(&self, caller: Caller, fd: usize, buf: usize, count: usize) -> isize {
-            use output::log::*;
-
             const READABLE: VmFlags<Sv39> = VmFlags::build_from_str("RV");
 
             if fd == 0 {
@@ -238,11 +226,11 @@ mod impls {
                     });
                     count as _
                 } else {
-                    error!("ptr not readable");
+                    log::error!("ptr not readable");
                     -1
                 }
             } else {
-                error!("unsupported fd: {fd}");
+                log::error!("unsupported fd: {fd}");
                 -1
             }
         }
@@ -264,15 +252,25 @@ mod impls {
 
     impl Clock for SyscallContext {
         #[inline]
-        fn clock_gettime(&self, _caller: Caller, clock_id: ClockId, tp: usize) -> isize {
+        fn clock_gettime(&self, caller: Caller, clock_id: ClockId, tp: usize) -> isize {
+            const WRITABLE: VmFlags<Sv39> = VmFlags::build_from_str("W_V");
             match clock_id {
                 ClockId::CLOCK_MONOTONIC => {
-                    let time = riscv::register::time::read() * 10000 / 125;
-                    *unsafe { &mut *(tp as *mut TimeSpec) } = TimeSpec {
-                        tv_sec: time / 1_000_000_000,
-                        tv_nsec: time % 1_000_000_000,
-                    };
-                    0
+                    let space = &unsafe { PROCESSES.get(caller.entity) }
+                        .unwrap()
+                        .address_space;
+                    let ptr = space.translate(VAddr::new(tp)).unwrap();
+                    if ptr.flags.0 & WRITABLE.0 == WRITABLE.0 {
+                        let time = riscv::register::time::read() * 10000 / 125;
+                        *unsafe { &mut *(ptr.raw.val() as *mut TimeSpec) } = TimeSpec {
+                            tv_sec: time / 1_000_000_000,
+                            tv_nsec: time % 1_000_000_000,
+                        };
+                        0
+                    } else {
+                        log::error!("ptr not readable");
+                        -1
+                    }
                 }
                 _ => -1,
             }
