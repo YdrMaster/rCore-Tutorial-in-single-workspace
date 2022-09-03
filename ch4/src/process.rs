@@ -89,7 +89,7 @@ impl Process {
             address_space.push(
                 VPN::new((1 << 26) - 2)..VPN::new(1 << 26),
                 PPN::new(pages.as_ptr() as usize >> 12),
-                VmFlags::from_str("U_WRV").unwrap(),
+                VmFlags::build_from_str("U_WRV"),
             );
         }
 

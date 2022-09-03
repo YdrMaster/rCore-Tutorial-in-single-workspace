@@ -15,7 +15,6 @@ extern crate alloc;
 
 use crate::{impls::SyscallContext, process::Process};
 use alloc::vec::Vec;
-use core::str::FromStr;
 use impls::Console;
 use kernel_context::foreign::ForeignPortal;
 use kernel_vm::{
@@ -95,7 +94,7 @@ extern "C" fn rust_main() -> ! {
     };
     let ctx = unsafe { &mut PROCESSES[0].context };
     loop {
-        unsafe { ctx.execute(&mut portal, !0 << Sv39::PAGE_BITS) };
+        unsafe { ctx.execute(&mut portal, VPN::<Sv39>::MAX.base().val()) };
         match scause::read().cause() {
             scause::Trap::Exception(scause::Exception::UserEnvCall) => {
                 use syscall::{SyscallId as Id, SyscallResult as Ret};
@@ -172,17 +171,17 @@ fn kernel_space() -> AddressSpace<Sv39> {
     space.push(
         _text.floor().._rodata.ceil(),
         PPN::new(_text.floor().val()),
-        VmFlags::from_str("X_RV").unwrap(),
+        VmFlags::build_from_str("X_RV"),
     );
     space.push(
         _rodata.floor().._data.ceil(),
         PPN::new(_rodata.floor().val()),
-        VmFlags::from_str("__RV").unwrap(),
+        VmFlags::build_from_str("__RV"),
     );
     space.push(
         _data.floor().._end.ceil(),
         PPN::new(_data.floor().val()),
-        VmFlags::from_str("_WRV").unwrap(),
+        VmFlags::build_from_str("_WRV"),
     );
     log::debug!("{space:?}");
     println!();
@@ -196,7 +195,7 @@ fn map_portal(space: &mut AddressSpace<Sv39>, portal: &ForeignPortal) {
     space.push(
         PORTAL..PORTAL + 1,
         PPN::new(portal as *const _ as usize >> Sv39::PAGE_BITS),
-        VmFlags::from_str("XWRV").unwrap(),
+        VmFlags::build_from_str("XWRV"),
     );
 }
 
@@ -221,17 +220,16 @@ mod impls {
     impl IO for SyscallContext {
         #[inline]
         fn write(&self, caller: Caller, fd: usize, buf: usize, count: usize) -> isize {
-            use core::str::FromStr;
             use output::log::*;
 
-            let readable = VmFlags::<Sv39>::from_str("RV").unwrap();
+            const READABLE: VmFlags<Sv39> = VmFlags::build_from_str("RV");
 
             if fd == 0 {
                 let space = &mut unsafe { PROCESSES.get_mut(caller.entity) }
                     .unwrap()
                     .address_space;
                 let ptr = space.translate(VAddr::new(buf)).unwrap();
-                if ptr.flags.0 & readable.0 == readable.0 {
+                if ptr.flags.0 & READABLE.0 == READABLE.0 {
                     print!("{}", unsafe {
                         core::str::from_utf8_unchecked(core::slice::from_raw_parts(
                             ptr.raw.val() as *const u8,
