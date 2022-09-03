@@ -154,7 +154,7 @@ mod impls {
 
     impl IO for SyscallContext {
         #[inline]
-        fn write(&self, fd: usize, buf: usize, count: usize) -> isize {
+        fn write(&self, _caller: syscall::Caller, fd: usize, buf: usize, count: usize) -> isize {
             use output::log::*;
 
             if fd == 0 {
@@ -174,21 +174,21 @@ mod impls {
 
     impl Process for SyscallContext {
         #[inline]
-        fn exit(&self, _status: usize) -> isize {
+        fn exit(&self, _caller: syscall::Caller, _status: usize) -> isize {
             0
         }
     }
 
     impl Scheduling for SyscallContext {
         #[inline]
-        fn sched_yield(&self) -> isize {
+        fn sched_yield(&self, _caller: syscall::Caller) -> isize {
             0
         }
     }
 
     impl Clock for SyscallContext {
         #[inline]
-        fn clock_gettime(&self, clock_id: ClockId, tp: usize) -> isize {
+        fn clock_gettime(&self, _caller: syscall::Caller, clock_id: ClockId, tp: usize) -> isize {
             match clock_id {
                 ClockId::CLOCK_MONOTONIC => {
                     let time = riscv::register::time::read() * 10000 / 125;

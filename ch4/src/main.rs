@@ -25,6 +25,7 @@ use kernel_vm::{
 use output::log;
 use riscv::register::*;
 use sbi_rt::*;
+use syscall::Caller;
 use xmas_elf::ElfFile;
 
 // 应用程序内联进来。
@@ -52,6 +53,8 @@ unsafe extern "C" fn _start() -> ! {
     )
 }
 
+static mut PROCESSES: Vec<Process> = Vec::new();
+
 extern "C" fn rust_main() -> ! {
     // bss 段清零
     utils::zero_bss();
@@ -69,7 +72,6 @@ extern "C" fn rust_main() -> ! {
     mm::test();
     // 建立内核地址空间
     let mut ks = kernel_space();
-    let mut processes = Vec::<Process>::new();
     // 加载应用程序
     extern "C" {
         static apps: utils::AppMeta;
@@ -78,7 +80,7 @@ extern "C" fn rust_main() -> ! {
         let base = elf.as_ptr() as usize;
         log::info!("detect app[{i}]: {base:#x}..{:#x}", base + elf.len());
         if let Some(process) = Process::new(ElfFile::new(elf).unwrap()) {
-            processes.push(process);
+            unsafe { PROCESSES.push(process) };
         }
     }
     // 异界传送门
@@ -86,21 +88,35 @@ extern "C" fn rust_main() -> ! {
     let mut portal = ForeignPortal::new();
     // 传送门映射到所有地址空间
     map_portal(&mut ks, &portal);
-    processes
-        .iter_mut()
-        .for_each(|proc| map_portal(&mut proc.address_space, &portal));
-    let ctx = &mut processes[0].context;
+    unsafe {
+        PROCESSES
+            .iter_mut()
+            .for_each(|proc| map_portal(&mut proc.address_space, &portal))
+    };
+    let ctx = unsafe { &mut PROCESSES[0].context };
     loop {
         unsafe { ctx.execute(&mut portal, !0 << Sv39::PAGE_BITS) };
         match scause::read().cause() {
             scause::Trap::Exception(scause::Exception::UserEnvCall) => {
-                use syscall::SyscallId as Id;
+                use syscall::{SyscallId as Id, SyscallResult as Ret};
 
                 let ctx = &mut ctx.context;
                 let id: Id = ctx.a(7).into();
-                log::info!("id = {id:?}");
-                break;
-                // let args = [ctx.a(0), ctx.a(1), ctx.a(2), ctx.a(3), ctx.a(4), ctx.a(5)];
+                let args = [ctx.a(0), ctx.a(1), ctx.a(2), ctx.a(3), ctx.a(4), ctx.a(5)];
+                match syscall::handle(Caller { entity: 0, flow: 0 }, id, args) {
+                    Ret::Done(ret) => match id {
+                        Id::EXIT => break,
+                        _ => {
+                            *ctx.a_mut(0) = ret as _;
+                            ctx.move_next();
+                        }
+                    },
+                    Ret::Unsupported(_) => {
+                        log::info!("id = {id:?}");
+                        break;
+                    }
+                }
+
                 // match syscall::handle(id, args) {
                 //     Ret::Done(ret) => match id {
                 //         Id::EXIT => break,
@@ -186,6 +202,8 @@ fn map_portal(space: &mut AddressSpace<Sv39>, portal: &ForeignPortal) {
 
 /// 各种接口库的实现。
 mod impls {
+    use crate::PROCESSES;
+    use kernel_vm::page_table::{Sv39, VAddr, VmFlags};
     use syscall::*;
 
     pub struct Console;
@@ -202,17 +220,29 @@ mod impls {
 
     impl IO for SyscallContext {
         #[inline]
-        fn write(&self, fd: usize, buf: usize, count: usize) -> isize {
+        fn write(&self, caller: Caller, fd: usize, buf: usize, count: usize) -> isize {
+            use core::str::FromStr;
             use output::log::*;
 
+            let readable = VmFlags::<Sv39>::from_str("RV").unwrap();
+
             if fd == 0 {
-                print!("{}", unsafe {
-                    core::str::from_utf8_unchecked(core::slice::from_raw_parts(
-                        buf as *const u8,
-                        count,
-                    ))
-                });
-                count as _
+                let space = &mut unsafe { PROCESSES.get_mut(caller.entity) }
+                    .unwrap()
+                    .address_space;
+                let ptr = space.translate(VAddr::new(buf)).unwrap();
+                if ptr.flags.0 & readable.0 == readable.0 {
+                    print!("{}", unsafe {
+                        core::str::from_utf8_unchecked(core::slice::from_raw_parts(
+                            ptr.raw.val() as *const u8,
+                            count,
+                        ))
+                    });
+                    count as _
+                } else {
+                    error!("ptr not readable");
+                    -1
+                }
             } else {
                 error!("unsupported fd: {fd}");
                 -1
@@ -222,21 +252,21 @@ mod impls {
 
     impl Process for SyscallContext {
         #[inline]
-        fn exit(&self, _status: usize) -> isize {
+        fn exit(&self, _caller: Caller, _status: usize) -> isize {
             0
         }
     }
 
     impl Scheduling for SyscallContext {
         #[inline]
-        fn sched_yield(&self) -> isize {
+        fn sched_yield(&self, _caller: Caller) -> isize {
             0
         }
     }
 
     impl Clock for SyscallContext {
         #[inline]
-        fn clock_gettime(&self, clock_id: ClockId, tp: usize) -> isize {
+        fn clock_gettime(&self, _caller: Caller, clock_id: ClockId, tp: usize) -> isize {
             match clock_id {
                 ClockId::CLOCK_MONOTONIC => {
                     let time = riscv::register::time::read() * 10000 / 125;

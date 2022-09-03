@@ -48,11 +48,12 @@ impl<Meta: VmMeta> AddressSpace<Meta> {
     }
 
     #[inline]
-    pub fn translate<T>(&self, addr: VAddr<Meta>) -> Option<ForeignPtr<Meta>> {
+    pub fn translate(&self, addr: VAddr<Meta>) -> Option<ForeignPtr<Meta>> {
+        const MASK: usize = (1 << 12) - 1;
         let mut visitor = Visitor::new(addr.floor());
         self.shuttle().walk(&mut visitor);
         visitor.ans().map(|pte| ForeignPtr {
-            raw: VPN::<Meta>::new(pte.ppn().val() + self.vpn_offset).base(),
+            raw: VPN::<Meta>::new(pte.ppn().val() + self.vpn_offset).base() + (addr.val() & MASK),
             flags: pte.flags(),
         })
     }

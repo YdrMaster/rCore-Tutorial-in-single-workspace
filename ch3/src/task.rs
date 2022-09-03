@@ -1,5 +1,5 @@
 ﻿use kernel_context::LocalContext;
-use syscall::SyscallId;
+use syscall::{Caller, SyscallId};
 
 /// 任务控制块。
 ///
@@ -53,7 +53,7 @@ impl TaskControlBlock {
             self.ctx.a(4),
             self.ctx.a(5),
         ];
-        match syscall::handle(id, args) {
+        match syscall::handle(Caller { entity: 0, flow: 0 }, id, args) {
             Ret::Done(ret) => match id {
                 Id::EXIT => Event::Exit(self.ctx.a(0)),
                 Id::SCHED_YIELD => {

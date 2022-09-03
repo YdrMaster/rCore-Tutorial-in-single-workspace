@@ -1,20 +1,31 @@
 ﻿use crate::{ClockId, SyscallId};
 use spin::Once;
 
+/// 系统调用的发起者信息。
+///
+/// 没有办法（也没有必要？）调整发起者的描述，只好先用两个 `usize` 了。
+/// 至少在一个类 Linux 的宏内核系统这是够用的。
+pub struct Caller {
+    /// 发起者拥有的资源集的标记，相当于进程号。
+    pub entity: usize,
+    /// 发起者的控制流的标记，相当于线程号。
+    pub flow: usize,
+}
+
 pub trait Process: Sync {
-    fn exit(&self, status: usize) -> isize;
+    fn exit(&self, caller: Caller, status: usize) -> isize;
 }
 
 pub trait IO: Sync {
-    fn write(&self, fd: usize, buf: usize, count: usize) -> isize;
+    fn write(&self, caller: Caller, fd: usize, buf: usize, count: usize) -> isize;
 }
 
 pub trait Scheduling: Sync {
-    fn sched_yield(&self) -> isize;
+    fn sched_yield(&self, caller: Caller) -> isize;
 }
 
 pub trait Clock: Sync {
-    fn clock_gettime(&self, clock_id: ClockId, tp: usize) -> isize;
+    fn clock_gettime(&self, caller: Caller, clock_id: ClockId, tp: usize) -> isize;
 }
 
 static PROCESS: Container<dyn Process> = Container::new();
@@ -47,13 +58,15 @@ pub enum SyscallResult {
     Unsupported(SyscallId),
 }
 
-pub fn handle(id: SyscallId, args: [usize; 6]) -> SyscallResult {
+pub fn handle(caller: Caller, id: SyscallId, args: [usize; 6]) -> SyscallResult {
     use SyscallId as Id;
     match id {
-        Id::EXIT => PROCESS.call(id, |proc| proc.exit(args[0])),
-        Id::WRITE => IO.call(id, |io| io.write(args[0], args[1], args[2])),
-        Id::SCHED_YIELD => SCHEDULING.call(id, |sched| sched.sched_yield()),
-        Id::CLOCK_GETTIME => CLOCK.call(id, |clock| clock.clock_gettime(ClockId(args[0]), args[1])),
+        Id::EXIT => PROCESS.call(id, |proc| proc.exit(caller, args[0])),
+        Id::WRITE => IO.call(id, |io| io.write(caller, args[0], args[1], args[2])),
+        Id::SCHED_YIELD => SCHEDULING.call(id, |sched| sched.sched_yield(caller)),
+        Id::CLOCK_GETTIME => CLOCK.call(id, |clock| {
+            clock.clock_gettime(caller, ClockId(args[0]), args[1])
+        }),
         _ => SyscallResult::Unsupported(id),
     }
 }
