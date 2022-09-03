@@ -95,7 +95,6 @@ dependencies = [
  "kernel-context",
  "kernel-vm",
  "output",
- "page-table",
  "riscv",
  "sbi-rt",
  "syscall",
@@ -122,9 +121,9 @@ dependencies = [
 
 [[package]]
 name = "clap"
-version = "3.2.19"
+version = "3.2.20"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "68d43934757334b5c0519ff882e1ab9647ac0258b47c24c4f490d78e42697fd5"
+checksum = "23b71c3ce99b7611011217b366d923f1d0a7e07a92bb2dbf1e84508c673ca3bd"
 dependencies = [
  "atty",
  "bitflags",
@@ -271,9 +270,9 @@ checksum = "546c37ac5d9e56f55e73b677106873d9d9f5190605e41a856503623648488cae"
 
 [[package]]
 name = "once_cell"
-version = "1.13.1"
+version = "1.14.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "074864da206b4973b84eb91683020dbefd6a8c3f0f38e054d93954e891935e4e"
+checksum = "2f7254b99e31cad77da24b08ebf628882739a608578bb1bcdfc1f9c21260d7c0"
 
 [[package]]
 name = "os_str_bytes"
@@ -292,8 +291,7 @@ dependencies = [
 [[package]]
 name = "page-table"
 version = "0.0.5"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "722991bbdf6cb74cf9cb223aefa8132b1e6c0a882cab96c0cad2d121085b3354"
+source = "git+https://github.com/YdrMaster/page-table.git?rev=61d609d#61d609de7bd0eba654f53a7f3ce04f2d844bea17"
 dependencies = [
  "cfg-if",
  "static_assertions",

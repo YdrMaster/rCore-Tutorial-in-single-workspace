@@ -1,14 +1,15 @@
 ﻿use crate::mm::PAGE;
-use core::alloc::Layout;
+use core::{alloc::Layout, str::FromStr};
 use kernel_context::{foreign::ForeignContext, LocalContext};
-use kernel_vm::AddressSpace;
+use kernel_vm::{
+    page_table::{MmuMeta, Sv39, VAddr, VmFlags, PPN, VPN},
+    AddressSpace,
+};
 use output::log;
-use page_table::{MmuMeta, Sv39, VAddr, VmFlags, PPN, VPN};
 use xmas_elf::{
     header::{self, HeaderPt2, Machine},
     program, ElfFile,
 };
-
 /// 进程。
 pub struct Process {
     pub context: ForeignContext,
@@ -52,16 +53,18 @@ impl Process {
             };
             assert_eq!(size, (evpn.val() - svpn.val()) << 12);
 
-            let mut flags = 0b10001;
-            if program.flags().is_read() {
-                flags |= 0b0010;
+            let mut flags: [u8; 5] = *b"U___V";
+            if program.flags().is_execute() {
+                flags[1] = b'X';
             }
             if program.flags().is_write() {
-                flags |= 0b0100;
+                flags[2] = b'W';
             }
-            if program.flags().is_execute() {
-                flags |= 0b1000;
+            if program.flags().is_read() {
+                flags[3] = b'R';
             }
+            let flags =
+                VmFlags::from_str(unsafe { core::str::from_utf8_unchecked(&flags) }).unwrap();
 
             unsafe {
                 use core::slice::from_raw_parts_mut;
@@ -74,11 +77,7 @@ impl Process {
                 from_raw_parts_mut(ptr, (1 << 12) - ((off_file + len_file) & PAGE_MASK)).fill(0);
             }
 
-            address_space.push(
-                svpn..evpn,
-                PPN::new(pages.as_ptr() as usize >> 12),
-                unsafe { VmFlags::from_raw(flags) },
-            );
+            address_space.push(svpn..evpn, PPN::new(pages.as_ptr() as usize >> 12), flags);
         }
         unsafe {
             const STACK_SIZE: usize = 2 << Sv39::PAGE_BITS;
@@ -90,19 +89,15 @@ impl Process {
             address_space.push(
                 VPN::new((1 << 26) - 2)..VPN::new(1 << 26),
                 PPN::new(pages.as_ptr() as usize >> 12),
-                VmFlags::from_raw(0b10111),
+                VmFlags::from_str("U_WRV").unwrap(),
             );
         }
 
         log::info!("process entry = {:#x}", entry);
-        log::info!("process page count = {:?}", address_space.page_count());
-        for seg in address_space.segments() {
-            log::info!("{seg}");
-        }
-        // log::debug!("\n{:?}", address_space.shuttle().unwrap());
+        log::debug!("{address_space:?}");
 
         let mut context = LocalContext::user(entry);
-        let satp = (8 << 60) | address_space.root_ppn().unwrap().val();
+        let satp = (8 << 60) | address_space.root_ppn().val();
         *context.sp_mut() = 1 << 38;
         Some(Self {
             context: ForeignContext { context, satp },

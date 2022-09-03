@@ -14,13 +14,15 @@ extern crate output;
 extern crate alloc;
 
 use crate::{impls::SyscallContext, process::Process};
-use ::page_table::{Sv39, VAddr};
 use alloc::vec::Vec;
+use core::str::FromStr;
 use impls::Console;
 use kernel_context::foreign::ForeignPortal;
-use kernel_vm::AddressSpace;
+use kernel_vm::{
+    page_table::{MmuMeta, Sv39, VAddr, VmFlags, PPN, VPN},
+    AddressSpace,
+};
 use output::log;
-use page_table::{MmuMeta, VmFlags, PPN, VPN};
 use riscv::register::*;
 use sbi_rt::*;
 use xmas_elf::ElfFile;
@@ -74,7 +76,7 @@ extern "C" fn rust_main() -> ! {
     }
     for (i, elf) in unsafe { apps.iter_elf() }.enumerate() {
         let base = elf.as_ptr() as usize;
-        println!("detect app[{i}]: {base:#x}..{:#x}", base + elf.len());
+        log::info!("detect app[{i}]: {base:#x}..{:#x}", base + elf.len());
         if let Some(process) = Process::new(ElfFile::new(elf).unwrap()) {
             processes.push(process);
         }
@@ -154,36 +156,31 @@ fn kernel_space() -> AddressSpace<Sv39> {
     space.push(
         _text.floor().._rodata.ceil(),
         PPN::new(_text.floor().val()),
-        unsafe { VmFlags::from_raw(0b1011) },
+        VmFlags::from_str("X_RV").unwrap(),
     );
     space.push(
         _rodata.floor().._data.ceil(),
         PPN::new(_rodata.floor().val()),
-        unsafe { VmFlags::from_raw(0b0011) },
+        VmFlags::from_str("__RV").unwrap(),
     );
     space.push(
         _data.floor().._end.ceil(),
         PPN::new(_data.floor().val()),
-        unsafe { VmFlags::from_raw(0b0111) },
+        VmFlags::from_str("_WRV").unwrap(),
     );
-    // log::debug!("\n{:?}", space.shuttle().unwrap());
-    log::info!("kernel page count = {:?}", space.page_count());
-    for seg in space.segments() {
-        log::info!("{seg}");
-    }
+    log::debug!("{space:?}");
     println!();
-    unsafe { satp::set(satp::Mode::Sv39, 0, space.root_ppn().unwrap().val()) };
+    unsafe { satp::set(satp::Mode::Sv39, 0, space.root_ppn().val()) };
     space
 }
 
 #[inline]
 fn map_portal(space: &mut AddressSpace<Sv39>, portal: &ForeignPortal) {
     const PORTAL: VPN<Sv39> = VPN::MAX; // 虚地址最后一页给传送门
-    const FLAGS: VmFlags<Sv39> = unsafe { VmFlags::from_raw(0b1111) };
     space.push(
         PORTAL..PORTAL + 1,
         PPN::new(portal as *const _ as usize >> Sv39::PAGE_BITS),
-        FLAGS,
+        VmFlags::from_str("XWRV").unwrap(),
     );
 }
 

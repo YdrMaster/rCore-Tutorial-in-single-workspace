@@ -5,11 +5,11 @@
 
 mod space;
 
-pub use space::{AddressSpace, Segment};
-
-extern crate alloc;
+pub extern crate page_table;
+pub use space::AddressSpace;
 
 use core::ptr::NonNull;
+use page_table::{VAddr, VmFlags, VmMeta};
 
 pub trait PageAllocator: Sync {
     fn allocate(&self, bits: usize) -> NonNull<u8>;
@@ -21,4 +21,9 @@ static ALLOC: spin::Once<&'static dyn PageAllocator> = spin::Once::new();
 
 pub fn init_allocator(a: &'static dyn PageAllocator) {
     ALLOC.call_once(|| a);
+}
+
+pub struct ForeignPtr<Meta: VmMeta> {
+    pub raw: VAddr<Meta>,
+    pub flags: VmFlags<Meta>,
 }
