@@ -1,7 +1,7 @@
 //! 内核虚存管理。
 
 #![no_std]
-#![deny(warnings)] //, missing_docs)]
+#![deny(warnings, missing_docs)]
 
 mod space;
 
@@ -9,21 +9,27 @@ pub extern crate page_table;
 pub use space::AddressSpace;
 
 use core::ptr::NonNull;
-use page_table::{VAddr, VmFlags, VmMeta};
 
-pub trait PageAllocator: Sync {
-    fn allocate(&self, bits: usize) -> NonNull<u8>;
+/// 分区的页分配器。
+///
+/// 每个地址空间会可以使用一个分区的分配器以减少分配中的竞争。
+pub trait ScopedAllocator: Sync {
+    /// 创建一个页号位数为 `bits` 的新的地址空间页分配器分区。
+    unsafe fn create(&self, bits: usize) -> NonNull<u8>;
 
-    fn deallocate(&self, ptr: NonNull<u8>, bits: usize);
+    /// 销毁地址空间页分配器分区。
+    unsafe fn destory(&self, root: NonNull<u8>);
+
+    /// 向指定分区分配 `len` 个页。
+    unsafe fn allocate(&self, root: NonNull<u8>, len: usize) -> NonNull<u8>;
+
+    /// 从指定分区回收 `len` 个页。
+    unsafe fn deallocate(&self, root: NonNull<u8>, ptr: NonNull<u8>, len: usize);
 }
 
-static ALLOC: spin::Once<&'static dyn PageAllocator> = spin::Once::new();
+static ALLOC: spin::Once<&'static dyn ScopedAllocator> = spin::Once::new();
 
-pub fn init_allocator(a: &'static dyn PageAllocator) {
+/// 初始化分区页分配器。
+pub fn init_allocator(a: &'static dyn ScopedAllocator) {
     ALLOC.call_once(|| a);
-}
-
-pub struct ForeignPtr<Meta: VmMeta> {
-    pub raw: VAddr<Meta>,
-    pub flags: VmFlags<Meta>,
 }

@@ -4,7 +4,11 @@ use core::{
     alloc::{GlobalAlloc, Layout},
     ptr::NonNull,
 };
-use kernel_vm::{init_allocator, PageAllocator};
+use kernel_vm::{
+    init_allocator,
+    page_table::{MmuMeta, Sv39},
+    ScopedAllocator,
+};
 use output::log;
 
 /// 初始化全局分配器和内核堆分配器。
@@ -51,19 +55,32 @@ static mut HEAP: MutAllocator<32> = MutAllocator::new();
 struct Global;
 struct Pages;
 
-impl PageAllocator for Pages {
+const SIZE: usize = 1 << Sv39::PAGE_BITS;
+
+impl ScopedAllocator for Pages {
     #[inline]
-    fn allocate(&self, bits: usize) -> NonNull<u8> {
-        let size = 1 << bits;
-        unsafe { PAGE.allocate_layout(Layout::from_size_align_unchecked(size, size)) }
+    unsafe fn create(&self, bits: usize) -> NonNull<u8> {
+        assert_eq!(bits, Sv39::PAGE_BITS);
+        PAGE.allocate_layout(Layout::from_size_align_unchecked(SIZE, SIZE))
             .unwrap()
             .0
     }
 
     #[inline]
-    fn deallocate(&self, ptr: NonNull<u8>, bits: usize) {
-        log::warn!("deallocate {ptr:#x?}");
-        unsafe { PAGE.deallocate(ptr, 1 << bits) };
+    unsafe fn destory(&self, root: NonNull<u8>) {
+        PAGE.deallocate(root, SIZE);
+    }
+
+    #[inline]
+    unsafe fn allocate(&self, _root: NonNull<u8>, len: usize) -> NonNull<u8> {
+        PAGE.allocate_layout(Layout::from_size_align_unchecked(SIZE * len, SIZE))
+            .unwrap()
+            .0
+    }
+
+    #[inline]
+    unsafe fn deallocate(&self, _root: NonNull<u8>, ptr: NonNull<u8>, len: usize) {
+        PAGE.deallocate(ptr, SIZE * len);
     }
 }
 

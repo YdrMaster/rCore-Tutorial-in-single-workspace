@@ -213,14 +213,14 @@ mod impls {
             const READABLE: VmFlags<Sv39> = VmFlags::build_from_str("RV");
 
             if fd == 0 {
-                let space = &mut unsafe { PROCESSES.get_mut(caller.entity) }
+                if let Some(ptr) = unsafe { PROCESSES.get_mut(caller.entity) }
                     .unwrap()
-                    .address_space;
-                let ptr = space.translate(VAddr::new(buf)).unwrap();
-                if ptr.flags.0 & READABLE.0 == READABLE.0 {
+                    .address_space
+                    .translate(VAddr::new(buf), READABLE)
+                {
                     print!("{}", unsafe {
                         core::str::from_utf8_unchecked(core::slice::from_raw_parts(
-                            ptr.raw.val() as *const u8,
+                            ptr.as_ptr(),
                             count,
                         ))
                     });
@@ -256,13 +256,13 @@ mod impls {
             const WRITABLE: VmFlags<Sv39> = VmFlags::build_from_str("W_V");
             match clock_id {
                 ClockId::CLOCK_MONOTONIC => {
-                    let space = &unsafe { PROCESSES.get(caller.entity) }
+                    if let Some(mut ptr) = unsafe { PROCESSES.get(caller.entity) }
                         .unwrap()
-                        .address_space;
-                    let ptr = space.translate(VAddr::new(tp)).unwrap();
-                    if ptr.flags.0 & WRITABLE.0 == WRITABLE.0 {
+                        .address_space
+                        .translate(VAddr::new(tp), WRITABLE)
+                    {
                         let time = riscv::register::time::read() * 10000 / 125;
-                        *unsafe { &mut *(ptr.raw.val() as *mut TimeSpec) } = TimeSpec {
+                        *unsafe { ptr.as_mut() } = TimeSpec {
                             tv_sec: time / 1_000_000_000,
                             tv_nsec: time % 1_000_000_000,
                         };
