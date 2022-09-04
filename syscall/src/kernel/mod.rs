@@ -20,6 +20,21 @@ pub trait IO: Sync {
     fn write(&self, caller: Caller, fd: usize, buf: usize, count: usize) -> isize;
 }
 
+pub trait Memory: Sync {
+    fn mmap(
+        &self,
+        caller: Caller,
+        addr: usize,
+        length: usize,
+        prot: i32,
+        flags: i32,
+        fd: i32,
+        offset: usize,
+    ) -> isize;
+
+    fn munmap(&self, caller: Caller, addr: usize, length: usize) -> isize;
+}
+
 pub trait Scheduling: Sync {
     fn sched_yield(&self, caller: Caller) -> isize;
 }
@@ -30,6 +45,7 @@ pub trait Clock: Sync {
 
 static PROCESS: Container<dyn Process> = Container::new();
 static IO: Container<dyn IO> = Container::new();
+static MEMORY: Container<dyn Memory> = Container::new();
 static SCHEDULING: Container<dyn Scheduling> = Container::new();
 static CLOCK: Container<dyn Clock> = Container::new();
 
@@ -41,6 +57,11 @@ pub fn init_process(process: &'static dyn Process) {
 #[inline]
 pub fn init_io(io: &'static dyn IO) {
     IO.init(io);
+}
+
+#[inline]
+pub fn init_memory(memory: &'static dyn Memory) {
+    MEMORY.init(memory);
 }
 
 #[inline]
@@ -61,11 +82,16 @@ pub enum SyscallResult {
 pub fn handle(caller: Caller, id: SyscallId, args: [usize; 6]) -> SyscallResult {
     use SyscallId as Id;
     match id {
-        Id::EXIT => PROCESS.call(id, |proc| proc.exit(caller, args[0])),
         Id::WRITE => IO.call(id, |io| io.write(caller, args[0], args[1], args[2])),
-        Id::SCHED_YIELD => SCHEDULING.call(id, |sched| sched.sched_yield(caller)),
+        Id::EXIT => PROCESS.call(id, |proc| proc.exit(caller, args[0])),
         Id::CLOCK_GETTIME => CLOCK.call(id, |clock| {
             clock.clock_gettime(caller, ClockId(args[0]), args[1])
+        }),
+        Id::SCHED_YIELD => SCHEDULING.call(id, |sched| sched.sched_yield(caller)),
+        Id::MUNMAP => MEMORY.call(id, |memory| memory.munmap(caller, args[0], args[1])),
+        Id::MMAP => MEMORY.call(id, |memory| {
+            let [addr, length, prot, flags, fd, offset] = args;
+            memory.mmap(caller, addr, length, prot as _, flags as _, fd as _, offset)
         }),
         _ => SyscallResult::Unsupported(id),
     }
