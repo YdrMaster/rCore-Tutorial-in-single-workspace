@@ -28,15 +28,15 @@ impl<Meta: VmMeta, M: PageManager<Meta>> Decorator<Meta> for Mapper<'_, Meta, M>
         pte: Pte<Meta>,
         _target_hint: Pos<Meta>,
     ) -> Option<NonNull<Pte<Meta>>> {
-        Some(self.space.manager.p_to_v(pte.ppn()))
+        Some(self.space.0.p_to_v(pte.ppn()))
     }
 
     #[inline]
     fn block(&mut self, _level: usize, pte: Pte<Meta>, _target_hint: Pos<Meta>) -> Update<Meta> {
         assert!(!pte.is_valid());
         let mut flags = VmFlags::VALID;
-        let page = self.space.manager.allocate(1, &mut flags);
-        let ppn = self.space.manager.v_to_p(page);
+        let page = self.space.0.allocate(1, &mut flags);
+        let ppn = self.space.0.v_to_p(page);
         Update::Pte(flags.build_pte(ppn), page.cast())
     }
 }
