@@ -4,6 +4,7 @@ use core::{
     alloc::{GlobalAlloc, Layout},
     ptr::NonNull,
 };
+use kernel_vm::page_table::{MmuMeta, Sv39};
 use output::log;
 
 /// 初始化全局分配器和内核堆分配器。
@@ -12,7 +13,7 @@ pub fn init() {
     #[repr(C, align(4096))]
     pub struct Memory<const N: usize>([u8; N]);
 
-    const MEMORY_SIZE: usize = 256 << 12;
+    const MEMORY_SIZE: usize = 256 << Sv39::PAGE_BITS;
 
     /// 托管空间 1 MiB
     static mut MEMORY: Memory<MEMORY_SIZE> = Memory([0u8; MEMORY_SIZE]);
@@ -23,8 +24,8 @@ pub fn init() {
             ptr.as_ptr() as usize,
             ptr.as_ptr() as usize + MEMORY_SIZE
         );
-        PAGE.init(12, ptr);
-        HEAP.init(3, ptr);
+        PAGE.init(Sv39::PAGE_BITS, ptr);
+        HEAP.init(core::mem::size_of::<usize>().trailing_zeros() as _, ptr);
         PAGE.transfer(ptr, MEMORY_SIZE);
     }
 }
@@ -59,7 +60,7 @@ unsafe impl GlobalAlloc for Global {
         } else if let Ok((ptr, size)) = PAGE.allocate_layout::<u8>(
             Layout::from_size_align_unchecked(layout.size().next_power_of_two(), layout.align()),
         ) {
-            log::trace!("global transfers {} pages to heap", size >> 12);
+            log::trace!("global transfers {} pages to heap", size >> Sv39::PAGE_BITS);
             HEAP.transfer(ptr, size);
             HEAP.allocate_layout::<u8>(layout).unwrap().0.as_ptr()
         } else {

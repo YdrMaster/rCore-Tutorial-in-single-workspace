@@ -160,17 +160,17 @@ fn kernel_space() -> AddressSpace<Sv39, Sv39Manager> {
 
     // 内核地址空间
     let mut space = AddressSpace::<Sv39, Sv39Manager>::new();
-    space.push(
+    space.map_extern(
         _text.floor().._rodata.ceil(),
         PPN::new(_text.floor().val()),
         VmFlags::build_from_str("X_RV"),
     );
-    space.push(
+    space.map_extern(
         _rodata.floor().._data.ceil(),
         PPN::new(_rodata.floor().val()),
         VmFlags::build_from_str("__RV"),
     );
-    space.push(
+    space.map_extern(
         _data.floor().._end.ceil(),
         PPN::new(_data.floor().val()),
         VmFlags::build_from_str("_WRV"),
@@ -184,7 +184,7 @@ fn kernel_space() -> AddressSpace<Sv39, Sv39Manager> {
 #[inline]
 fn map_portal(space: &mut AddressSpace<Sv39, Sv39Manager>, portal: &ForeignPortal) {
     const PORTAL: VPN<Sv39> = VPN::MAX; // 虚地址最后一页给传送门
-    space.push(
+    space.map_extern(
         PORTAL..PORTAL + 1,
         PPN::new(portal as *const _ as usize >> Sv39::PAGE_BITS),
         VmFlags::build_from_str("XWRV"),
@@ -196,14 +196,21 @@ mod impls {
     use crate::{mm::PAGE, PROCESSES};
     use alloc::alloc::handle_alloc_error;
     use core::{alloc::Layout, num::NonZeroUsize, ptr::NonNull};
-    use kernel_vm::page_table::{MmuMeta, PageTable, Pte, Sv39, VAddr, VmFlags, PPN, VPN};
+    use kernel_vm::{
+        page_table::{MmuMeta, Pte, Sv39, VAddr, VmFlags, PPN, VPN},
+        PageManager,
+    };
     use output::log;
     use syscall::*;
 
     #[repr(transparent)]
     pub struct Sv39Manager(NonNull<Pte<Sv39>>);
 
-    impl kernel_vm::PageManager<Sv39> for Sv39Manager {
+    impl Sv39Manager {
+        const OWNED: VmFlags<Sv39> = unsafe { VmFlags::from_raw(1 << 8) };
+    }
+
+    impl PageManager<Sv39> for Sv39Manager {
         #[inline]
         fn new_root() -> Self {
             const SIZE: usize = 1 << Sv39::PAGE_BITS;
@@ -220,8 +227,9 @@ mod impls {
             PPN::new(self.0.as_ptr() as usize >> Sv39::PAGE_BITS)
         }
 
-        fn root(&self) -> PageTable<Sv39> {
-            unsafe { PageTable::from_root(self.0) }
+        #[inline]
+        fn root_ptr(&self) -> NonNull<Pte<Sv39>> {
+            self.0
         }
 
         #[inline]
@@ -234,7 +242,12 @@ mod impls {
             PPN::new(VAddr::<Sv39>::new(ptr.as_ptr() as _).floor().val())
         }
 
-        fn allocate(&mut self, len: usize, _flags: &mut VmFlags<Sv39>) -> NonNull<u8> {
+        #[inline]
+        fn check_owned(&self, pte: Pte<Sv39>) -> bool {
+            pte.flags().contains(Self::OWNED)
+        }
+
+        fn allocate(&mut self, len: usize, flags: &mut VmFlags<Sv39>) -> NonNull<u8> {
             unsafe {
                 match PAGE.allocate(
                     Sv39::PAGE_BITS,
@@ -242,6 +255,7 @@ mod impls {
                 ) {
                     Ok((ptr, size)) => {
                         assert_eq!(size, len << Sv39::PAGE_BITS);
+                        *flags |= Self::OWNED;
                         ptr
                     }
                     Err(_) => handle_alloc_error(Layout::from_size_align_unchecked(

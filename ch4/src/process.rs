@@ -29,30 +29,20 @@ impl Process {
             _ => None?,
         };
 
+        const PAGE_SIZE: usize = 1 << Sv39::PAGE_BITS;
+        const PAGE_MASK: usize = PAGE_SIZE - 1;
+
         let mut address_space = AddressSpace::new();
         for program in elf.program_iter() {
             if !matches!(program.get_type(), Ok(program::Type::Load)) {
                 continue;
             }
 
-            const PAGE_MASK: usize = (1 << 12) - 1;
-
             let off_file = program.offset() as usize;
             let len_file = program.file_size() as usize;
             let off_mem = program.virtual_addr() as usize;
             let end_mem = off_mem + program.mem_size() as usize;
             assert_eq!(off_file & PAGE_MASK, off_mem & PAGE_MASK);
-
-            let svpn = VAddr::<Sv39>::new(off_mem).floor();
-            let evpn = VAddr::<Sv39>::new(end_mem).ceil();
-            let (pages, size) = unsafe {
-                PAGE.allocate_layout::<u8>(Layout::from_size_align_unchecked(
-                    (evpn.val() - svpn.val()) << 12,
-                    1 << 12,
-                ))
-                .unwrap()
-            };
-            assert_eq!(size, (evpn.val() - svpn.val()) << 12);
 
             let mut flags: [u8; 5] = *b"U___V";
             if program.flags().is_execute() {
@@ -64,32 +54,22 @@ impl Process {
             if program.flags().is_read() {
                 flags[3] = b'R';
             }
-            let flags =
-                VmFlags::from_str(unsafe { core::str::from_utf8_unchecked(&flags) }).unwrap();
-
-            unsafe {
-                use core::slice::from_raw_parts_mut;
-
-                let mut ptr = pages.as_ptr();
-                from_raw_parts_mut(ptr, off_mem & PAGE_MASK).fill(0);
-                ptr = ptr.add(off_mem & PAGE_MASK);
-                ptr.copy_from_nonoverlapping(elf.input[off_file..].as_ptr(), len_file);
-                ptr = ptr.add(len_file);
-                from_raw_parts_mut(ptr, (1 << 12) - ((off_file + len_file) & PAGE_MASK)).fill(0);
-            }
-
-            address_space.push(svpn..evpn, PPN::new(pages.as_ptr() as usize >> 12), flags);
+            address_space.map(
+                VAddr::new(off_mem).floor()..VAddr::new(end_mem).ceil(),
+                &elf.input[off_file..][..len_file],
+                off_mem & PAGE_MASK,
+                VmFlags::from_str(unsafe { core::str::from_utf8_unchecked(&flags) }).unwrap(),
+            );
         }
         unsafe {
-            const STACK_SIZE: usize = 2 << Sv39::PAGE_BITS;
             let (pages, size) = PAGE
-                .allocate_layout::<u8>(Layout::from_size_align_unchecked(STACK_SIZE, 1 << 12))
+                .allocate_layout::<u8>(Layout::from_size_align_unchecked(2 * PAGE_SIZE, PAGE_SIZE))
                 .unwrap();
-            assert_eq!(size, STACK_SIZE);
-            core::slice::from_raw_parts_mut(pages.as_ptr(), STACK_SIZE).fill(0);
-            address_space.push(
+            assert_eq!(size, 2 * PAGE_SIZE);
+            core::slice::from_raw_parts_mut(pages.as_ptr(), 2 * PAGE_SIZE).fill(0);
+            address_space.map_extern(
                 VPN::new((1 << 26) - 2)..VPN::new(1 << 26),
-                PPN::new(pages.as_ptr() as usize >> 12),
+                PPN::new(pages.as_ptr() as usize >> Sv39::PAGE_BITS),
                 VmFlags::build_from_str("U_WRV"),
             );
         }
