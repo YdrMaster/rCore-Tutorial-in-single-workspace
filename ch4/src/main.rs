@@ -13,7 +13,10 @@ extern crate output;
 #[macro_use]
 extern crate alloc;
 
-use crate::{impls::SyscallContext, process::Process};
+use crate::{
+    impls::{Sv39Manager, SyscallContext},
+    process::Process,
+};
 use alloc::vec::Vec;
 use impls::Console;
 use kernel_context::foreign::ForeignPortal;
@@ -137,7 +140,7 @@ fn panic(info: &core::panic::PanicInfo) -> ! {
     unreachable!()
 }
 
-fn kernel_space() -> AddressSpace<Sv39> {
+fn kernel_space() -> AddressSpace<Sv39, Sv39Manager> {
     // 打印段位置
     extern "C" {
         fn __text();
@@ -156,7 +159,7 @@ fn kernel_space() -> AddressSpace<Sv39> {
     println!();
 
     // 内核地址空间
-    let mut space = AddressSpace::<Sv39>::new(0);
+    let mut space = AddressSpace::<Sv39, Sv39Manager>::new();
     space.push(
         _text.floor().._rodata.ceil(),
         PPN::new(_text.floor().val()),
@@ -179,7 +182,7 @@ fn kernel_space() -> AddressSpace<Sv39> {
 }
 
 #[inline]
-fn map_portal(space: &mut AddressSpace<Sv39>, portal: &ForeignPortal) {
+fn map_portal(space: &mut AddressSpace<Sv39, Sv39Manager>, portal: &ForeignPortal) {
     const PORTAL: VPN<Sv39> = VPN::MAX; // 虚地址最后一页给传送门
     space.push(
         PORTAL..PORTAL + 1,
@@ -190,10 +193,55 @@ fn map_portal(space: &mut AddressSpace<Sv39>, portal: &ForeignPortal) {
 
 /// 各种接口库的实现。
 mod impls {
-    use crate::PROCESSES;
-    use kernel_vm::page_table::{Sv39, VAddr, VmFlags};
+    use crate::{mm::PAGE, PROCESSES};
+    use alloc::alloc::handle_alloc_error;
+    use core::{alloc::Layout, num::NonZeroUsize, ptr::NonNull};
+    use kernel_vm::page_table::{MmuMeta, Pte, Sv39, VAddr, VmFlags, PPN, VPN};
     use output::log;
     use syscall::*;
+
+    pub struct Sv39Manager;
+
+    impl Default for Sv39Manager {
+        #[inline]
+        fn default() -> Self {
+            Self
+        }
+    }
+
+    impl kernel_vm::PageManager<Sv39> for Sv39Manager {
+        #[inline]
+        fn p_to_v<T>(&self, ppn: PPN<Sv39>) -> NonNull<T> {
+            unsafe { NonNull::new_unchecked(VPN::<Sv39>::new(ppn.val()).base().as_mut_ptr()) }
+        }
+
+        #[inline]
+        fn v_to_p<T>(&self, ptr: NonNull<T>) -> PPN<Sv39> {
+            PPN::new(VAddr::<Sv39>::new(ptr.as_ptr() as _).floor().val())
+        }
+
+        fn allocate(&mut self, len: usize, _flags: &mut VmFlags<Sv39>) -> NonNull<u8> {
+            unsafe {
+                match PAGE.allocate(
+                    Sv39::PAGE_BITS,
+                    NonZeroUsize::new_unchecked(len << Sv39::PAGE_BITS),
+                ) {
+                    Ok((ptr, size)) => {
+                        assert_eq!(size, len << Sv39::PAGE_BITS);
+                        ptr
+                    }
+                    Err(_) => handle_alloc_error(Layout::from_size_align_unchecked(
+                        len << Sv39::PAGE_BITS,
+                        1 << Sv39::PAGE_BITS,
+                    )),
+                }
+            }
+        }
+
+        fn deallocate(&mut self, _pte: Pte<Sv39>, _len: usize) -> usize {
+            todo!()
+        }
+    }
 
     pub struct Console;
 

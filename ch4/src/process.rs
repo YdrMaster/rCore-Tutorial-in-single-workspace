@@ -1,4 +1,4 @@
-﻿use crate::mm::PAGE;
+﻿use crate::{mm::PAGE, Sv39Manager};
 use core::{alloc::Layout, str::FromStr};
 use kernel_context::{foreign::ForeignContext, LocalContext};
 use kernel_vm::{
@@ -10,10 +10,11 @@ use xmas_elf::{
     header::{self, HeaderPt2, Machine},
     program, ElfFile,
 };
+
 /// 进程。
 pub struct Process {
     pub context: ForeignContext,
-    pub address_space: AddressSpace<Sv39>,
+    pub address_space: AddressSpace<Sv39, Sv39Manager>,
 }
 
 impl Process {
@@ -28,7 +29,7 @@ impl Process {
             _ => None?,
         };
 
-        let mut address_space = AddressSpace::<Sv39>::new(0);
+        let mut address_space = AddressSpace::new();
         for program in elf.program_iter() {
             if !matches!(program.get_type(), Ok(program::Type::Load)) {
                 continue;

@@ -271,7 +271,7 @@ dependencies = [
 [[package]]
 name = "page-table"
 version = "0.0.5"
-source = "git+https://github.com/YdrMaster/page-table.git?rev=cb527bf#cb527bf4582ffe4b2d9647306abf993522525135"
+source = "git+https://github.com/YdrMaster/page-table.git?rev=2b3f5d4#2b3f5d47fc188daa49d272f10e84108aff601a32"
 dependencies = [
  "cfg-if",
  "static_assertions",

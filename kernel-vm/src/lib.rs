@@ -9,27 +9,19 @@ pub extern crate page_table;
 pub use space::AddressSpace;
 
 use core::ptr::NonNull;
+use page_table::{Pte, VmFlags, VmMeta, PPN};
 
-/// 分区的页分配器。
-///
-/// 每个地址空间会可以使用一个分区的分配器以减少分配中的竞争。
-pub trait ScopedAllocator: Sync {
-    /// 创建一个页号位数为 `bits` 的新的地址空间页分配器分区。
-    unsafe fn create(&self, bits: usize) -> NonNull<u8>;
+/// 物理页管理。
+pub trait PageManager<Meta: VmMeta>: Default {
+    /// 计算当前地址空间上指向物理页的指针。
+    fn p_to_v<T>(&self, ppn: PPN<Meta>) -> NonNull<T>;
 
-    /// 销毁地址空间页分配器分区。
-    unsafe fn destory(&self, root: NonNull<u8>);
+    /// 计算当前地址空间上的指针指向的物理页。
+    fn v_to_p<T>(&self, ptr: NonNull<T>) -> PPN<Meta>;
 
-    /// 向指定分区分配 `len` 个页。
-    unsafe fn allocate(&self, root: NonNull<u8>, len: usize) -> NonNull<u8>;
+    /// 为地址空间分配 `len` 个物理页。
+    fn allocate(&mut self, len: usize, flags: &mut VmFlags<Meta>) -> NonNull<u8>;
 
-    /// 从指定分区回收 `len` 个页。
-    unsafe fn deallocate(&self, root: NonNull<u8>, ptr: NonNull<u8>, len: usize);
-}
-
-static ALLOC: spin::Once<&'static dyn ScopedAllocator> = spin::Once::new();
-
-/// 初始化分区页分配器。
-pub fn init_allocator(a: &'static dyn ScopedAllocator) {
-    ALLOC.call_once(|| a);
+    /// 从地址空间释放 `pte` 指示的 `len` 个物理页。
+    fn deallocate(&mut self, pte: Pte<Meta>, len: usize) -> usize;
 }

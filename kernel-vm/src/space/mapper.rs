@@ -1,23 +1,14 @@
-﻿use crate::{AddressSpace, ALLOC};
-use core::ops::Range;
-use page_table::{Decorator, Pos, Pte, Update, VmFlags, VmMeta, PPN, VPN};
+﻿use crate::{AddressSpace, PageManager};
+use core::{ops::Range, ptr::NonNull};
+use page_table::{Decorator, Pos, Pte, Update, VmFlags, VmMeta, PPN};
 
-pub(super) struct Mapper<'a, Meta: VmMeta> {
-    pub space: &'a AddressSpace<Meta>,
-    pub vbase: VPN<Meta>,
+pub(super) struct Mapper<'a, Meta: VmMeta, P: PageManager<Meta>> {
+    pub space: &'a mut AddressSpace<Meta, P>,
     pub prange: Range<PPN<Meta>>,
     pub flags: VmFlags<Meta>,
 }
 
-impl<Meta: VmMeta> Decorator<Meta> for Mapper<'_, Meta> {
-    #[inline]
-    fn start(&mut self, _pos: Pos<Meta>) -> Pos<Meta> {
-        Pos {
-            vpn: self.vbase,
-            level: 0,
-        }
-    }
-
+impl<Meta: VmMeta, M: PageManager<Meta>> Decorator<Meta> for Mapper<'_, Meta, M> {
     #[inline]
     fn arrive(&mut self, pte: &mut Pte<Meta>, target_hint: Pos<Meta>) -> Pos<Meta> {
         assert!(!pte.is_valid());
@@ -31,16 +22,21 @@ impl<Meta: VmMeta> Decorator<Meta> for Mapper<'_, Meta> {
     }
 
     #[inline]
-    fn meet(&mut self, _level: usize, pte: Pte<Meta>, _target_hint: Pos<Meta>) -> Update<Meta> {
+    fn meet(
+        &mut self,
+        _level: usize,
+        pte: Pte<Meta>,
+        _target_hint: Pos<Meta>,
+    ) -> Option<NonNull<Pte<Meta>>> {
+        Some(self.space.manager.p_to_v(pte.ppn()))
+    }
+
+    #[inline]
+    fn block(&mut self, _level: usize, pte: Pte<Meta>, _target_hint: Pos<Meta>) -> Update<Meta> {
         assert!(!pte.is_valid());
-        let addr = unsafe {
-            ALLOC
-                .get_unchecked()
-                .allocate(self.space.root.cast(), 1)
-                .as_ptr() as usize
-        };
-        let vpn = VPN::new(addr >> Meta::PAGE_BITS);
-        let ppn = PPN::new(vpn.val() - self.space.vpn_offset);
-        Update::Pte(unsafe { VmFlags::from_raw(1) }.build_pte(ppn), vpn)
+        let mut flags = VmFlags::VALID;
+        let page = self.space.manager.allocate(1, &mut flags);
+        let ppn = self.space.manager.v_to_p(page);
+        Update::Pte(flags.build_pte(ppn), page.cast())
     }
 }

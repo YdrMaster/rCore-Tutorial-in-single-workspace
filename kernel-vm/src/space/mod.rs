@@ -1,86 +1,80 @@
 ﻿mod mapper;
 mod visitor;
 
-use crate::ALLOC;
+use crate::PageManager;
 use core::{fmt, ops::Range, ptr::NonNull};
 use mapper::Mapper;
-use page_table::{PageTable, PageTableShuttle, Pte, VAddr, VmFlags, VmMeta, PPN, VPN};
+use page_table::{PageTable, PageTableFormatter, Pos, Pte, VAddr, VmFlags, VmMeta, PPN, VPN};
 use visitor::Visitor;
 
 /// 地址空间。
-pub struct AddressSpace<Meta: VmMeta> {
-    /// 所在地址空间和物理地址空间之间的页号偏移。
-    ///
-    /// 地址空间对象本身必须位于一个固定的地址空间中（内核地址空间），这样才能正常使用指针。
-    ///
-    /// 设定这个地址空间是线性地址空间，与物理地址空间只有一个整页的偏移。
-    vpn_offset: usize,
-    /// 根页表。
+pub struct AddressSpace<Meta: VmMeta, P: PageManager<Meta>> {
+    manager: P,
     root: NonNull<Pte<Meta>>,
 }
 
-impl<Meta: VmMeta> AddressSpace<Meta> {
+impl<Meta: VmMeta, M: PageManager<Meta>> AddressSpace<Meta, M> {
     /// 创建新地址空间。
     #[inline]
-    pub fn new(v_offset: usize) -> Self {
-        Self {
-            vpn_offset: v_offset,
-            root: unsafe {
-                ALLOC
-                    .get()
-                    .expect("allocator uninitialized for kernel-vm")
-                    .create(Meta::PAGE_BITS)
-                    .cast()
-            },
-        }
+    pub fn new() -> Self {
+        let mut manager = M::default();
+        let mut flags = VmFlags::VALID;
+        let root = manager.allocate(1, &mut flags).cast();
+        Self { manager, root }
     }
 
     /// 向地址空间增加映射关系。
     #[inline]
     pub fn push(&mut self, range: Range<VPN<Meta>>, pbase: PPN<Meta>, flags: VmFlags<Meta>) {
         let count = range.end.val() - range.start.val();
-        self.shuttle().walk_mut(&mut Mapper {
-            space: self,
-            vbase: range.start,
-            prange: pbase..pbase + count,
-            flags,
-        });
+        unsafe { PageTable::from_root(self.root) }.walk_mut(
+            Pos::new(range.start, 0),
+            &mut Mapper {
+                space: self,
+                prange: pbase..pbase + count,
+                flags,
+            },
+        )
     }
 
     /// 地址空间根页表的物理页号。
     #[inline]
     pub fn root_ppn(&self) -> PPN<Meta> {
-        PPN::new((self.root.as_ptr() as usize >> Meta::PAGE_BITS) - self.vpn_offset)
+        self.manager.v_to_p(self.root)
     }
 
     /// 检查 `flags` 的属性呢要求，然后将地址空间中的一个虚地址翻译成当前地址空间中的指针。
     #[inline]
     pub fn translate<T>(&self, addr: VAddr<Meta>, flags: VmFlags<Meta>) -> Option<NonNull<T>> {
-        let mut visitor = Visitor::new(addr.floor());
-        self.shuttle().walk(&mut visitor);
+        let mut visitor = Visitor::new(self);
+        unsafe { PageTable::from_root(self.root) }.walk(Pos::new(addr.floor(), 0), &mut visitor);
         visitor
             .ans()
             .filter(|pte| pte.flags().contains(flags))
             .map(|pte| unsafe {
-                let vpn = VPN::<Meta>::new(pte.ppn().val() + self.vpn_offset);
-                NonNull::new_unchecked((vpn.base().val() + addr.offset()) as _)
+                NonNull::new_unchecked(
+                    self.manager
+                        .p_to_v::<u8>(pte.ppn())
+                        .as_ptr()
+                        .add(addr.offset())
+                        .cast(),
+                )
             })
-    }
-
-    /// 这个地址空间的页表穿梭机。
-    #[inline]
-    fn shuttle(&self) -> PageTableShuttle<Meta, impl Fn(PPN<Meta>) -> VPN<Meta>> {
-        let offset = self.vpn_offset;
-        PageTableShuttle {
-            table: unsafe { PageTable::from_root(self.root) },
-            f: move |p| VPN::new(p.val() + offset),
-        }
     }
 }
 
-impl<Meta: VmMeta> fmt::Debug for AddressSpace<Meta> {
+impl<Meta: VmMeta, P: PageManager<Meta>> fmt::Debug for AddressSpace<Meta, P> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         writeln!(f, "root: {:#x}", self.root_ppn().val())?;
-        write!(f, "{:?}", self.shuttle())
+        write!(
+            f,
+            "{:?}",
+            PageTableFormatter {
+                pt: unsafe { PageTable::from_root(self.root) },
+                f: |ppn| unsafe {
+                    NonNull::new_unchecked(VPN::<Meta>::new(ppn.val()).base().as_mut_ptr())
+                }
+            }
+        )
     }
 }
