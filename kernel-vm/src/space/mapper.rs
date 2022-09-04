@@ -33,7 +33,12 @@ impl<Meta: VmMeta> Decorator<Meta> for Mapper<'_, Meta> {
     #[inline]
     fn meet(&mut self, _level: usize, pte: Pte<Meta>, _target_hint: Pos<Meta>) -> Update<Meta> {
         assert!(!pte.is_valid());
-        let addr = unsafe { ALLOC.get_unchecked().allocate(self.space.root, 1).as_ptr() as usize };
+        let addr = unsafe {
+            ALLOC
+                .get_unchecked()
+                .allocate(self.space.root.cast(), 1)
+                .as_ptr() as usize
+        };
         let vpn = VPN::new(addr >> Meta::PAGE_BITS);
         let ppn = PPN::new(vpn.val() - self.space.vpn_offset);
         Update::Pte(unsafe { VmFlags::from_raw(1) }.build_pte(ppn), vpn)

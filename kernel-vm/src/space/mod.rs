@@ -2,9 +2,9 @@
 mod visitor;
 
 use crate::ALLOC;
-use core::{fmt, marker::PhantomData, ops::Range, ptr::NonNull};
+use core::{fmt, ops::Range, ptr::NonNull};
 use mapper::Mapper;
-use page_table::{PageTable, PageTableShuttle, VAddr, VmFlags, VmMeta, PPN, VPN};
+use page_table::{PageTable, PageTableShuttle, Pte, VAddr, VmFlags, VmMeta, PPN, VPN};
 use visitor::Visitor;
 
 /// 地址空间。
@@ -16,24 +16,22 @@ pub struct AddressSpace<Meta: VmMeta> {
     /// 设定这个地址空间是线性地址空间，与物理地址空间只有一个整页的偏移。
     vpn_offset: usize,
     /// 根页表。
-    root: NonNull<u8>,
-    _phantom: PhantomData<Meta>,
+    root: NonNull<Pte<Meta>>,
 }
 
 impl<Meta: VmMeta> AddressSpace<Meta> {
     /// 创建新地址空间。
     #[inline]
     pub fn new(v_offset: usize) -> Self {
-        let root = unsafe {
-            ALLOC
-                .get()
-                .expect("allocator uninitialized for kernel-vm")
-                .create(Meta::PAGE_BITS)
-        };
         Self {
             vpn_offset: v_offset,
-            root,
-            _phantom: PhantomData,
+            root: unsafe {
+                ALLOC
+                    .get()
+                    .expect("allocator uninitialized for kernel-vm")
+                    .create(Meta::PAGE_BITS)
+                    .cast()
+            },
         }
     }
 
@@ -62,7 +60,7 @@ impl<Meta: VmMeta> AddressSpace<Meta> {
         self.shuttle().walk(&mut visitor);
         visitor
             .ans()
-            .filter(|pte| pte.flags().0 & flags.0 == flags.0)
+            .filter(|pte| pte.flags().contains(flags))
             .map(|pte| unsafe {
                 let vpn = VPN::<Meta>::new(pte.ppn().val() + self.vpn_offset);
                 NonNull::new_unchecked((vpn.base().val() + addr.offset()) as _)
@@ -74,9 +72,7 @@ impl<Meta: VmMeta> AddressSpace<Meta> {
     fn shuttle(&self) -> PageTableShuttle<Meta, impl Fn(PPN<Meta>) -> VPN<Meta>> {
         let offset = self.vpn_offset;
         PageTableShuttle {
-            table: unsafe {
-                PageTable::from_raw_parts(self.root.cast().as_ptr(), VPN::new(0), Meta::MAX_LEVEL)
-            },
+            table: unsafe { PageTable::from_root(self.root) },
             f: move |p| VPN::new(p.val() + offset),
         }
     }
