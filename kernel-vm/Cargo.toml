@@ -8,4 +8,4 @@ authors = ["YdrMaster <ydrml@hotmail.com>"]
 
 [dependencies]
 spin = "0.9.4"
-page-table = { git = "https://github.com/YdrMaster/page-table.git", rev = "61d609d" }
+page-table = { git = "https://github.com/YdrMaster/page-table.git", rev = "2b3f5d4" }

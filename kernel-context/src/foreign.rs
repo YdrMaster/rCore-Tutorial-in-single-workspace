@@ -1,6 +1,4 @@
-﻿use core::mem::MaybeUninit;
-
-use crate::{build_sstatus, LocalContext};
+﻿use crate::{build_sstatus, LocalContext};
 
 /// 异界传送门。
 ///
@@ -32,26 +30,15 @@ impl ForeignPortal {
 
     /// 部署异界传送门。
     pub fn new() -> Self {
-        let mut ans = Self {
-            a0: 0,
-            ra: 0,
-            satp: 0,
-            sstatus: 0,
-            sepc: 0,
-            stvec: 0,
-            sscratch: 0,
-            execute: unsafe { MaybeUninit::uninit().assume_init() },
-        };
-        let entry = foreign_execute as *const u16;
-        for len in 1.. {
+        let mut ans = Self::EMPTY;
+        // 32 是一个任取的不可能的下限
+        for len in 32..ans.execute.len() {
             unsafe {
+                let slice = core::slice::from_raw_parts(foreign_execute as *const _, len);
                 // 通过寻找结尾的 `jr a0` 和 0，在运行时定位裸函数
                 // 裸函数的 `options(noreturn)` 会在结尾生成一个 0 指令，这是一个 unstable 特性所以不一定可靠
-                if *entry.add(len) == 0x8502 && *entry.add(len + 1) == 0 {
-                    assert!(len + 2 <= ans.execute.len());
-                    ans.execute
-                        .as_mut_ptr()
-                        .copy_from_nonoverlapping(entry, len + 2);
+                if slice.ends_with(&[0x8502, 0]) {
+                    ans.execute[..len].copy_from_slice(slice);
                     return ans;
                 }
             }
@@ -80,7 +67,7 @@ impl ForeignContext {
     /// 执行异界线程。
     ///
     /// `portal` 是线性地址空间上的传送门对象。`protal_transit` 是公共地址空间上的传送门对象。
-    pub unsafe fn execute(&mut self, portal: &mut ForeignPortal, protal_transit: usize) -> usize {
+    pub unsafe fn execute(&mut self, portal: &mut ForeignPortal, portal_transit: usize) -> usize {
         use core::mem::replace;
         // 异界传送门需要特权态执行
         let supervisor = replace(&mut self.context.supervisor, true);
@@ -93,8 +80,8 @@ impl ForeignContext {
         portal.sepc = self.context.sepc;
         // 执行传送门代码
         // NOTICE 危险的操作
-        self.context.sepc = protal_transit + portal.execute_offset();
-        *self.context.a_mut(0) = protal_transit;
+        self.context.sepc = portal_transit + portal.execute_offset();
+        *self.context.a_mut(0) = portal_transit;
         let sstatus = self.context.execute();
         // 恢复线程属性
         self.context.supervisor = supervisor;

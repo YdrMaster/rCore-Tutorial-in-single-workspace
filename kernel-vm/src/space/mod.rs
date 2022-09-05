@@ -1,90 +1,98 @@
 ﻿mod mapper;
 mod visitor;
 
-use crate::{ForeignPtr, ALLOC};
+use crate::PageManager;
 use core::{fmt, marker::PhantomData, ops::Range, ptr::NonNull};
 use mapper::Mapper;
-use page_table::{PageTable, PageTableShuttle, VAddr, VmFlags, VmMeta, PPN, VPN};
+use page_table::{PageTable, PageTableFormatter, Pos, VAddr, VmFlags, VmMeta, PPN, VPN};
 use visitor::Visitor;
 
 /// 地址空间。
-pub struct AddressSpace<Meta: VmMeta> {
-    /// 所在地址空间和物理地址空间之间的页号偏移。
-    ///
-    /// 地址空间对象本身必须位于一个固定的地址空间中（内核地址空间），这样才能正常使用指针。
-    ///
-    /// 设定这个地址空间是线性地址空间，与物理地址空间只有一个整页的偏移。
-    vpn_offset: usize,
-    /// 根页表。
-    root: Page<Meta>,
-}
+pub struct AddressSpace<Meta: VmMeta, M: PageManager<Meta>>(M, PhantomData<Meta>);
 
-impl<Meta: VmMeta> AddressSpace<Meta> {
+impl<Meta: VmMeta, M: PageManager<Meta>> AddressSpace<Meta, M> {
     /// 创建新地址空间。
-    ///
-    /// 此时还没有根页表。
     #[inline]
-    pub fn new(v_offset: usize) -> Self {
-        Self {
-            vpn_offset: v_offset,
-            root: Page::allocate(),
-        }
+    pub fn new() -> Self {
+        Self(M::new_root(), PhantomData)
     }
 
-    #[inline]
-    pub fn push(&mut self, range: Range<VPN<Meta>>, pbase: PPN<Meta>, flags: VmFlags<Meta>) {
-        let count = range.end.val() - range.start.val();
-        self.shuttle().walk_mut(&mut Mapper {
-            vpn_offset: self.vpn_offset,
-            vbase: range.start,
-            prange: pbase..pbase + count,
-            flags,
-        });
-    }
-
+    /// 地址空间根页表的物理页号。
     #[inline]
     pub fn root_ppn(&self) -> PPN<Meta> {
-        PPN::new(self.root.vpn().val() - self.vpn_offset)
+        self.0.root_ppn()
     }
 
     #[inline]
-    pub fn translate<T>(&self, addr: VAddr<Meta>) -> Option<ForeignPtr<Meta>> {
-        let mut visitor = Visitor::new(addr.floor());
-        self.shuttle().walk(&mut visitor);
-        visitor.ans().map(|pte| ForeignPtr {
-            raw: VPN::<Meta>::new(pte.ppn().val() + self.vpn_offset).base(),
-            flags: pte.flags(),
-        })
+    fn root(&self) -> PageTable<Meta> {
+        unsafe { PageTable::from_root(self.0.root_ptr()) }
     }
 
-    #[inline]
-    fn shuttle(&self) -> PageTableShuttle<Meta, impl Fn(PPN<Meta>) -> VPN<Meta>> {
-        let root = self.root.vpn().base().val();
-        let offset = self.vpn_offset;
-        PageTableShuttle {
-            table: unsafe { PageTable::from_raw_parts(root as _, VPN::new(0), Meta::MAX_LEVEL) },
-            f: move |p| VPN::new(p.val() + offset),
+    /// 向地址空间增加映射关系。
+    pub fn map_extern(&mut self, range: Range<VPN<Meta>>, pbase: PPN<Meta>, flags: VmFlags<Meta>) {
+        let count = range.end.val() - range.start.val();
+        let mut root = self.root();
+        let mut mapper = Mapper::new(self, pbase..pbase + count, flags);
+        root.walk_mut(Pos::new(range.start, 0), &mut mapper);
+        if !mapper.ans() {
+            // 映射失败，需要回滚吗？
+            todo!()
         }
     }
+
+    /// 分配新的物理页，拷贝数据并建立映射。
+    pub fn map(
+        &mut self,
+        range: Range<VPN<Meta>>,
+        data: &[u8],
+        offset: usize,
+        mut flags: VmFlags<Meta>,
+    ) {
+        let count = range.end.val() - range.start.val();
+        let size = count << Meta::PAGE_BITS;
+        assert!(size >= data.len() + offset);
+        let page = self.0.allocate(count, &mut flags);
+        unsafe {
+            use core::slice::from_raw_parts_mut as slice;
+            let mut ptr = page.as_ptr();
+            slice(ptr, offset).fill(0);
+            ptr = ptr.add(offset);
+            slice(ptr, data.len()).copy_from_slice(data);
+            ptr = ptr.add(data.len());
+            slice(ptr, page.as_ptr().add(size).offset_from(ptr) as _).fill(0);
+        }
+        self.map_extern(range, self.0.v_to_p(page), flags)
+    }
+
+    /// 检查 `flags` 的属性要求，然后将地址空间中的一个虚地址翻译成当前地址空间中的指针。
+    pub fn translate<T>(&self, addr: VAddr<Meta>, flags: VmFlags<Meta>) -> Option<NonNull<T>> {
+        let mut visitor = Visitor::new(self);
+        self.root().walk(Pos::new(addr.floor(), 0), &mut visitor);
+        visitor
+            .ans()
+            .filter(|pte| pte.flags().contains(flags))
+            .map(|pte| unsafe {
+                NonNull::new_unchecked(
+                    self.0
+                        .p_to_v::<u8>(pte.ppn())
+                        .as_ptr()
+                        .add(addr.offset())
+                        .cast(),
+                )
+            })
+    }
 }
 
-impl<Meta: VmMeta> fmt::Debug for AddressSpace<Meta> {
+impl<Meta: VmMeta, P: PageManager<Meta>> fmt::Debug for AddressSpace<Meta, P> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         writeln!(f, "root: {:#x}", self.root_ppn().val())?;
-        write!(f, "{:?}", self.shuttle())
-    }
-}
-
-struct Page<Meta: VmMeta>(NonNull<u8>, PhantomData<Meta>);
-
-impl<Meta: VmMeta> Page<Meta> {
-    #[inline]
-    fn allocate() -> Self {
-        Self(ALLOC.get().unwrap().allocate(Meta::PAGE_BITS), PhantomData)
-    }
-
-    #[inline]
-    fn vpn(&self) -> VPN<Meta> {
-        VAddr::new(self.0.as_ptr() as _).floor()
+        write!(
+            f,
+            "{:?}",
+            PageTableFormatter {
+                pt: self.root(),
+                f: |ppn| self.0.p_to_v(ppn)
+            }
+        )
     }
 }

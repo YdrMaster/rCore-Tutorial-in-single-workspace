@@ -11,7 +11,7 @@ use kernel_context::LocalContext;
 use output::log;
 use riscv::register::*;
 use sbi_rt::*;
-use syscall::SyscallId;
+use syscall::{Caller, SyscallId};
 
 // 用户程序内联进来。
 core::arch::global_asm!(include_str!(env!("APP_ASM")));
@@ -107,7 +107,7 @@ fn handle_syscall(ctx: &mut LocalContext) -> SyscallResult {
 
     let id = ctx.a(7).into();
     let args = [ctx.a(0), ctx.a(1), ctx.a(2), ctx.a(3), ctx.a(4), ctx.a(5)];
-    match syscall::handle(id, args) {
+    match syscall::handle(Caller { entity: 0, flow: 0 }, id, args) {
         Ret::Done(ret) => match id {
             Id::EXIT => SyscallResult::Exit(ctx.a(0)),
             _ => {
@@ -135,7 +135,7 @@ mod impls {
     pub struct SyscallContext;
 
     impl syscall::IO for SyscallContext {
-        fn write(&self, fd: usize, buf: usize, count: usize) -> isize {
+        fn write(&self, _caller: syscall::Caller, fd: usize, buf: usize, count: usize) -> isize {
             if fd == 0 {
                 print!("{}", unsafe {
                     core::str::from_utf8_unchecked(core::slice::from_raw_parts(
@@ -153,7 +153,7 @@ mod impls {
 
     impl syscall::Process for SyscallContext {
         #[inline]
-        fn exit(&self, _status: usize) -> isize {
+        fn exit(&self, _caller: syscall::Caller, _status: usize) -> isize {
             0
         }
     }
