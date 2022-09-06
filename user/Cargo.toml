@@ -5,5 +5,5 @@ edition = "2021"
 authors = ["YdrMaster <ydrml@hotmail.com>"]
 
 [dependencies]
-output = { path = "../output" }
+console = { path = "../console" }
 syscall = { path = "../syscall", features = ["user"] }

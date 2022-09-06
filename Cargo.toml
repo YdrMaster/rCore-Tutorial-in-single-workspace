@@ -7,7 +7,7 @@ members = [
     "ch3",
     "ch4",
     "user",
-    "output",
+    "console",
     "syscall",
     "kernel-context",
     "kernel-vm",

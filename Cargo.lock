@@ -59,7 +59,7 @@ dependencies = [
 name = "ch1-lab"
 version = "0.0.1"
 dependencies = [
- "output",
+ "console",
  "sbi-rt",
 ]
 
@@ -67,8 +67,8 @@ dependencies = [
 name = "ch2"
 version = "0.0.1"
 dependencies = [
+ "console",
  "kernel-context",
- "output",
  "riscv",
  "sbi-rt",
  "syscall",
@@ -79,8 +79,8 @@ dependencies = [
 name = "ch3"
 version = "0.0.1"
 dependencies = [
+ "console",
  "kernel-context",
- "output",
  "riscv",
  "sbi-rt",
  "syscall",
@@ -92,9 +92,9 @@ name = "ch4"
 version = "0.0.1"
 dependencies = [
  "buddy-allocator",
+ "console",
  "kernel-context",
  "kernel-vm",
- "output",
  "riscv",
  "sbi-rt",
  "syscall",
@@ -147,6 +147,14 @@ version = "0.1.0"
 source = "git+https://github.com/YdrMaster/command-ext.git?rev=f25befb#f25befb0b5a58e3e75fb3a891d6cc5969a13d93c"
 dependencies = [
  "lazy_static",
+]
+
+[[package]]
+name = "console"
+version = "0.0.1"
+dependencies = [
+ "log",
+ "spin",
 ]
 
 [[package]]
@@ -261,17 +269,10 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "9ff7415e9ae3fff1225851df9e0d9e4e5479f947619774677a63572e55e80eff"
 
 [[package]]
-name = "output"
-version = "0.0.1"
-dependencies = [
- "log",
- "spin",
-]
-
-[[package]]
 name = "page-table"
-version = "0.0.5"
-source = "git+https://github.com/YdrMaster/page-table.git?rev=2b3f5d4#2b3f5d47fc188daa49d272f10e84108aff601a32"
+version = "0.0.6"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "82a394e6c402fb630dbb6e33a84a342c482a603ae32b2a26d61202bfaba2b2c0"
 dependencies = [
  "cfg-if",
  "static_assertions",
@@ -448,7 +449,7 @@ checksum = "c4f5b37a154999a8f3f98cc23a628d850e154479cd94decf3414696e12e31aaf"
 name = "user_lib"
 version = "0.0.1"
 dependencies = [
- "output",
+ "console",
  "syscall",
 ]
 

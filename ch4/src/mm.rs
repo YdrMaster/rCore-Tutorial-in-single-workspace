@@ -1,11 +1,11 @@
 ﻿use alloc::alloc::handle_alloc_error;
 use buddy_allocator::{BuddyAllocator, LinkedListBuddy, UsizeBuddy};
+use console::log;
 use core::{
     alloc::{GlobalAlloc, Layout},
     ptr::NonNull,
 };
 use kernel_vm::page_table::{MmuMeta, Sv39};
-use output::log;
 
 /// 初始化全局分配器和内核堆分配器。
 pub fn init() {

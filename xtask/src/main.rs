@@ -114,7 +114,7 @@ struct AsmArgs {
     build: BuildArgs,
     /// Output file.
     #[clap(short, long)]
-    output: Option<String>,
+    console: Option<String>,
 }
 
 impl AsmArgs {
@@ -123,7 +123,7 @@ impl AsmArgs {
         let out = Path::new(std::env!("CARGO_MANIFEST_DIR"))
             .parent()
             .unwrap()
-            .join(self.output.unwrap_or(format!("ch{}.asm", self.build.ch)));
+            .join(self.console.unwrap_or(format!("ch{}.asm", self.build.ch)));
         println!("Asm file dumps to '{}'.", out.display());
         fs::write(out, BinUtil::objdump().arg(elf).arg("-d").output().stdout).unwrap();
     }

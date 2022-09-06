@@ -1,11 +1,11 @@
 ﻿use crate::{mm::PAGE, Sv39Manager};
+use console::log;
 use core::{alloc::Layout, str::FromStr};
 use kernel_context::{foreign::ForeignContext, LocalContext};
 use kernel_vm::{
     page_table::{MmuMeta, Sv39, VAddr, VmFlags, PPN, VPN},
     AddressSpace,
 };
-use output::log;
 use xmas_elf::{
     header::{self, HeaderPt2, Machine},
     program, ElfFile,
