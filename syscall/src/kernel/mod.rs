@@ -18,6 +18,9 @@ pub trait Process: Sync {
 
 pub trait IO: Sync {
     fn write(&self, caller: Caller, fd: usize, buf: usize, count: usize) -> isize;
+    fn read(&self, caller: Caller, fd: usize, buf: usize, count: usize) -> isize;
+    fn open(&self, caller: Caller, path: usize, flags: usize) -> isize;
+    fn close(&self, caller: Caller, fd: usize) -> isize;
 }
 
 pub trait Memory: Sync {
@@ -83,6 +86,10 @@ pub fn handle(caller: Caller, id: SyscallId, args: [usize; 6]) -> SyscallResult 
     use SyscallId as Id;
     match id {
         Id::WRITE => IO.call(id, |io| io.write(caller, args[0], args[1], args[2])),
+        Id::READ => IO.call(id, |io| io.read(caller, args[0], args[1], args[2])),
+        Id::OPENAT => IO.call(id, |io| io.open(caller, args[0], args[1])),
+        Id::CLOSE => IO.call(id, |io| io.close(caller, args[0])),
+
         Id::EXIT => PROCESS.call(id, |proc| proc.exit(caller, args[0])),
         Id::CLOCK_GETTIME => CLOCK.call(id, |clock| {
             clock.clock_gettime(caller, ClockId(args[0]), args[1])
