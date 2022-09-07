@@ -1,0 +1,19 @@
+[package]
+name = "ch4"
+version = "0.0.1"
+edition = "2021"
+authors = ["YdrMaster <ydrml@hotmail.com>", "tkf2019 <kaifu6821@qq.com>"]
+
+[dependencies]
+sbi-rt = { git = "https://github.com/rustsbi/sbi-rt", branch = "dev" }
+xmas-elf = "0.8.0"
+riscv = "0.8.0"
+
+console = { path = "../console" }
+utils = { path = "../utils" }
+kernel-context = { path = "../kernel-context" }
+kernel-vm = { path = "../kernel-vm" }
+buddy-allocator = { git = "https://github.com/YdrMaster/buddy-allocator", rev = "fae1979" }
+syscall = { path = "../syscall", features = ["kernel"] }
+
+easy-fs = { path = "../easy-fs" }

@@ -12,6 +12,8 @@ members = [
     "kernel-context",
     "kernel-vm",
     "utils",
+    "easy-fs",
+    "file-handle",
 ]
 default-members = ["xtask"]
 
