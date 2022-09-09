@@ -1,20 +1,21 @@
 [package]
 name = "ch5"
-version = "0.1.0"
+version = "0.0.1"
 edition = "2021"
-
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+authors = ["YdrMaster <ydrml@hotmail.com>"]
 
 [dependencies]
 sbi-rt = { git = "https://github.com/rustsbi/sbi-rt", branch = "dev" }
-page-table = "0.0.5"
 xmas-elf = "0.8.0"
 riscv = "0.8.0"
-r0 = "1.0.0"
-lazy_static = { version = "1.4.0", features = ["spin_no_std"] }
+spin = "0.9.4"
+# lazy_static = { version = "1.4.0", features = ["spin_no_std"] }
+
 
 output = { path = "../output" }
 utils = { path = "../utils" }
 kernel-context = { path = "../kernel-context" }
-buddy-allocator = { git = "https://github.com/YdrMaster/buddy-allocator", rev = "5ac08b8" }
+kernel-vm = { path = "../kernel-vm" }
+buddy-allocator = { git = "https://github.com/YdrMaster/buddy-allocator", rev = "fae1979" }
 syscall = { path = "../syscall", features = ["kernel"] }
+task-manage = { path = "../task-manage"}

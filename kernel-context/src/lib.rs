@@ -46,6 +46,18 @@ impl LocalContext {
         }
     }
 
+    /// 复制父进程的上下文
+    #[inline]
+    pub fn clone(&self) -> Self {
+        Self {
+            sctx: self.sctx,
+            x: self.x,
+            supervisor: self.supervisor,
+            interrupt: self.interrupt,
+            sepc: self.sepc,
+        }
+    }
+
     /// 读取用户通用寄存器。
     #[inline]
     pub fn x(&self, n: usize) -> usize {

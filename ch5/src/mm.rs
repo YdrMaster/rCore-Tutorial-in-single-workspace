@@ -1,76 +1,75 @@
-/// 物理内存管理
 use alloc::alloc::handle_alloc_error;
 use buddy_allocator::{BuddyAllocator, LinkedListBuddy, UsizeBuddy};
 use core::{
     alloc::{GlobalAlloc, Layout},
-    cell::RefCell,
     ptr::NonNull,
 };
+use kernel_vm::page_table::{MmuMeta, Sv39};
+use output::log;
 
 /// 初始化全局分配器和内核堆分配器。
 pub fn init() {
+    /// 4 KiB 页类型。
+    #[repr(C, align(4096))]
+    pub struct Memory<const N: usize>([u8; N]);
+
+    const MEMORY_SIZE: usize = 256 << Sv39::PAGE_BITS;
+
+    /// 托管空间 1 MiB
+    static mut MEMORY: Memory<MEMORY_SIZE> = Memory([0u8; MEMORY_SIZE]);
     unsafe {
-        let ptr = NonNull::new(MEMORY.as_mut_ptr()).unwrap();
-        let len = core::mem::size_of_val(&MEMORY);
-        println!(
+        let ptr = NonNull::new(MEMORY.0.as_mut_ptr()).unwrap();
+        log::info!(
             "MEMORY = {:#x}..{:#x}",
             ptr.as_ptr() as usize,
-            ptr.as_ptr() as usize + len
+            ptr.as_ptr() as usize + MEMORY_SIZE
         );
-        GLOBAL.init(12, ptr);
-        GLOBAL.transfer(ptr, len);
-        ALLOC.0.borrow_mut().init(3, ptr);
+        PAGE.init(Sv39::PAGE_BITS, ptr);
+        HEAP.init(core::mem::size_of::<usize>().trailing_zeros() as _, ptr);
+        PAGE.transfer(ptr, MEMORY_SIZE);
     }
 }
 
-/// 获取全局分配器。
-#[inline]
-pub unsafe fn global() -> &'static mut MutAllocator<5> {
-    &mut GLOBAL
-}
-
-#[repr(C, align(4096))]
-pub struct Page([u8; 4096]);
-
-impl Page {
-    pub const ZERO: Self = Self([0; 4096]);
-    pub const LAYOUT: Layout = Layout::new::<Self>();
-
-    #[inline]
-    pub fn addr(&self) -> usize {
-        self as *const _ as _
+/// 测试内核堆分配。
+pub fn test() {
+    let mut vec = vec![0; 1234];
+    for (i, val) in vec.iter_mut().enumerate() {
+        *val = i;
     }
+    for (i, val) in vec.into_iter().enumerate() {
+        assert_eq!(i, val);
+    }
+    log::debug!("memory management test pass");
+    println!();
 }
 
-/// 托管空间 4 MiB
-static mut MEMORY: [Page; 1024] = [Page::ZERO; 1024];
-static mut GLOBAL: MutAllocator<5> = MutAllocator::<5>::new();
+type MutAllocator<const N: usize> = BuddyAllocator<N, UsizeBuddy, LinkedListBuddy>;
+pub static mut PAGE: MutAllocator<5> = MutAllocator::new();
+static mut HEAP: MutAllocator<32> = MutAllocator::new();
+
+struct Global;
+
 #[global_allocator]
-static ALLOC: SharedAllocator<22> = SharedAllocator(RefCell::new(MutAllocator::new()));
+static GLOBAL: Global = Global;
 
-pub type MutAllocator<const N: usize> = BuddyAllocator<N, UsizeBuddy, LinkedListBuddy>;
-
-struct SharedAllocator<const N: usize>(RefCell<MutAllocator<N>>);
-unsafe impl<const N: usize> Sync for SharedAllocator<N> {}
-unsafe impl<const N: usize> GlobalAlloc for SharedAllocator<N> {
+unsafe impl GlobalAlloc for Global {
     #[inline]
     unsafe fn alloc(&self, layout: Layout) -> *mut u8 {
-        let mut inner = self.0.borrow_mut();
-        loop {
-            if let Ok((ptr, _)) = inner.allocate::<u8>(layout) {
-                return ptr.as_ptr();
-            } else if let Ok((ptr, size)) = GLOBAL.allocate::<u8>(layout) {
-                inner.transfer(ptr, size);
-            } else {
-                handle_alloc_error(layout)
-            }
+        if let Ok((ptr, _)) = HEAP.allocate_layout::<u8>(layout) {
+            ptr.as_ptr()
+        } else if let Ok((ptr, size)) = PAGE.allocate_layout::<u8>(
+            Layout::from_size_align_unchecked(layout.size().next_power_of_two(), layout.align()),
+        ) {
+            log::trace!("global transfers {} pages to heap", size >> Sv39::PAGE_BITS);
+            HEAP.transfer(ptr, size);
+            HEAP.allocate_layout::<u8>(layout).unwrap().0.as_ptr()
+        } else {
+            handle_alloc_error(layout)
         }
     }
 
     #[inline]
     unsafe fn dealloc(&self, ptr: *mut u8, layout: Layout) {
-        self.0
-            .borrow_mut()
-            .deallocate(NonNull::new(ptr).unwrap(), layout.size())
+        HEAP.deallocate(NonNull::new(ptr).unwrap(), layout.size())
     }
 }

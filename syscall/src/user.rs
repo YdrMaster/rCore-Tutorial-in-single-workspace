@@ -25,6 +25,10 @@ pub fn clock_gettime(clockid: ClockId, tp: *mut TimeSpec) -> isize {
     unsafe { syscall2(SyscallId::CLOCK_GETTIME, clockid.0, tp as _) }
 }
 
+pub fn fork() -> isize {
+    unsafe { syscall0(SyscallId::CLONE) }
+}
+
 /// 这个模块包含调用系统调用的最小封装，用户可以直接使用这些函数调用自定义的系统调用。
 pub mod native {
     use crate::SyscallId;
