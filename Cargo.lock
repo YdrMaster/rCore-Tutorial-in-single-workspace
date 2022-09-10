@@ -437,7 +437,6 @@ version = "0.1.0"
 dependencies = [
  "buddy-allocator",
  "output",
- "spin",
 ]
 
 [[package]]

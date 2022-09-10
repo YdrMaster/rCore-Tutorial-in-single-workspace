@@ -95,15 +95,17 @@ extern "C" fn rust_main() -> ! {
         log::info!("detect app[{i}]: {base:#x}..{:#x}", base + elf.len());
         if let Some(mut process) = Process::from_elf(ElfFile::new(elf).unwrap()) {
             map_portal(&mut process.address_space, &portal);
+            // let child_proc = Process::from_another(&mut process).unwrap();
             unsafe {
                 TASKMANAGER.insert(process.pid, process);
-                // log::debug!("here");
+                // TASKMANAGER.insert(child_proc.pid, child_proc);
             };
-            break;
+            // break;
         }
     }
     const PROTAL_TRANSIT: usize = VPN::<Sv39>::MAX.base().val();
     loop {
+
         if let Some(task) = unsafe { TASKMANAGER.fetch() }{
             task.execute(&mut portal, PROTAL_TRANSIT);
             match scause::read().cause() {
@@ -142,6 +144,7 @@ extern "C" fn rust_main() -> ! {
                 }
             }
         } else {
+            println!("no task");
             break;
         }        
     }

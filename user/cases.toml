@@ -45,5 +45,7 @@ cases = [
 
 [ch5]
 cases = [
+    "00hello_world",
+    "01store_fault",
     "initproc",
 ]
