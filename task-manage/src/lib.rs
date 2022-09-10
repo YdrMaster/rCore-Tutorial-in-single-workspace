@@ -7,8 +7,6 @@
 extern crate alloc;
 use alloc::{collections::BTreeMap, vec::Vec};
 
-use output::println;
-
 
 /// 任务管理器
 /// `tasks` 中保存所有的任务实体
@@ -34,9 +32,7 @@ impl<T> TaskManager<T> {
     #[inline]
     pub fn insert(&mut self, id: usize, task: T) {
         self.task_queue.push(id);
-        println!("insert pid {}, task_queue len is {}", id, self.task_queue.len());
         self.tasks.insert(id, task);
-        println!("tasks num is {}", self.tasks.len());
     }
     /// 根据 id 获取对应的任务
     #[inline]
@@ -56,8 +52,6 @@ impl<T> TaskManager<T> {
     /// 取出任务
     #[inline]
     pub fn fetch(&mut self) -> Option<&mut T> {
-        println!("task_queue len is {}", self.task_queue.len());
-        println!("tasks len is {}", self.tasks.len());
         if let Some(id) = self.task_queue.pop() {
             self.get_task(id)
         } else {

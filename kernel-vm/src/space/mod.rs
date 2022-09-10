@@ -16,6 +16,8 @@ pub struct AddressSpace<Meta: VmMeta, M: PageManager<Meta>> {
     pub areas: Vec<Range<VPN<Meta>>>,
     page_manager: M,
     phantom_data: PhantomData<Meta>,
+    /// 异界传送门的属性
+    pub tramp: (PPN<Meta>, VmFlags<Meta>),
 }
 
 impl<Meta: VmMeta, M: PageManager<Meta>> AddressSpace<Meta, M> {
@@ -26,6 +28,7 @@ impl<Meta: VmMeta, M: PageManager<Meta>> AddressSpace<Meta, M> {
             areas: Vec::new(),
             page_manager: M::new_root(), 
             phantom_data: PhantomData,
+            tramp: (PPN::INVALID, VmFlags::ZERO),
         }
     }
 
@@ -39,6 +42,15 @@ impl<Meta: VmMeta, M: PageManager<Meta>> AddressSpace<Meta, M> {
     #[inline]
     pub fn root(&self) -> PageTable<Meta> {
         unsafe { PageTable::from_root(self.page_manager.root_ptr()) }
+    }
+
+    /// 向地址空间增加异界传送门映射关系。
+    pub fn map_portal(&mut self, tramp: (PPN<Meta>, VmFlags<Meta>)) {
+        self.tramp = tramp;
+        let vpn = VPN::MAX;
+        let mut root = self.root();
+        let mut mapper = Mapper::new(self, tramp.0..tramp.0 + 1, tramp.1);
+        root.walk_mut(Pos::new(vpn, 0), &mut mapper);
     }
 
     /// 向地址空间增加映射关系。
@@ -124,28 +136,22 @@ impl<Meta: VmMeta, M: PageManager<Meta>> AddressSpace<Meta, M> {
                 }
             ).unwrap();
             let vpn_range = range.start..range.end;
-            if vpn != VPN::MAX {
-                // 虚拟地址块中页数量
-                let count = range.end.val() - range.start.val();
-                let size = count << Meta::PAGE_BITS;    
-                // 分配 count 个 flags 属性的物理页面
-                let paddr = new_addrspace.page_manager.allocate(count, &mut flags);
-                let ppn = new_addrspace.page_manager.v_to_p(paddr);
-                unsafe {
-                    use core::slice::from_raw_parts_mut as slice;
-                    let data = slice(data_ptr.as_mut(), size);
-                    let ptr = paddr.as_ptr();
-                    slice(ptr, size).copy_from_slice(data);
-                }
-                new_addrspace.map_extern(vpn_range, ppn, flags);
-            } else {
-                let ppn = self.page_manager.v_to_p(data_ptr);
-                new_addrspace.map_extern(vpn_range, ppn, flags);
-
+            // 虚拟地址块中页数量
+            let count = range.end.val() - range.start.val();
+            let size = count << Meta::PAGE_BITS;    
+            // 分配 count 个 flags 属性的物理页面
+            let paddr = new_addrspace.page_manager.allocate(count, &mut flags);
+            let ppn = new_addrspace.page_manager.v_to_p(paddr);
+            unsafe {
+                use core::slice::from_raw_parts_mut as slice;
+                let data = slice(data_ptr.as_mut(), size);
+                let ptr = paddr.as_ptr();
+                slice(ptr, size).copy_from_slice(data);
             }
-            
-            
+            new_addrspace.map_extern(vpn_range, ppn, flags);
         }
+        let tramp = self.tramp;
+        new_addrspace.map_portal(tramp);
     }
 }
 

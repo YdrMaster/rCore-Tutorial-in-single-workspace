@@ -15,8 +15,8 @@ pub struct Caller {
 pub trait Process: Sync {
     fn exit(&self, caller: Caller, status: usize) -> isize;
     fn fork(&self, caller: Caller) -> isize;
-    fn execve(&self, caller: Caller, path: *const u8) -> isize;
-    fn wait4(&self, caller: Caller, pid: isize, exit_code_ptr: *mut i32) -> isize;
+    fn exec(&self, caller: Caller, path: usize, count: usize) -> isize;
+    fn wait4(&self, caller: Caller, pid: usize, exit_code_ptr: usize) -> isize;
 }
 
 pub trait IO: Sync {
@@ -88,8 +88,8 @@ pub fn handle(caller: Caller, id: SyscallId, args: [usize; 6]) -> SyscallResult 
         Id::WRITE => IO.call(id, |io| io.write(caller, args[0], args[1], args[2])),
         Id::EXIT => PROCESS.call(id, |proc| proc.exit(caller, args[0])),
         Id::CLONE => PROCESS.call(id, |proc| proc.fork(caller)),
-        Id::EXECVE => PROCESS.call(id, |proc| proc.execve(caller, args[0] as *const u8)),
-        Id::WAIT4 => PROCESS.call(id, |proc| proc.wait4(caller, args[0] as isize, args[1] as *mut i32)),
+        Id::EXECVE => PROCESS.call(id, |proc| proc.exec(caller, args[0], args[1])),
+        Id::WAIT4 => PROCESS.call(id, |proc| proc.wait4(caller, args[0], args[1])),
         Id::CLOCK_GETTIME => CLOCK.call(id, |clock| {
             clock.clock_gettime(caller, ClockId(args[0]), args[1])
         }),

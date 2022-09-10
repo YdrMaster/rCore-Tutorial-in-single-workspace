@@ -23,26 +23,16 @@ pub struct Process {
 }
 
 impl Process {
-    // pub fn new() -> Option<Self> {
-    //     Some(Self {
-    //         pid: Pid::generate(),
-    //         context: Arc::new(Mutex::new(ForeignContext {
-    //             context: LocalContext::empty(),
-    //             satp: 0,
-    //         })),
-    //         address_space: Arc::new(Mutex::new(AddressSpace::new())),
-    //     })
-    // }
 
-    pub fn from_another(parent: &mut Process) -> Option<Process> {
+    pub fn fork(parent: &mut Process) -> Option<Process> {
         // 子进程 pid
         let pid = unsafe { PIDALLOCATOR.alloc() };
         // 复制父进程地址空间
         let parent_addr_space = &parent.address_space;
-        log::debug!("{parent_addr_space:?}");
+        // log::debug!("{parent_addr_space:?}");
         let mut address_space: AddressSpace<Sv39, Sv39Manager> = AddressSpace::new();
         parent_addr_space.cloneself(&mut address_space);
-        log::warn!("clone process {address_space:?}");
+        // log::warn!("clone process {address_space:?}");
         // 复制父进程上下文
         let context = parent.context.context.clone();
         let satp = (8 << 60) | address_space.root_ppn().val();

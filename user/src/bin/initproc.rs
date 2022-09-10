@@ -9,26 +9,26 @@ use user_lib::fork;
 #[no_mangle]
 fn main() -> i32 {
     println!("hello");
-    // if fork() == 0 {
-    //     // exec("user_shell\0", &[core::ptr::null::<u8>()]);
-    //     println!("child proc");
-    // } else {
-    //     // loop {
-    //     //     let mut exit_code: i32 = 0;
-    //     //     let pid = wait(&mut exit_code);
-    //     //     if pid == -1 {
-    //     //         yield_();
-    //     //         continue;
-    //     //     }
-    //     //     /*
-    //     //     println!(
-    //     //         "[initproc] Released a zombie process, pid={}, exit_code={}",
-    //     //         pid,
-    //     //         exit_code,
-    //     //     );
-    //     //     */
-    //     // }
-    //     println!("parent proc");
-    // }
+    if fork() == 0 {
+        // exec("user_shell\0", &[core::ptr::null::<u8>()]);
+        println!("child proc");
+    } else {
+        // loop {
+        //     let mut exit_code: i32 = 0;
+        //     let pid = wait(&mut exit_code);
+        //     if pid == -1 {
+        //         yield_();
+        //         continue;
+        //     }
+        //     /*
+        //     println!(
+        //         "[initproc] Released a zombie process, pid={}, exit_code={}",
+        //         pid,
+        //         exit_code,
+        //     );
+        //     */
+        // }
+        println!("parent proc");
+    }
     0
 }

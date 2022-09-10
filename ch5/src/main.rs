@@ -40,7 +40,7 @@ core::arch::global_asm!(include_str!(env!("APP_ASM")));
 #[no_mangle]
 #[link_section = ".text.entry"]
 unsafe extern "C" fn _start() -> ! {
-    const STACK_SIZE: usize = 6 * 4096;
+    const STACK_SIZE: usize = 16 * 4096;
 
     #[link_section = ".bss.uninit"]
     static mut STACK: [u8; STACK_SIZE] = [0u8; STACK_SIZE];
@@ -84,8 +84,12 @@ extern "C" fn rust_main() -> ! {
     // 异界传送门
     // 可以直接放在栈上
     let mut portal = ForeignPortal::new();
+    let tramp = (
+        PPN::<Sv39>::new(&portal as *const _ as usize >> Sv39::PAGE_BITS),
+        VmFlags::build_from_str("XWRV")
+    );
     // 传送门映射到所有地址空间
-    map_portal(&mut ks, &portal);
+    ks.map_portal(tramp);
     // 加载应用程序
     extern "C" {
         static apps: utils::AppMeta;
@@ -94,13 +98,10 @@ extern "C" fn rust_main() -> ! {
         let base = elf.as_ptr() as usize;
         log::info!("detect app[{i}]: {base:#x}..{:#x}", base + elf.len());
         if let Some(mut process) = Process::from_elf(ElfFile::new(elf).unwrap()) {
-            map_portal(&mut process.address_space, &portal);
-            // let child_proc = Process::from_another(&mut process).unwrap();
+            process.address_space.map_portal(tramp);
             unsafe {
                 TASKMANAGER.insert(process.pid, process);
-                // TASKMANAGER.insert(child_proc.pid, child_proc);
             };
-            // break;
         }
     }
     const PROTAL_TRANSIT: usize = VPN::<Sv39>::MAX.base().val();
@@ -201,15 +202,6 @@ fn kernel_space() -> AddressSpace<Sv39, Sv39Manager> {
     space
 }
 
-#[inline]
-fn map_portal(space: &mut AddressSpace<Sv39, Sv39Manager>, portal: &ForeignPortal) {
-    const PORTAL: VPN<Sv39> = VPN::MAX; // 虚地址最后一页给传送门
-    space.map_extern(
-        PORTAL..PORTAL + 1,
-        PPN::new(portal as *const _ as usize >> Sv39::PAGE_BITS),
-        VmFlags::build_from_str("XWRV"),
-    );
-}
 
 /// 各种接口库的实现。
 mod impls {
@@ -343,17 +335,16 @@ mod impls {
         
         fn fork(&self, caller: Caller) -> isize {
             let current = unsafe { TASKMANAGER.get_task(caller.entity).unwrap() };
-            let mut child_proc = Process::from_another(current).unwrap();
+            let mut child_proc = Process::fork(current).unwrap();
             let pid = child_proc.pid;
             let context = &mut child_proc.context.context;
             *context.a_mut(0) = 0 as _;
             context.move_next();
-            log::warn!("{pid}");
             unsafe { TASKMANAGER.insert(pid, child_proc); }
             pid as isize
         }
 
-        fn execve(&self, _caller: Caller, _path: *const u8) -> isize {
+        fn exec(&self, _caller: Caller, _path: usize, _count: usize) -> isize {
             // const READABLE: VmFlags<Sv39> = VmFlags::build_from_str("RV");
             // if let Some(ptr) = unsafe { TASKMANAGER.current().unwrap().as_ref() }
             //         .address_space
@@ -367,7 +358,7 @@ mod impls {
             
         }
 
-        fn wait4(&self, _caller: Caller, _pid: isize, _exit_code_ptr: *mut i32) -> isize {
+        fn wait4(&self, _caller: Caller, _pid: usize, _exit_code_ptr: usize) -> isize {
             todo!();
         }
     }
