@@ -36,10 +36,10 @@ pub fn get_app_data(app_name: &str) -> Option<&'static [u8]> {
     extern "C" {
         static apps: utils::AppMeta;
     }
-    let app_num = apps.get_app_num();
-    (0..app_num).find(|&i| APP_NAMES[i] == app_name).map(|&i|
-        apps.iter_elf().nth(i)
-    )
+    let app_num = unsafe { apps.get_app_num() as usize };
+    (0..app_num).find(|&i| APP_NAMES[i] == app_name).map(|i|
+        unsafe { apps.iter_elf().nth(i) }
+    ).unwrap()
 }
 
 /// 获取 app_list

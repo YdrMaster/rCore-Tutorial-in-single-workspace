@@ -18,30 +18,45 @@ pub struct Process {
     /// 不可变
     pub pid: usize,
     /// 可变
+    pub parent: usize,
+    pub children: Vec<usize>,
     pub context: ForeignContext,
     pub address_space: AddressSpace<Sv39, Sv39Manager>,
 }
 
 impl Process {
 
-    pub fn fork(parent: &mut Process) -> Option<Process> {
+    pub fn exec(&mut self, elf: ElfFile) {
+        let proc = Process::from_elf(elf).unwrap();
+        unsafe { PIDALLOCATOR.dealloc(proc.pid); }
+        let tramp = self.address_space.tramp;
+        self.address_space = proc.address_space;
+        self.address_space.map_portal(tramp);
+        self.context = proc.context;
+    }
+
+
+    pub fn fork(&mut self) -> Option<Process> {
         // 子进程 pid
         let pid = unsafe { PIDALLOCATOR.alloc() };
         // 复制父进程地址空间
-        let parent_addr_space = &parent.address_space;
+        let parent_addr_space = &self.address_space;
         // log::debug!("{parent_addr_space:?}");
         let mut address_space: AddressSpace<Sv39, Sv39Manager> = AddressSpace::new();
         parent_addr_space.cloneself(&mut address_space);
         // log::warn!("clone process {address_space:?}");
         // 复制父进程上下文
-        let context = parent.context.context.clone();
+        let context = self.context.context.clone();
         let satp = (8 << 60) | address_space.root_ppn().val();
         let foreign_ctx = ForeignContext {
             context,
             satp,
         };
+        self.children.push(pid);
         Some( Self {
             pid,
+            parent: self.pid,
+            children: Vec::new(),
             context: foreign_ctx,
             address_space,
         })
@@ -111,6 +126,8 @@ impl Process {
         *context.sp_mut() = 1 << 38;
         Some(Self {
             pid: unsafe { PIDALLOCATOR.alloc() },
+            parent: usize::MAX,
+            children: Vec::new(),
             context: ForeignContext { context, satp },
             address_space,
         })

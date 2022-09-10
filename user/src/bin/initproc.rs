@@ -1,23 +1,21 @@
 #![no_std]
 #![no_main]
 
-#[macro_use]
 extern crate user_lib;
 
-use user_lib::fork;
+use user_lib::{fork, exec, sched_yield};
 
 #[no_mangle]
 fn main() -> i32 {
-    println!("hello");
     if fork() == 0 {
         // exec("user_shell\0", &[core::ptr::null::<u8>()]);
-        println!("child proc");
+        exec("user_shell\0");
     } else {
         // loop {
         //     let mut exit_code: i32 = 0;
         //     let pid = wait(&mut exit_code);
         //     if pid == -1 {
-        //         yield_();
+        //         sched_yield();
         //         continue;
         //     }
         //     /*
@@ -28,7 +26,7 @@ fn main() -> i32 {
         //     );
         //     */
         // }
-        println!("parent proc");
+        
     }
     0
 }

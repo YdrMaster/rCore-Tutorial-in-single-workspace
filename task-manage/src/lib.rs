@@ -14,10 +14,9 @@ use alloc::{collections::BTreeMap, vec::Vec};
 /// 从中取出任务，并不会删除任务，之后需要调度则需要将 id 重新插回 `task_queue` 中
 /// 只能通过 `del` 才可以删除任务的实体
 pub struct TaskManager<T> {
-    /// 任务
     tasks: BTreeMap<usize, T>,
-    /// 任务队列
     task_queue: Vec<usize>,
+    current: usize,
 }
 
 impl<T> TaskManager<T> {
@@ -26,6 +25,7 @@ impl<T> TaskManager<T> {
         Self { 
             tasks: BTreeMap::new(),
             task_queue: Vec::new(),
+            current: 0,
         }
     }
     /// 插入一个新任务
@@ -53,9 +53,15 @@ impl<T> TaskManager<T> {
     #[inline]
     pub fn fetch(&mut self) -> Option<&mut T> {
         if let Some(id) = self.task_queue.pop() {
+            self.current = id;
             self.get_task(id)
         } else {
             None
         }
+    }
+    /// 获取当前正在执行的任务
+    #[inline]
+    pub fn current(&mut self) -> Option<&mut T> {
+        self.get_task(self.current)
     }
 }
