@@ -3,6 +3,7 @@
 #![feature(naked_functions, asm_sym, asm_const, const_btree_new)]
 #![feature(default_alloc_error_handler)]
 #![deny(warnings)]
+#![allow(deprecated)]
 
 mod mm;
 mod process;
@@ -97,7 +98,6 @@ extern "C" fn rust_main() -> ! {
     }
     const PROTAL_TRANSIT: usize = VPN::<Sv39>::MAX.base().val();
     loop {
-
         if let Some(task) = unsafe { TASKMANAGER.fetch() }{
             task.execute(&mut portal, PROTAL_TRANSIT);
             match scause::read().cause() {
@@ -111,12 +111,13 @@ extern "C" fn rust_main() -> ! {
                         Ret::Done(ret) => match id {
                             Id::EXIT => unsafe { 
                                 PIDALLOCATOR.dealloc(task.pid);
-                                TASKMANAGER.del(task.pid); 
+                                TASKMANAGER.del(task.pid);
                             },
                             _ => {
                                 let ctx = unsafe { &mut TASKMANAGER.current().unwrap().context.context };
                                 *ctx.a_mut(0) = ret as _;
                                 unsafe { TASKMANAGER.add(task.pid); }
+
                             }
                         },
                         Ret::Unsupported(_) => {
@@ -288,6 +289,7 @@ mod impls {
             #[allow(deprecated)]
             sbi_rt::legacy::console_putchar(c as _);
         }
+
     }
 
     pub struct SyscallContext;
@@ -318,11 +320,50 @@ mod impls {
                 -1
             }
         }
+
+        #[inline]
+        fn read(&self, fd: usize, buf: usize, count: usize) -> isize {
+            const WRITEABLE: VmFlags<Sv39> = VmFlags::build_from_str("W_V");
+            if fd == 1 {
+                if let Some(mut ptr) = unsafe { TASKMANAGER.current().unwrap() }
+                    .address_space
+                    .translate(VAddr::new(buf), WRITEABLE)
+                {
+                    let mut ptr = unsafe { ptr.as_mut() } as *mut u8;
+                    for _ in 0..count {
+                        let c = sbi_rt::legacy::console_getchar() as u8;
+                        unsafe { 
+                            *ptr = c;
+                            ptr = ptr.add(1);
+                         }
+                    }
+                    count as _
+                } else {
+                    log::error!("ptr not writeable");
+                    -1
+                }
+            } else {
+                log::error!("unsupported fd: {fd}");
+                -1
+            }
+        }
     }
 
     impl Process for SyscallContext {
         #[inline]
         fn exit(&self, _status: usize) -> isize {
+            let current = unsafe { TASKMANAGER.current().unwrap() };
+            if let Some(parent) = unsafe { TASKMANAGER.get_task(current.parent) } {
+                let pair = parent.children.iter().enumerate().find(|(_, &id)| id == current.pid );
+                if let Some((idx, _)) = pair {
+                    parent.children.remove(idx);
+                    // log::debug!("parent remove child {}", parent.children.remove(idx));
+                }
+                for (_, &id) in current.children.iter().enumerate() {
+                    // log::warn!("parent insert child {}", id);
+                    parent.children.push(id);
+                } 
+            }
             0
         }
         
@@ -351,15 +392,38 @@ mod impls {
                 };
                 let data = ElfFile::new(get_app_data(name).unwrap()).unwrap();
                 current.exec(data);
-                unsafe { TASKMANAGER.add(current.pid); }
+                // unsafe { TASKMANAGER.add(current.pid); }
                 0
             } else {
                 -1
             }
         }
 
-        fn wait4(&self, _pid: usize, _exit_code_ptr: usize) -> isize {
-            todo!();
+        // 简化的 wait 系统调用，pid == -1，则需要等待所有子进程结束，若当前进程有子进程，则返回 -1，否则返回 0
+        // pid 为具体的某个值，表示需要等待某个子进程结束，因此只需要在 TASKMANAGER 中查找是否有任务
+        // 简化了进程的状态模型
+        fn wait(&self, pid: isize, exit_code_ptr: usize) -> isize {
+            let current = unsafe { TASKMANAGER.current().unwrap() };
+            const WRITABLE: VmFlags<Sv39> = VmFlags::build_from_str("W_V");
+                if let Some(mut ptr) = current
+                        .address_space
+                        .translate(VAddr::new(exit_code_ptr), WRITABLE)
+                {
+                    unsafe { *ptr.as_mut() = 333 as i32 };
+                }
+            if pid == -1 {
+                if current.children.is_empty() {
+                    return 0;
+                } else {
+                    return -1;
+                }
+            } else {
+                if unsafe { TASKMANAGER.get_task(pid as usize).is_none() } {
+                    return pid;
+                } else {
+                    return -1;
+                }
+            }
         }
     }
 

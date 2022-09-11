@@ -7,6 +7,11 @@ pub fn write(fd: usize, buffer: &[u8]) -> isize {
     unsafe { syscall3(SyscallId::WRITE, fd, buffer.as_ptr() as _, buffer.len()) }
 }
 
+#[inline]
+pub fn read(fd: usize, buffer: &[u8]) -> isize {
+    unsafe { syscall3(SyscallId::READ, fd, buffer.as_ptr() as _, buffer.len()) }
+}
+
 /// see <https://man7.org/linux/man-pages/man2/exit.2.html>.
 #[inline]
 pub fn exit(exit_code: i32) -> isize {
@@ -31,6 +36,30 @@ pub fn fork() -> isize {
 
 pub fn exec(path: &str) -> isize {
     unsafe { syscall2(SyscallId::EXECVE, path.as_ptr() as usize, path.len()) }
+}
+
+pub fn wait(exit_code_ptr: *mut i32) -> isize {
+    loop {
+        let pid = unsafe { syscall2(SyscallId::WAIT4, usize::MAX, exit_code_ptr as usize) };
+        if pid == -1 {
+            sched_yield();
+            continue;
+        } else {
+            return pid;
+        }
+    }
+}
+
+pub fn waitpid(pid: isize, exit_code_ptr: *mut i32) -> isize {
+    loop {
+        let pid = unsafe { syscall2(SyscallId::WAIT4, pid as usize, exit_code_ptr as usize) };
+        if pid == -1 {
+            sched_yield();
+        } else {
+            return pid;
+        }
+    }
+    
 }
 
 /// 这个模块包含调用系统调用的最小封装，用户可以直接使用这些函数调用自定义的系统调用。

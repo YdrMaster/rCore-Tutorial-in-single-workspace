@@ -6,7 +6,7 @@
 
 extern crate alloc;
 use alloc::{collections::BTreeMap, vec::Vec};
-
+// use output::log;
 
 /// 任务管理器
 /// `tasks` 中保存所有的任务实体
@@ -31,7 +31,8 @@ impl<T> TaskManager<T> {
     /// 插入一个新任务
     #[inline]
     pub fn insert(&mut self, id: usize, task: T) {
-        self.task_queue.push(id);
+        // log::info!("insert proc {}", id);
+        self.add(id);
         self.tasks.insert(id, task);
     }
     /// 根据 id 获取对应的任务
@@ -42,17 +43,21 @@ impl<T> TaskManager<T> {
     /// 将没有执行完的任务重新插回调度队列中
     #[inline]
     pub fn add(&mut self, id: usize) {
+        // log::info!("add proc {}", id);
         self.task_queue.push(id);
     }
     /// 删除任务实体
     #[inline]
     pub fn del(&mut self, id: usize) {
+        // log::error!("del proc {}", id);
         self.tasks.remove(&id);
     }
     /// 取出任务
     #[inline]
     pub fn fetch(&mut self) -> Option<&mut T> {
-        if let Some(id) = self.task_queue.pop() {
+        if !self.task_queue.is_empty() {
+            let id = self.task_queue.remove(0);
+            // log::debug!("fetch id is {}", id);
             self.current = id;
             self.get_task(id)
         } else {

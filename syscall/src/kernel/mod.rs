@@ -5,11 +5,12 @@ pub trait Process: Sync {
     fn exit(&self, status: usize) -> isize;
     fn fork(&self) -> isize;
     fn exec(&self, path: usize, count: usize) -> isize;
-    fn wait4(&self, pid: usize, exit_code_ptr: usize) -> isize;
+    fn wait(&self, pid: isize, exit_code_ptr: usize) -> isize;
 }
 
 pub trait IO: Sync {
     fn write(&self, fd: usize, buf: usize, count: usize) -> isize;
+    fn read(&self, fd: usize, buf: usize, count: usize) -> isize;
 }
 
 pub trait Memory: Sync {
@@ -74,10 +75,11 @@ pub fn handle(id: SyscallId, args: [usize; 6]) -> SyscallResult {
     use SyscallId as Id;
     match id {
         Id::WRITE => IO.call(id, |io| io.write(args[0], args[1], args[2])),
+        Id::READ => IO.call(id, |io| io.read(args[0], args[1], args[2])),
         Id::EXIT => PROCESS.call(id, |proc| proc.exit(args[0])),
         Id::CLONE => PROCESS.call(id, |proc| proc.fork()),
         Id::EXECVE => PROCESS.call(id, |proc| proc.exec(args[0], args[1])),
-        Id::WAIT4 => PROCESS.call(id, |proc| proc.wait4(args[0], args[1])),
+        Id::WAIT4 => PROCESS.call(id, |proc| proc.wait(args[0] as isize, args[1])),
         Id::CLOCK_GETTIME => CLOCK.call(id, |clock| {
             clock.clock_gettime(ClockId(args[0]), args[1])
         }),

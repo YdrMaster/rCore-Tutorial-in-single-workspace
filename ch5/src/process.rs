@@ -5,7 +5,7 @@ use kernel_vm::{
     page_table::{MmuMeta, Sv39, VAddr, VmFlags, PPN, VPN},
     AddressSpace,
 };
-use output::log;
+// use output::log;
 use xmas_elf::{
     header::{self, HeaderPt2, Machine},
     program, ElfFile,
@@ -118,7 +118,7 @@ impl Process {
             );
         }
 
-        log::info!("process entry = {:#x}", entry);
+        // log::info!("process entry = {:#x}", entry);
         // log::debug!("{address_space:?}");
 
         let mut context = LocalContext::user(entry);
