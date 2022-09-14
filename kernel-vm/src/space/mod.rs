@@ -4,7 +4,7 @@ mod visitor;
 use crate::PageManager;
 use core::{fmt, marker::PhantomData, ops::Range, ptr::NonNull};
 use mapper::Mapper;
-use page_table::{PageTable, PageTableFormatter, Pos, VAddr, VmFlags, VmMeta, PPN, VPN};
+use page_table::{PageTable, PageTableFormatter, Pos, Pte, VAddr, VmFlags, VmMeta, PPN, VPN};
 use visitor::Visitor;
 
 /// 地址空间。

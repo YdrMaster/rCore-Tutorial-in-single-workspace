@@ -198,17 +198,13 @@ mod impls {
     use console::log;
     use core::{alloc::Layout, num::NonZeroUsize, ptr::NonNull};
     use kernel_vm::{
-        page_table::{MmuMeta, Pte, Sv39, VAddr, VmFlags, PPN, VPN},
-        PageManager,
+        page_table::{MmuMeta, Pos, Pte, Sv39, VAddr, VmFlags, PPN, VPN},
+        Ownership, PageManager,
     };
     use syscall::*;
 
     #[repr(transparent)]
     pub struct Sv39Manager(NonNull<Pte<Sv39>>);
-
-    impl Sv39Manager {
-        const OWNED: VmFlags<Sv39> = unsafe { VmFlags::from_raw(1 << 8) };
-    }
 
     impl PageManager<Sv39> for Sv39Manager {
         #[inline]
@@ -243,11 +239,15 @@ mod impls {
         }
 
         #[inline]
-        fn check_owned(&self, pte: Pte<Sv39>) -> bool {
-            pte.flags().contains(Self::OWNED)
+        fn check_ownership(&self, _pos: Pos<Sv39>, pte: Pte<Sv39>) -> Ownership {
+            if (pte.0 >> 8) & 0b11 == 0 {
+                Ownership::Owned
+            } else {
+                Ownership::Ref
+            }
         }
 
-        fn allocate(&mut self, len: usize, flags: &mut VmFlags<Sv39>) -> NonNull<u8> {
+        fn allocate(&mut self, len: usize, _flags: &mut VmFlags<Sv39>) -> NonNull<u8> {
             unsafe {
                 match PAGE.allocate(
                     Sv39::PAGE_BITS,
@@ -255,7 +255,6 @@ mod impls {
                 ) {
                     Ok((ptr, size)) => {
                         assert_eq!(size, len << Sv39::PAGE_BITS);
-                        *flags |= Self::OWNED;
                         ptr
                     }
                     Err(_) => handle_alloc_error(Layout::from_size_align_unchecked(

@@ -1,4 +1,4 @@
-﻿use crate::{AddressSpace, PageManager};
+﻿use crate::{AddressSpace, Ownership, PageManager};
 use core::{ops::Range, ptr::NonNull};
 use page_table::{Decorator, Pos, Pte, Update, VmFlags, VmMeta, PPN};
 
@@ -47,11 +47,11 @@ impl<Meta: VmMeta, M: PageManager<Meta>> Decorator<Meta> for Mapper<'_, Meta, M>
     #[inline]
     fn meet(
         &mut self,
-        _level: usize,
+        level: usize,
         pte: Pte<Meta>,
-        _target_hint: Pos<Meta>,
+        target: Pos<Meta>,
     ) -> Option<NonNull<Pte<Meta>>> {
-        if self.space.0.check_owned(pte) {
+        if let Ownership::Owned = self.space.0.check_ownership(Pos { level, ..target }, pte) {
             Some(self.space.0.p_to_v(pte.ppn()))
         } else {
             None

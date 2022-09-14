@@ -38,11 +38,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "bef38d45163c2f1dde094a7dfd33ccf595c92905c8f8f4fdc18d06fb1037718a"
 
 [[package]]
-name = "buddy-allocator"
-version = "0.0.1"
-source = "git+https://github.com/YdrMaster/buddy-allocator?rev=fae1979#fae197976dd034fa4f31d3b9f20c61246a56269a"
-
-[[package]]
 name = "cfg-if"
 version = "1.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -91,8 +86,8 @@ dependencies = [
 name = "ch4"
 version = "0.0.1"
 dependencies = [
- "buddy-allocator",
  "console",
+ "customizable-buddy",
  "kernel-context",
  "kernel-vm",
  "riscv",
@@ -104,9 +99,9 @@ dependencies = [
 
 [[package]]
 name = "clap"
-version = "3.2.20"
+version = "3.2.21"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "23b71c3ce99b7611011217b366d923f1d0a7e07a92bb2dbf1e84508c673ca3bd"
+checksum = "1ed5341b2301a26ab80be5cbdced622e80ed808483c52e45e3310a877d3b37d7"
 dependencies = [
  "atty",
  "bitflags",
@@ -156,6 +151,12 @@ dependencies = [
  "log",
  "spin",
 ]
+
+[[package]]
+name = "customizable-buddy"
+version = "0.0.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "3de1786f7e24046d21e4361b92da5dc0b75951485b8287537de9376bb3c1295f"
 
 [[package]]
 name = "embedded-hal"
@@ -441,9 +442,9 @@ dependencies = [
 
 [[package]]
 name = "unicode-ident"
-version = "1.0.3"
+version = "1.0.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c4f5b37a154999a8f3f98cc23a628d850e154479cd94decf3414696e12e31aaf"
+checksum = "dcc811dc4066ac62f84f11307873c4850cb653bfa9b1719cee2bd2204a4bc5dd"
 
 [[package]]
 name = "user_lib"

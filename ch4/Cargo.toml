@@ -13,5 +13,5 @@ console = { path = "../console" }
 utils = { path = "../utils" }
 kernel-context = { path = "../kernel-context" }
 kernel-vm = { path = "../kernel-vm" }
-buddy-allocator = { git = "https://github.com/YdrMaster/buddy-allocator", rev = "fae1979" }
+customizable-buddy = "0.0.1"
 syscall = { path = "../syscall", features = ["kernel"] }
