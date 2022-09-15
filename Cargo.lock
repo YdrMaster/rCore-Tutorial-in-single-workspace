@@ -103,6 +103,23 @@ dependencies = [
 ]
 
 [[package]]
+name = "ch6"
+version = "0.0.1"
+dependencies = [
+ "buddy-allocator",
+ "console",
+ "easy-fs",
+ "file-handle",
+ "kernel-context",
+ "kernel-vm",
+ "riscv",
+ "sbi-rt",
+ "syscall",
+ "utils",
+ "xmas-elf",
+]
+
+[[package]]
 name = "clap"
 version = "3.2.20"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -176,7 +193,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "file"
+name = "file-handle"
 version = "0.0.1"
 
 [[package]]

@@ -1,5 +1,5 @@
 [package]
-name = "ch4"
+name = "ch6"
 version = "0.0.1"
 edition = "2021"
 authors = ["YdrMaster <ydrml@hotmail.com>", "tkf2019 <kaifu6821@qq.com>"]
@@ -17,3 +17,4 @@ buddy-allocator = { git = "https://github.com/YdrMaster/buddy-allocator", rev = 
 syscall = { path = "../syscall", features = ["kernel"] }
 
 easy-fs = { path = "../easy-fs" }
+file-handle = { path = "../file-handle" }

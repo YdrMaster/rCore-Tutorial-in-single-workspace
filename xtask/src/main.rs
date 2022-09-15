@@ -70,7 +70,7 @@ impl BuildArgs {
         let mut env: HashMap<&str, OsString> = HashMap::new();
         let package = match self.ch {
             1 => if self.lab { "ch1-lab" } else { "ch1" }.to_string(),
-            2 | 3 | 4 => {
+            2 | 3 | 4 | 6 => {
                 user::build_for(self.ch, false);
                 env.insert(
                     "APP_ASM",

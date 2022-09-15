@@ -18,6 +18,11 @@ struct Ch4 {
     ch4: Cases,
 }
 
+#[derive(Deserialize)]
+struct Ch6 {
+    ch6: Cases,
+}
+
 #[derive(Deserialize, Default)]
 struct Cases {
     base: Option<u64>,
@@ -86,6 +91,7 @@ pub fn build_for(ch: u8, release: bool) {
         2 => toml::from_str::<Ch2>(&cfg).map(|ch| ch.ch2),
         3 => toml::from_str::<Ch3>(&cfg).map(|ch| ch.ch3),
         4 => toml::from_str::<Ch4>(&cfg).map(|ch| ch.ch4),
+        6 => toml::from_str::<Ch6>(&cfg).map(|ch| ch.ch6),
         _ => unreachable!(),
     }
     .unwrap_or_default()
