@@ -13,7 +13,7 @@ pub fn init() {
     #[repr(C, align(4096))]
     pub struct Memory<const N: usize>([u8; N]);
 
-    const MEMORY_SIZE: usize = 256 << Sv39::PAGE_BITS;
+    const MEMORY_SIZE: usize = 512 << Sv39::PAGE_BITS;
 
     /// 托管空间 1 MiB
     static mut MEMORY: Memory<MEMORY_SIZE> = Memory([0u8; MEMORY_SIZE]);

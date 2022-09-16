@@ -17,7 +17,7 @@ extern crate alloc;
 
 use crate::{
     impls::{Sv39Manager, SyscallContext, Console},
-    process::{Process, PIDALLOCATOR},
+    process::{Process, TaskId},
 };
 use kernel_context::foreign::ForeignPortal;
 use kernel_vm::{
@@ -56,7 +56,7 @@ unsafe extern "C" fn _start() -> ! {
 }
 
 
-static mut TASKMANAGER: TaskManager<Process> = TaskManager::new();
+static mut TASKMANAGER: TaskManager<Process, TaskId> = TaskManager::new();
 
 
 extern "C" fn rust_main() -> ! {
@@ -110,7 +110,6 @@ extern "C" fn rust_main() -> ! {
                     match syscall::handle(id, args) {
                         Ret::Done(ret) => match id {
                             Id::EXIT => unsafe { 
-                                PIDALLOCATOR.dealloc(task.pid);
                                 TASKMANAGER.del(task.pid);
                             },
                             _ => {
@@ -123,7 +122,6 @@ extern "C" fn rust_main() -> ! {
                         Ret::Unsupported(_) => {
                             log::info!("id = {id:?}");
                             unsafe {                         
-                                PIDALLOCATOR.dealloc(task.pid);
                                 TASKMANAGER.del(task.pid); 
                             }
                         }
@@ -132,7 +130,6 @@ extern "C" fn rust_main() -> ! {
                 e => {
                     log::error!("unsupported trap: {e:?}");
                     unsafe { 
-                        PIDALLOCATOR.dealloc(task.pid);
                         TASKMANAGER.del(task.pid); 
                     }
                 }
@@ -208,6 +205,7 @@ mod impls {
     use output::log;
     use syscall::*;
     use xmas_elf::ElfFile;
+    use crate::process::TaskId;
 
     #[repr(transparent)]
     pub struct Sv39Manager(NonNull<Pte<Sv39>>);
@@ -374,7 +372,7 @@ mod impls {
             let context = &mut child_proc.context.context;
             *context.a_mut(0) = 0 as _;
             unsafe { TASKMANAGER.insert(pid, child_proc); }
-            pid as isize
+            pid.get_val() as isize
         }
 
         fn exec(&self, path: usize, count: usize) -> isize {
@@ -418,7 +416,7 @@ mod impls {
                     return -1;
                 }
             } else {
-                if unsafe { TASKMANAGER.get_task(pid as usize).is_none() } {
+                if unsafe { TASKMANAGER.get_task(TaskId::from(pid as usize)).is_none() } {
                     return pid;
                 } else {
                     return -1;

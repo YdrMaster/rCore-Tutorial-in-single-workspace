@@ -11,15 +11,35 @@ use xmas_elf::{
     program, ElfFile,
 };
 use alloc::vec::Vec;
+use core::sync::atomic::{AtomicUsize, Ordering};
 
+#[derive(Eq, PartialEq, Debug, Clone, Copy, Hash, Ord, PartialOrd)]
+pub struct TaskId(usize);
+
+impl TaskId {
+    pub(crate) fn generate() -> TaskId {
+        // 任务编号计数器，任务编号自增
+        static COUNTER: AtomicUsize = AtomicUsize::new(0);
+        let id = COUNTER.fetch_add(1, Ordering::Relaxed);
+        TaskId(id)
+    }
+
+    pub fn from(v: usize) -> Self {
+        Self(v)
+    }
+
+    pub fn get_val(&self) -> usize {
+        self.0
+    } 
+}
 
 /// 进程。
 pub struct Process {
     /// 不可变
-    pub pid: usize,
+    pub pid: TaskId,
     /// 可变
-    pub parent: usize,
-    pub children: Vec<usize>,
+    pub parent: TaskId,
+    pub children: Vec<TaskId>,
     pub context: ForeignContext,
     pub address_space: AddressSpace<Sv39, Sv39Manager>,
 }
@@ -28,7 +48,6 @@ impl Process {
 
     pub fn exec(&mut self, elf: ElfFile) {
         let proc = Process::from_elf(elf).unwrap();
-        unsafe { PIDALLOCATOR.dealloc(proc.pid); }
         let tramp = self.address_space.tramp;
         self.address_space = proc.address_space;
         self.address_space.map_portal(tramp);
@@ -38,7 +57,7 @@ impl Process {
 
     pub fn fork(&mut self) -> Option<Process> {
         // 子进程 pid
-        let pid = unsafe { PIDALLOCATOR.alloc() };
+        let pid = TaskId::generate();
         // 复制父进程地址空间
         let parent_addr_space = &self.address_space;
         // log::debug!("{parent_addr_space:?}");
@@ -125,8 +144,8 @@ impl Process {
         let satp = (8 << 60) | address_space.root_ppn().val();
         *context.sp_mut() = 1 << 38;
         Some(Self {
-            pid: unsafe { PIDALLOCATOR.alloc() },
-            parent: usize::MAX,
+            pid: TaskId::generate(),
+            parent: TaskId(usize::MAX),
             children: Vec::new(),
             context: ForeignContext { context, satp },
             address_space,
@@ -135,38 +154,5 @@ impl Process {
 
     pub fn execute(&mut self, portal: &mut ForeignPortal, portal_transit: usize) {
         unsafe { self.context.execute(portal, portal_transit) };
-    }
-}
-
-pub static mut PIDALLOCATOR: RecycleAllocator = RecycleAllocator::new();
-
-pub struct RecycleAllocator {
-    current: usize,
-    recycled: Vec<usize>,
-}
-
-impl RecycleAllocator {
-    pub const fn new() -> Self {
-        RecycleAllocator {
-            current: 0,
-            recycled: Vec::new(),
-        }
-    }
-    pub fn alloc(&mut self) -> usize {
-        if let Some(id) = self.recycled.pop() {
-            id
-        } else {
-            self.current += 1;
-            self.current - 1
-        }
-    }
-    pub fn dealloc(&mut self, id: usize) {
-        assert!(id < self.current);
-        assert!(
-            !self.recycled.iter().any(|i| *i == id),
-            "id {} has been deallocated!",
-            id
-        );
-        self.recycled.push(id);
     }
 }
