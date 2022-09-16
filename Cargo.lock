@@ -43,6 +43,15 @@ version = "0.0.1"
 source = "git+https://github.com/YdrMaster/buddy-allocator?rev=fae1979#fae197976dd034fa4f31d3b9f20c61246a56269a"
 
 [[package]]
+name = "buddy_system_allocator"
+version = "0.6.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b4e85e760e105b46ae0bd1236578793c6c147ae7463fe95c8350296b8bfcb830"
+dependencies = [
+ "spin 0.7.1",
+]
+
+[[package]]
 name = "cfg-if"
 version = "1.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -98,6 +107,24 @@ dependencies = [
  "riscv",
  "sbi-rt",
  "syscall",
+ "utils",
+ "xmas-elf",
+]
+
+[[package]]
+name = "ch5"
+version = "0.0.1"
+dependencies = [
+ "buddy-allocator",
+ "kernel-context",
+ "kernel-vm",
+ "lazy_static",
+ "output",
+ "riscv",
+ "sbi-rt",
+ "spin 0.9.4",
+ "syscall",
+ "task-manage",
  "utils",
  "xmas-elf",
 ]
@@ -207,7 +234,7 @@ name = "kernel-vm"
 version = "0.1.0"
 dependencies = [
  "page-table",
- "spin",
+ "spin 0.9.4",
 ]
 
 [[package]]
@@ -215,6 +242,9 @@ name = "lazy_static"
 version = "1.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e2abad23fbc42b3700f2f279844dc832adb2b2eb069b2df918f455c4e18cc646"
+dependencies = [
+ "spin 0.5.2",
+]
 
 [[package]]
 name = "libc"
@@ -267,6 +297,14 @@ name = "os_str_bytes"
 version = "6.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "9ff7415e9ae3fff1225851df9e0d9e4e5479f947619774677a63572e55e80eff"
+
+[[package]]
+name = "output"
+version = "0.0.1"
+dependencies = [
+ "log",
+ "spin 0.9.4",
+]
 
 [[package]]
 name = "page-table"
@@ -378,6 +416,18 @@ dependencies = [
 
 [[package]]
 name = "spin"
+version = "0.5.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "6e63cff320ae2c57904679ba7cb63280a3dc4613885beafb148ee7bf9aa9042d"
+
+[[package]]
+name = "spin"
+version = "0.7.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "13287b4da9d1207a4f4929ac390916d64eacfe236a487e9a9f5b3be392be5162"
+
+[[package]]
+name = "spin"
 version = "0.9.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7f6002a767bff9e83f8eeecf883ecb8011875a21ae8da43bffb817a57e78cc09"
@@ -412,7 +462,15 @@ dependencies = [
 name = "syscall"
 version = "0.1.0"
 dependencies = [
- "spin",
+ "spin 0.9.4",
+]
+
+[[package]]
+name = "task-manage"
+version = "0.1.0"
+dependencies = [
+ "buddy-allocator",
+ "output",
 ]
 
 [[package]]
@@ -450,6 +508,7 @@ name = "user_lib"
 version = "0.0.1"
 dependencies = [
  "console",
+ "buddy_system_allocator",
  "syscall",
 ]
 

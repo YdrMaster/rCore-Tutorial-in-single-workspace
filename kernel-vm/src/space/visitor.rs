@@ -35,7 +35,7 @@ impl<'a, Meta: VmMeta, M: PageManager<Meta>> page_table::Visitor<Meta> for Visit
         pte: Pte<Meta>,
         _target_hint: Pos<Meta>,
     ) -> Option<NonNull<Pte<Meta>>> {
-        Some(self.space.0.p_to_v(pte.ppn()))
+        Some(self.space.page_manager.p_to_v(pte.ppn()))
     }
 
     #[inline]

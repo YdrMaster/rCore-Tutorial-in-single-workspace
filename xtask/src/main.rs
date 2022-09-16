@@ -13,7 +13,7 @@ use std::{
     path::{Path, PathBuf},
 };
 
-const TARGET_ARCH: &str = "riscv64imac-unknown-none-elf";
+const TARGET_ARCH: &str = "riscv64gc-unknown-none-elf";
 
 static PROJECT: Lazy<&'static Path> =
     Lazy::new(|| Path::new(std::env!("CARGO_MANIFEST_DIR")).parent().unwrap());
@@ -70,7 +70,7 @@ impl BuildArgs {
         let mut env: HashMap<&str, OsString> = HashMap::new();
         let package = match self.ch {
             1 => if self.lab { "ch1-lab" } else { "ch1" }.to_string(),
-            2 | 3 | 4 => {
+            2 | 3 | 4 | 5 => {
                 user::build_for(self.ch, false);
                 env.insert(
                     "APP_ASM",
@@ -81,7 +81,7 @@ impl BuildArgs {
                         .to_os_string(),
                 );
                 format!("ch{}", self.ch)
-            }
+            },
             _ => unreachable!(),
         };
         // 生成
