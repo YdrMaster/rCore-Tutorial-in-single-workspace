@@ -1,14 +1,21 @@
 [package]
-name = "ch2"
+name = "ch5"
 version = "0.0.1"
 edition = "2021"
 authors = ["YdrMaster <ydrml@hotmail.com>"]
 
 [dependencies]
 sbi-rt = { git = "https://github.com/rustsbi/sbi-rt", branch = "dev" }
+xmas-elf = "0.8.0"
 riscv = "0.8.0"
+spin = "0.9.4"
+lazy_static = { version = "1.4.0", features = ["spin_no_std"] }
+
 
 console = { path = "../console" }
 utils = { path = "../utils" }
 kernel-context = { path = "../kernel-context" }
+kernel-vm = { path = "../kernel-vm" }
+buddy-allocator = { git = "https://github.com/YdrMaster/buddy-allocator", rev = "fae1979" }
 syscall = { path = "../syscall", features = ["kernel"] }
+task-manage = { path = "../task-manage"}

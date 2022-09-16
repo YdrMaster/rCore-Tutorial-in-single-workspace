@@ -4,11 +4,11 @@
 #![deny(warnings)]
 
 #[macro_use]
-extern crate output;
+extern crate console;
 
+use console::log;
 use impls::{Console, SyscallContext};
 use kernel_context::LocalContext;
-use output::log;
 use riscv::register::*;
 use sbi_rt::*;
 use syscall::{Caller, SyscallId};
@@ -41,10 +41,10 @@ unsafe extern "C" fn _start() -> ! {
 extern "C" fn rust_main() -> ! {
     // bss 段清零
     utils::zero_bss();
-    // 初始化 `output`
-    output::init_console(&Console);
-    output::set_log_level(option_env!("LOG"));
-    output::test_log();
+    // 初始化 `console`
+    console::init_console(&Console);
+    console::set_log_level(option_env!("LOG"));
+    console::test_log();
     // 初始化 syscall
     syscall::init_io(&SyscallContext);
     syscall::init_process(&SyscallContext);
@@ -124,7 +124,7 @@ fn handle_syscall(ctx: &mut LocalContext) -> SyscallResult {
 mod impls {
     pub struct Console;
 
-    impl output::Console for Console {
+    impl console::Console for Console {
         #[inline]
         fn put_char(&self, c: u8) {
             #[allow(deprecated)]
@@ -145,7 +145,7 @@ mod impls {
                 });
                 count as _
             } else {
-                output::log::error!("unsupported fd: {fd}");
+                console::log::error!("unsupported fd: {fd}");
                 -1
             }
         }

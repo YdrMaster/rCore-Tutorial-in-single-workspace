@@ -13,7 +13,7 @@ use std::{
     path::{Path, PathBuf},
 };
 
-const TARGET_ARCH: &str = "riscv64imac-unknown-none-elf";
+const TARGET_ARCH: &str = "riscv64gc-unknown-none-elf";
 
 static PROJECT: Lazy<&'static Path> =
     Lazy::new(|| Path::new(std::env!("CARGO_MANIFEST_DIR")).parent().unwrap());
@@ -70,7 +70,7 @@ impl BuildArgs {
         let mut env: HashMap<&str, OsString> = HashMap::new();
         let package = match self.ch {
             1 => if self.lab { "ch1-lab" } else { "ch1" }.to_string(),
-            2 | 3 | 4 => {
+            2 | 3 | 4 | 5 => {
                 user::build_for(self.ch, false);
                 env.insert(
                     "APP_ASM",
@@ -81,7 +81,7 @@ impl BuildArgs {
                         .to_os_string(),
                 );
                 format!("ch{}", self.ch)
-            }
+            },
             _ => unreachable!(),
         };
         // 生成
@@ -114,7 +114,7 @@ struct AsmArgs {
     build: BuildArgs,
     /// Output file.
     #[clap(short, long)]
-    output: Option<String>,
+    console: Option<String>,
 }
 
 impl AsmArgs {
@@ -123,7 +123,7 @@ impl AsmArgs {
         let out = Path::new(std::env!("CARGO_MANIFEST_DIR"))
             .parent()
             .unwrap()
-            .join(self.output.unwrap_or(format!("ch{}.asm", self.build.ch)));
+            .join(self.console.unwrap_or(format!("ch{}.asm", self.build.ch)));
         println!("Asm file dumps to '{}'.", out.display());
         fs::write(out, BinUtil::objdump().arg(elf).arg("-d").output().stdout).unwrap();
     }

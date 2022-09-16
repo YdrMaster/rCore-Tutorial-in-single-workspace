@@ -1,11 +1,11 @@
 ﻿# 第一章实验
 
-第一章实验的示例，展示如何依赖 `output` crate。
+第一章实验的示例，展示如何依赖 `console` crate。
 
 在 [Cargo.toml](Cargo.toml#L9) 里添加：
 
 ```toml
-output = { path = "../output"}
+console = { path = "../console"}
 ```
 
 在 [main.rs](src/main.rs#L52) 里初始化：
@@ -14,4 +14,4 @@ output = { path = "../output"}
 init_console(&Console);
 ```
 
-后续的章节都可以这样依赖 `output`。
+后续的章节都可以这样依赖 `console`。

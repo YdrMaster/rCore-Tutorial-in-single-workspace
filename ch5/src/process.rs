@@ -1,7 +1,6 @@
 ﻿use crate::{mm::PAGE, Sv39Manager};
-use console::log;
 use core::{alloc::Layout, str::FromStr};
-use kernel_context::{foreign::ForeignContext, LocalContext};
+use kernel_context::{foreign::ForeignContext, LocalContext, foreign::ForeignPortal};
 use kernel_vm::{
     page_table::{MmuMeta, Sv39, VAddr, VmFlags, PPN, VPN},
     AddressSpace,
@@ -10,15 +9,76 @@ use xmas_elf::{
     header::{self, HeaderPt2, Machine},
     program, ElfFile,
 };
+use alloc::vec::Vec;
+use core::sync::atomic::{AtomicUsize, Ordering};
+
+#[derive(Eq, PartialEq, Debug, Clone, Copy, Hash, Ord, PartialOrd)]
+pub struct TaskId(usize);
+
+impl TaskId {
+    pub(crate) fn generate() -> TaskId {
+        // 任务编号计数器，任务编号自增
+        static COUNTER: AtomicUsize = AtomicUsize::new(0);
+        let id = COUNTER.fetch_add(1, Ordering::Relaxed);
+        TaskId(id)
+    }
+
+    pub fn from(v: usize) -> Self {
+        Self(v)
+    }
+
+    pub fn get_val(&self) -> usize {
+        self.0
+    } 
+}
 
 /// 进程。
 pub struct Process {
+    /// 不可变
+    pub pid: TaskId,
+    /// 可变
+    pub parent: TaskId,
+    pub children: Vec<TaskId>,
     pub context: ForeignContext,
     pub address_space: AddressSpace<Sv39, Sv39Manager>,
 }
 
 impl Process {
-    pub fn new(elf: ElfFile) -> Option<Self> {
+
+    pub fn exec(&mut self, elf: ElfFile) {
+        let proc = Process::from_elf(elf).unwrap();
+        let tramp = self.address_space.tramp;
+        self.address_space = proc.address_space;
+        self.address_space.map_portal(tramp);
+        self.context = proc.context;
+    }
+
+
+    pub fn fork(&mut self) -> Option<Process> {
+        // 子进程 pid
+        let pid = TaskId::generate();
+        // 复制父进程地址空间
+        let parent_addr_space = &self.address_space;
+        let mut address_space: AddressSpace<Sv39, Sv39Manager> = AddressSpace::new();
+        parent_addr_space.cloneself(&mut address_space);
+        // 复制父进程上下文
+        let context = self.context.context.clone();
+        let satp = (8 << 60) | address_space.root_ppn().val();
+        let foreign_ctx = ForeignContext {
+            context,
+            satp,
+        };
+        self.children.push(pid);
+        Some( Self {
+            pid,
+            parent: self.pid,
+            children: Vec::new(),
+            context: foreign_ctx,
+            address_space,
+        })
+    }
+
+    pub fn from_elf(elf: ElfFile) -> Option<Self> {
         let entry = match elf.header.pt2 {
             HeaderPt2::Header64(pt2)
                 if pt2.type_.as_type() == header::Type::Executable
@@ -73,16 +133,19 @@ impl Process {
                 VmFlags::build_from_str("U_WRV"),
             );
         }
-
-        log::info!("process entry = {:#x}", entry);
-        log::debug!("{address_space:?}");
-
         let mut context = LocalContext::user(entry);
         let satp = (8 << 60) | address_space.root_ppn().val();
         *context.sp_mut() = 1 << 38;
         Some(Self {
+            pid: TaskId::generate(),
+            parent: TaskId(usize::MAX),
+            children: Vec::new(),
             context: ForeignContext { context, satp },
             address_space,
         })
+    }
+
+    pub fn execute(&mut self, portal: &mut ForeignPortal, portal_transit: usize) {
+        unsafe { self.context.execute(portal, portal_transit) };
     }
 }
