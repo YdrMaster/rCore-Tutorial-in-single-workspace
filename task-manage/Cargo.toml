@@ -7,7 +7,6 @@ edition = "2021"
 
 [dependencies]
 buddy-allocator = { git = "https://github.com/YdrMaster/buddy-allocator", rev = "fae1979" }
-output = { path = "../output" }
 
 
 

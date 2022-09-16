@@ -116,10 +116,10 @@ name = "ch5"
 version = "0.0.1"
 dependencies = [
  "buddy-allocator",
+ "console",
  "kernel-context",
  "kernel-vm",
  "lazy_static",
- "output",
  "riscv",
  "sbi-rt",
  "spin 0.9.4",
@@ -181,7 +181,7 @@ name = "console"
 version = "0.0.1"
 dependencies = [
  "log",
- "spin",
+ "spin 0.9.4",
 ]
 
 [[package]]
@@ -297,14 +297,6 @@ name = "os_str_bytes"
 version = "6.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "9ff7415e9ae3fff1225851df9e0d9e4e5479f947619774677a63572e55e80eff"
-
-[[package]]
-name = "output"
-version = "0.0.1"
-dependencies = [
- "log",
- "spin 0.9.4",
-]
 
 [[package]]
 name = "page-table"
@@ -470,7 +462,6 @@ name = "task-manage"
 version = "0.1.0"
 dependencies = [
  "buddy-allocator",
- "output",
 ]
 
 [[package]]
@@ -507,8 +498,8 @@ checksum = "c4f5b37a154999a8f3f98cc23a628d850e154479cd94decf3414696e12e31aaf"
 name = "user_lib"
 version = "0.0.1"
 dependencies = [
- "console",
  "buddy_system_allocator",
+ "console",
  "syscall",
 ]
 

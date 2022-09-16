@@ -5,7 +5,7 @@ use core::{
     ptr::NonNull,
 };
 use kernel_vm::page_table::{MmuMeta, Sv39};
-use output::log;
+use console::log;
 
 /// 初始化全局分配器和内核堆分配器。
 pub fn init() {

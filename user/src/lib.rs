@@ -24,7 +24,7 @@ pub fn handle_alloc_error(layout: core::alloc::Layout) -> ! {
 #[no_mangle]
 #[link_section = ".text.entry"]
 pub extern "C" fn _start() -> ! {
-    output::init_console(&Console);
+    console::init_console(&Console);
     unsafe {
         HEAP.lock()
             .init(HEAP_SPACE.as_ptr() as usize, USER_HEAP_SIZE);

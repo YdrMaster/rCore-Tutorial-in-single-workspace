@@ -1,8 +1,4 @@
 /// 根据应用名加载用户进程
-// use xmas_elf::{
-//     header::{self, HeaderPt2, Machine},
-//     ElfFile,
-// };
 use lazy_static::*;
 use alloc::vec::Vec;
 

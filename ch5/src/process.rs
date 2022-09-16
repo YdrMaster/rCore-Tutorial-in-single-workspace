@@ -5,7 +5,6 @@ use kernel_vm::{
     page_table::{MmuMeta, Sv39, VAddr, VmFlags, PPN, VPN},
     AddressSpace,
 };
-// use output::log;
 use xmas_elf::{
     header::{self, HeaderPt2, Machine},
     program, ElfFile,
@@ -60,10 +59,8 @@ impl Process {
         let pid = TaskId::generate();
         // 复制父进程地址空间
         let parent_addr_space = &self.address_space;
-        // log::debug!("{parent_addr_space:?}");
         let mut address_space: AddressSpace<Sv39, Sv39Manager> = AddressSpace::new();
         parent_addr_space.cloneself(&mut address_space);
-        // log::warn!("clone process {address_space:?}");
         // 复制父进程上下文
         let context = self.context.context.clone();
         let satp = (8 << 60) | address_space.root_ppn().val();
@@ -136,10 +133,6 @@ impl Process {
                 VmFlags::build_from_str("U_WRV"),
             );
         }
-
-        // log::info!("process entry = {:#x}", entry);
-        // log::debug!("{address_space:?}");
-
         let mut context = LocalContext::user(entry);
         let satp = (8 << 60) | address_space.root_ppn().val();
         *context.sp_mut() = 1 << 38;
