@@ -41,6 +41,9 @@ pub struct Process {
     pub children: Vec<TaskId>,
     pub context: ForeignContext,
     pub address_space: AddressSpace<Sv39, Sv39Manager>,
+
+    // TODO：文件描述符表
+    // pub fd_table: Vec<FileHandle>
 }
 
 impl Process {

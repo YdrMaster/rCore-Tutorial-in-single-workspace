@@ -613,6 +613,7 @@ version = "0.0.1"
 dependencies = [
  "clap",
  "command-ext",
+ "easy-fs",
  "once_cell",
  "serde",
  "serde_derive",

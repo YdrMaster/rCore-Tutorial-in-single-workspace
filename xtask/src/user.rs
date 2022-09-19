@@ -32,18 +32,18 @@ struct Ch6 {
 struct Cases {
     base: Option<u64>,
     step: Option<u64>,
-    cases: Option<Vec<String>>,
+    pub cases: Option<Vec<String>>,
 }
 
-struct CasesInfo {
+pub struct CasesInfo {
     base: u64,
     step: u64,
     bins: Vec<PathBuf>,
 }
 
 impl Cases {
-    fn build(self, release: bool) -> CasesInfo {
-        if let Some(names) = self.cases {
+    fn build(&mut self, release: bool) -> CasesInfo {
+        if let Some(names) = &self.cases {
             let base = self.base.unwrap_or(0);
             let step = self.step.filter(|_| self.base.is_some()).unwrap_or(0);
             let cases = names
@@ -96,7 +96,7 @@ fn build_one(name: impl AsRef<OsStr>, release: bool, base_address: u64) -> PathB
 
 pub fn build_for(ch: u8, release: bool) {
     let cfg = std::fs::read_to_string(PROJECT.join("user/cases.toml")).unwrap();
-    let CasesInfo { base, step, bins } = match ch {
+    let mut cases = match ch {
         2 => toml::from_str::<Ch2>(&cfg).map(|ch| ch.ch2),
         3 => toml::from_str::<Ch3>(&cfg).map(|ch| ch.ch3),
         4 => toml::from_str::<Ch4>(&cfg).map(|ch| ch.ch4),
@@ -104,8 +104,8 @@ pub fn build_for(ch: u8, release: bool) {
         6 => toml::from_str::<Ch6>(&cfg).map(|ch| ch.ch6),
         _ => unreachable!(),
     }
-    .unwrap_or_default()
-    .build(release);
+    .unwrap_or_default();
+    let CasesInfo { base, step, bins } = cases.build(release);
     if bins.is_empty() {
         return;
     }
@@ -155,7 +155,6 @@ app_{i}_end:",
         .unwrap();
     });
 
-    
     if ch == 5 {
         writeln!(
             ld,
@@ -167,12 +166,18 @@ app_names:"
         )
         .unwrap();
         bins.iter().enumerate().for_each(|(_, path)| {
-            writeln!(
-                ld,
-                "    .string {:?}",
-                path.file_name().unwrap()
-            )
-            .unwrap();
+            writeln!(ld, "    .string {:?}", path.file_name().unwrap()).unwrap();
         });
+    } else if ch == 6 {
+        easy_fs_pack(
+            &cases.cases.unwrap(),
+            TARGET
+                .join(if release { "release" } else { "debug" })
+                .into_os_string()
+                .into_string()
+                .unwrap()
+                .as_str(),
+        )
+        .unwrap();
     }
 }

@@ -1,8 +1,10 @@
+mod fs_pack;
 mod user;
 
 #[macro_use]
 extern crate clap;
 
+use crate::fs_pack::easy_fs_pack;
 use clap::Parser;
 use command_ext::{BinUtil, Cargo, CommandExt, Qemu};
 use once_cell::sync::Lazy;
@@ -81,7 +83,7 @@ impl BuildArgs {
                         .to_os_string(),
                 );
                 format!("ch{}", self.ch)
-            },
+            }
             _ => unreachable!(),
         };
         // 生成
@@ -147,6 +149,7 @@ struct QemuArgs {
 impl QemuArgs {
     fn run(self) {
         let elf = self.build.make();
+        // easy_fs_pack(cases, target)
         if let Some(p) = &self.qemu_dir {
             Qemu::search_at(p);
         }
