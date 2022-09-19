@@ -16,11 +16,13 @@ extern crate console;
 extern crate alloc;
 
 use crate::{
+    fs::FS,
     impls::{Sv39Manager, SyscallContext},
     process::{Process, TaskId},
 };
 use alloc::vec::Vec;
 use console::log;
+use easy_fs::FSManager;
 use impls::Console;
 use kernel_context::foreign::ForeignPortal;
 use kernel_vm::{
@@ -85,13 +87,15 @@ extern "C" fn rust_main() -> ! {
         PPN::<Sv39>::new(&portal as *const _ as usize >> Sv39::PAGE_BITS),
         VmFlags::build_from_str("XWRV"),
     );
-
-    // 加载应用程序
-    // TODO!
-
     // 传送门映射到所有地址空间
     unsafe { KERNEL_SPACE.get_mut().unwrap().map_portal(tramp) };
-
+    // 加载应用程序
+    // TODO!
+    println!("/**** APPS ****");
+    for app in FS.readdir("").unwrap() {
+        println!("{}", app);
+    }
+    println!("**************/");
     const PROTAL_TRANSIT: usize = VPN::<Sv39>::MAX.base().val();
     loop {
         if let Some(task) = unsafe { TASK_MANAGER.fetch() } {
@@ -151,7 +155,6 @@ fn panic(info: &core::panic::PanicInfo) -> ! {
 }
 
 pub const MMIO: &[(usize, usize)] = &[
-    (0x0010_0000, 0x00_2000), // VIRT_TEST/RTC  in virt machine
     (0x1000_1000, 0x00_1000), // Virtio Block in virt machine
 ];
 
@@ -202,12 +205,12 @@ fn kernel_space() -> AddressSpace<Sv39, Sv39Manager> {
         );
         space.map_extern(
             _mmio_begin.floor().._mmio_end.ceil(),
-            PPN::new(_mmio_end.floor().val()),
+            PPN::new(_mmio_begin.floor().val()),
             VmFlags::build_from_str("_WRV"),
         );
     }
 
-    log::debug!("{space:?}");
+    // log::debug!("{space:?}");
     println!();
     unsafe { satp::set(satp::Mode::Sv39, 0, space.root_ppn().val()) };
     space

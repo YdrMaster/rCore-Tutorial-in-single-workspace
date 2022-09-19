@@ -29,7 +29,7 @@ pub fn easy_fs_pack(cases: &Vec<String>, target: &str) -> std::io::Result<()> {
             .read(true)
             .write(true)
             .create(true)
-            .open(format!("{}{}", target, "/fs.img"))?;
+            .open(format!("{}/{}", target, "fs.img"))?;
         f.set_len(16 * 2048 * 512).unwrap();
         f
     })));

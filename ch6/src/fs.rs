@@ -51,8 +51,8 @@ impl FSManager for FileSystem {
 }
 
 impl FileSystem {
-    fn new(block_device: Arc<dyn BlockDevice>) -> Self {
-        let efs = EasyFileSystem::open(block_device.clone());
+    fn new() -> Self {
+        let efs = EasyFileSystem::open(BLOCK_DEVICE.clone());
         Self {
             root: Arc::new(EasyFileSystem::root_inode(&efs)),
         }
@@ -60,5 +60,5 @@ impl FileSystem {
 }
 
 lazy_static! {
-    pub static ref FS: Arc<FileSystem> = Arc::new(FileSystem::new(BLOCK_DEVICE.clone()));
+    pub static ref FS: Arc<FileSystem> = Arc::new(FileSystem::new());
 }

@@ -155,13 +155,35 @@ impl QemuArgs {
         }
         Qemu::system("riscv64")
             .args(&["-machine", "virt"])
+            .arg("-nographic")
             .arg("-bios")
             .arg(PROJECT.join("rustsbi-qemu.bin"))
             .arg("-kernel")
             .arg(objcopy(elf, true))
             .args(&["-smp", &self.smp.unwrap_or(1).to_string()])
             .args(&["-serial", "mon:stdio"])
-            .arg("-nographic")
+            // Add VirtIO Device
+            .args(&[
+                "-drive",
+                format!(
+                    "file={},if=none,format=raw,id=x0",
+                    TARGET
+                        .join(if self.build.release {
+                            "release"
+                        } else {
+                            "debug"
+                        })
+                        .join("fs.img")
+                        .into_os_string()
+                        .into_string()
+                        .unwrap()
+                )
+                .as_str(),
+            ])
+            .args(&[
+                "-device",
+                "virtio-blk-device,drive=x0,bus=virtio-mmio-bus.0",
+            ])
             .optional(&self.gdb, |qemu, gdb| {
                 qemu.args(&["-S", "-gdb", &format!("tcp::{gdb}")]);
             })
