@@ -42,3 +42,19 @@ cases = [
     "10power_7",
     "11sleep",
 ]
+
+[ch6]
+cases = [
+    "00hello_world",
+    "01store_fault",
+    "02power",
+    "03priv_inst",
+    "04priv_csr",
+    "05write_a",
+    "06write_b",
+    "07write_c",
+    "08power_3",
+    "09power_5",
+    "10power_7",
+    "11sleep",
+]

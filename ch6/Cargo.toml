@@ -8,6 +8,9 @@ authors = ["YdrMaster <ydrml@hotmail.com>", "tkf2019 <kaifu6821@qq.com>"]
 sbi-rt = { git = "https://github.com/rustsbi/sbi-rt", branch = "dev" }
 xmas-elf = "0.8.0"
 riscv = "0.8.0"
+lazy_static = { version = "1.4.0", features = ["spin_no_std"] }
+virtio-drivers = { git = "https://github.com/rcore-os/virtio-drivers", rev = "4ee80e5" }
+spin = "0.7.0"
 
 console = { path = "../console" }
 utils = { path = "../utils" }
@@ -17,4 +20,3 @@ buddy-allocator = { git = "https://github.com/YdrMaster/buddy-allocator", rev = 
 syscall = { path = "../syscall", features = ["kernel"] }
 
 easy-fs = { path = "../easy-fs" }
-file-handle = { path = "../file-handle" }

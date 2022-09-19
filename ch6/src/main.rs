@@ -4,7 +4,6 @@
 #![feature(default_alloc_error_handler)]
 // #![deny(warnings)]
 
-mod config;
 mod fs;
 mod mm;
 mod process;
@@ -17,7 +16,6 @@ extern crate console;
 extern crate alloc;
 
 use crate::{
-    config::*,
     impls::{Sv39Manager, SyscallContext},
     process::Process,
 };
@@ -145,6 +143,11 @@ fn panic(info: &core::panic::PanicInfo) -> ! {
     system_reset(RESET_TYPE_SHUTDOWN, RESET_REASON_SYSTEM_FAILURE);
     unreachable!()
 }
+
+pub const MMIO: &[(usize, usize)] = &[
+    (0x0010_0000, 0x00_2000), // VIRT_TEST/RTC  in virt machine
+    (0x1000_1000, 0x00_1000), // Virtio Block in virt machine
+];
 
 fn kernel_space() -> AddressSpace<Sv39, Sv39Manager> {
     // 打印段位置
