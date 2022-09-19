@@ -7,3 +7,5 @@ authors = ["YdrMaster <ydrml@hotmail.com>"]
 [dependencies]
 console = { path = "../console" }
 syscall = { path = "../syscall", features = ["user"] }
+buddy_system_allocator = "0.6"
+

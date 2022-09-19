@@ -19,6 +19,11 @@ struct Ch4 {
 }
 
 #[derive(Deserialize)]
+struct Ch5 {
+    ch5: Cases,
+}
+
+#[derive(Deserialize)]
 struct Ch6 {
     ch6: Cases,
 }
@@ -82,7 +87,11 @@ fn build_one(name: impl AsRef<OsStr>, release: bool, base_address: u64) -> PathB
     let elf = TARGET
         .join(if release { "release" } else { "debug" })
         .join(name);
-    objcopy(elf, binary)
+    if binary {
+        objcopy(elf, binary)
+    } else {
+        elf
+    }
 }
 
 pub fn build_for(ch: u8, release: bool) {
@@ -91,6 +100,7 @@ pub fn build_for(ch: u8, release: bool) {
         2 => toml::from_str::<Ch2>(&cfg).map(|ch| ch.ch2),
         3 => toml::from_str::<Ch3>(&cfg).map(|ch| ch.ch3),
         4 => toml::from_str::<Ch4>(&cfg).map(|ch| ch.ch4),
+        5 => toml::from_str::<Ch5>(&cfg).map(|ch| ch.ch5),
         6 => toml::from_str::<Ch6>(&cfg).map(|ch| ch.ch6),
         _ => unreachable!(),
     }
@@ -144,4 +154,25 @@ app_{i}_end:",
         )
         .unwrap();
     });
+
+    
+    if ch == 5 {
+        writeln!(
+            ld,
+            "
+    .align 3
+    .section .data
+    .global app_names
+app_names:"
+        )
+        .unwrap();
+        bins.iter().enumerate().for_each(|(_, path)| {
+            writeln!(
+                ld,
+                "    .string {:?}",
+                path.file_name().unwrap()
+            )
+            .unwrap();
+        });
+    }
 }

@@ -36,6 +36,12 @@ impl AppMeta {
     pub fn iter_elf(&'static self) -> ElfIterator {
         ElfIterator { meta: self, i: 0 }
     }
+
+    /// 获取应用程序数量
+    #[inline]
+    pub fn get_app_num(&'static self) -> u64 {
+        self.count
+    }
 }
 
 /// 静态链接程序迭代器。

@@ -43,6 +43,15 @@ version = "0.0.1"
 source = "git+https://github.com/YdrMaster/buddy-allocator?rev=fae1979#fae197976dd034fa4f31d3b9f20c61246a56269a"
 
 [[package]]
+name = "buddy_system_allocator"
+version = "0.6.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b4e85e760e105b46ae0bd1236578793c6c147ae7463fe95c8350296b8bfcb830"
+dependencies = [
+ "spin 0.7.1",
+]
+
+[[package]]
 name = "cfg-if"
 version = "1.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -103,6 +112,24 @@ dependencies = [
 ]
 
 [[package]]
+name = "ch5"
+version = "0.0.1"
+dependencies = [
+ "buddy-allocator",
+ "console",
+ "kernel-context",
+ "kernel-vm",
+ "lazy_static",
+ "riscv",
+ "sbi-rt",
+ "spin 0.9.4",
+ "syscall",
+ "task-manage",
+ "utils",
+ "xmas-elf",
+]
+
+[[package]]
 name = "ch6"
 version = "0.0.1"
 dependencies = [
@@ -116,6 +143,7 @@ dependencies = [
  "sbi-rt",
  "spin 0.7.1",
  "syscall",
+ "task-manage",
  "utils",
  "virtio-drivers",
  "xmas-elf",
@@ -459,6 +487,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "task-manage"
+version = "0.1.0"
+dependencies = [
+ "buddy-allocator",
+]
+
+[[package]]
 name = "termcolor"
 version = "1.1.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -492,6 +527,7 @@ checksum = "c4f5b37a154999a8f3f98cc23a628d850e154479cd94decf3414696e12e31aaf"
 name = "user_lib"
 version = "0.0.1"
 dependencies = [
+ "buddy_system_allocator",
  "console",
  "syscall",
 ]
