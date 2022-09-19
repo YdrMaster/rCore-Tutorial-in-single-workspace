@@ -2,11 +2,13 @@
 #![no_main]
 #![feature(naked_functions, asm_sym, asm_const)]
 #![feature(default_alloc_error_handler)]
-#![deny(warnings)]
+// #![deny(warnings)]
 
+mod config;
 mod fs;
 mod mm;
 mod process;
+mod virtio_block;
 
 #[macro_use]
 extern crate console;
@@ -15,6 +17,7 @@ extern crate console;
 extern crate alloc;
 
 use crate::{
+    config::*,
     impls::{Sv39Manager, SyscallContext},
     process::Process,
 };
@@ -28,6 +31,7 @@ use kernel_vm::{
 };
 use riscv::register::*;
 use sbi_rt::*;
+use spin::Once;
 use syscall::Caller;
 use xmas_elf::ElfFile;
 
@@ -57,6 +61,7 @@ unsafe extern "C" fn _start() -> ! {
 }
 
 static mut PROCESSES: Vec<Process> = Vec::new();
+static mut KERNEL_SPACE: Once<AddressSpace<Sv39, Sv39Manager>> = Once::new();
 
 extern "C" fn rust_main() -> ! {
     // bss 段清零
@@ -74,7 +79,7 @@ extern "C" fn rust_main() -> ! {
     mm::init();
     mm::test();
     // 建立内核地址空间
-    let mut ks = kernel_space();
+    unsafe { KERNEL_SPACE.call_once(kernel_space) };
     // 加载应用程序
     extern "C" {
         static apps: utils::AppMeta;
@@ -90,8 +95,8 @@ extern "C" fn rust_main() -> ! {
     // 可以直接放在栈上
     let mut portal = ForeignPortal::new();
     // 传送门映射到所有地址空间
-    map_portal(&mut ks, &portal);
     unsafe {
+        map_portal(KERNEL_SPACE.get_mut().unwrap(), &portal);
         PROCESSES
             .iter_mut()
             .for_each(|proc| map_portal(&mut proc.address_space, &portal))
@@ -176,6 +181,23 @@ fn kernel_space() -> AddressSpace<Sv39, Sv39Manager> {
         PPN::new(_data.floor().val()),
         VmFlags::build_from_str("_WRV"),
     );
+
+    // MMIO
+    for pair in MMIO {
+        let _mmio_begin = VAddr::<Sv39>::new(pair.0);
+        let _mmio_end = VAddr::<Sv39>::new(pair.0 + pair.1);
+        log::info!(
+            "MMIO range ---> {:#10x}, {:#10x} \n",
+            _mmio_begin.val(),
+            _mmio_end.val()
+        );
+        space.map_extern(
+            _mmio_begin.floor().._mmio_end.ceil(),
+            PPN::new(_mmio_end.floor().val()),
+            VmFlags::build_from_str("_WRV"),
+        );
+    }
+
     log::debug!("{space:?}");
     println!();
     unsafe { satp::set(satp::Mode::Sv39, 0, space.root_ppn().val()) };
@@ -316,7 +338,6 @@ mod impls {
             }
         }
 
-        /// TODO
         fn read(&self, caller: Caller, fd: usize, buf: usize, count: usize) -> isize {
             -1
         }
