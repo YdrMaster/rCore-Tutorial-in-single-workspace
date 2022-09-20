@@ -100,8 +100,8 @@ dependencies = [
 name = "ch4"
 version = "0.0.1"
 dependencies = [
- "buddy-allocator",
  "console",
+ "customizable-buddy",
  "kernel-context",
  "kernel-vm",
  "riscv",
@@ -115,8 +115,8 @@ dependencies = [
 name = "ch5"
 version = "0.0.1"
 dependencies = [
- "buddy-allocator",
  "console",
+ "customizable-buddy",
  "kernel-context",
  "kernel-vm",
  "lazy_static",
@@ -183,6 +183,12 @@ dependencies = [
  "log",
  "spin 0.9.4",
 ]
+
+[[package]]
+name = "customizable-buddy"
+version = "0.0.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "eace6325758817ca21d4f27c2ec7d307bcac92f468ef5e0eaa2573787402a62e"
 
 [[package]]
 name = "embedded-hal"
