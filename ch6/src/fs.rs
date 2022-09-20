@@ -70,7 +70,6 @@ pub fn read_all(fd: Arc<FileHandle>) -> Vec<u8> {
     let mut v: Vec<u8> = Vec::new();
     loop {
         let len = fd.inode.read_at(offset, &mut buffer);
-        unsafe { println!("Len {} Offset {} HEAP {:#?}", len, offset, HEAP) };
         if len == 0 {
             break;
         }

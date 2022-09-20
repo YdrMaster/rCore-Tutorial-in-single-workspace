@@ -47,7 +47,7 @@ core::arch::global_asm!(include_str!(env!("APP_ASM")));
 #[no_mangle]
 #[link_section = ".text.entry"]
 unsafe extern "C" fn _start() -> ! {
-    const STACK_SIZE: usize = 6 * 4096;
+    const STACK_SIZE: usize = 128 * 4096;
 
     #[link_section = ".bss.uninit"]
     static mut STACK: [u8; STACK_SIZE] = [0u8; STACK_SIZE];
@@ -98,17 +98,15 @@ extern "C" fn rust_main() -> ! {
         println!("{}", app);
     }
     println!("**************/");
-    let initproc = read_all(FS.open("initproc", OpenFlags::RDONLY).unwrap());
-    println!("Add initproc: {}", initproc.len());
-    if let Some(mut process) = Process::from_elf(ElfFile::new(initproc.as_slice()).unwrap()) {
-        println!("Add initproc");
-        process.address_space.map_portal(tramp);
-        unsafe {
-            TASK_MANAGER.insert(process.pid, process);
-            println!("Add initproc");
+    {
+        let initproc = read_all(FS.open("initproc", OpenFlags::RDONLY).unwrap());
+        if let Some(mut process) = Process::from_elf(ElfFile::new(initproc.as_slice()).unwrap()) {
+            process.address_space.map_portal(tramp);
+            unsafe {
+                TASK_MANAGER.insert(process.pid, process);
+            }
         }
     }
-    println!("Add initproc");
 
     const PROTAL_TRANSIT: usize = VPN::<Sv39>::MAX.base().val();
     loop {
@@ -232,10 +230,16 @@ fn kernel_space() -> AddressSpace<Sv39, Sv39Manager> {
 
 /// 各种接口库的实现。
 mod impls {
-    use crate::{mm::PAGE, process::TaskId, TASK_MANAGER};
+    use crate::{
+        fs::{read_all, FS},
+        mm::PAGE,
+        process::TaskId,
+        TASK_MANAGER,
+    };
     use alloc::alloc::handle_alloc_error;
     use console::log;
     use core::{alloc::Layout, num::NonZeroUsize, ptr::NonNull};
+    use easy_fs::{FSManager, OpenFlags};
     use kernel_vm::{
         page_table::{MmuMeta, Pte, Sv39, VAddr, VmFlags, PPN, VPN},
         PageManager,
@@ -430,8 +434,10 @@ mod impls {
                 let name = unsafe {
                     core::str::from_utf8_unchecked(core::slice::from_raw_parts(ptr.as_ptr(), count))
                 };
-                // let data = ElfFile::new(get_app_data(name).unwrap()).unwrap();
-                // current.exec(data);
+                current.exec(
+                    ElfFile::new(read_all(FS.open(name, OpenFlags::RDONLY).unwrap()).as_slice())
+                        .unwrap(),
+                );
                 0
             } else {
                 -1
