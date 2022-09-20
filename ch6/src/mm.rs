@@ -1,6 +1,6 @@
 ﻿use alloc::alloc::handle_alloc_error;
 use buddy_allocator::{BuddyAllocator, LinkedListBuddy, UsizeBuddy};
-use console::log;
+use console::log::{self, warn, debug};
 use core::{
     alloc::{GlobalAlloc, Layout},
     ptr::NonNull,
@@ -45,7 +45,7 @@ pub fn test() {
 
 type MutAllocator<const N: usize> = BuddyAllocator<N, UsizeBuddy, LinkedListBuddy>;
 pub static mut PAGE: MutAllocator<5> = MutAllocator::new();
-static mut HEAP: MutAllocator<32> = MutAllocator::new();
+pub static mut HEAP: MutAllocator<32> = MutAllocator::new();
 
 struct Global;
 
@@ -70,6 +70,6 @@ unsafe impl GlobalAlloc for Global {
 
     #[inline]
     unsafe fn dealloc(&self, ptr: *mut u8, layout: Layout) {
-        HEAP.deallocate(NonNull::new(ptr).unwrap(), layout.size())
+        HEAP.deallocate(NonNull::new(ptr).unwrap(), (layout.size() + 7) & !7);
     }
 }

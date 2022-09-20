@@ -42,7 +42,7 @@ pub struct VirtioHal;
 
 impl Hal for VirtioHal {
     fn dma_alloc(pages: usize) -> usize {
-        warn!("dma_alloc");
+        // warn!("dma_alloc");
         const PAGE_SIZE: usize = 1 << Sv39::PAGE_BITS;
         let layout = Layout::from_size_align(pages * PAGE_SIZE, PAGE_SIZE).unwrap();
         let ptr: NonNull<u8> = unsafe { PAGE.allocate_layout(layout).unwrap().0 };
@@ -50,7 +50,7 @@ impl Hal for VirtioHal {
     }
 
     fn dma_dealloc(paddr: usize, pages: usize) -> i32 {
-        warn!("dma_dealloc");
+        // warn!("dma_dealloc");
         const PAGE_SIZE: usize = 1 << Sv39::PAGE_BITS;
         let aligned = (paddr >> Sv39::PAGE_BITS) << Sv39::PAGE_BITS;
         let ptr = NonNull::new(aligned as *mut u8).unwrap();
@@ -59,12 +59,12 @@ impl Hal for VirtioHal {
     }
 
     fn phys_to_virt(paddr: usize) -> usize {
-        warn!("p2v");
+        // warn!("p2v");
         paddr
     }
 
     fn virt_to_phys(vaddr: usize) -> usize {
-        warn!("v2p");
+        // warn!("v2p");
         const VALID: VmFlags<Sv39> = VmFlags::build_from_str("__V");
         let ptr: NonNull<u8> = unsafe {
             KERNEL_SPACE

@@ -15,14 +15,16 @@ extern crate console;
 #[macro_use]
 extern crate alloc;
 
+use core::mem::size_of;
+
 use crate::{
-    fs::FS,
+    fs::{read_all, FS},
     impls::{Sv39Manager, SyscallContext},
     process::{Process, TaskId},
 };
 use alloc::vec::Vec;
 use console::log;
-use easy_fs::FSManager;
+use easy_fs::{FSManager, OpenFlags};
 use impls::Console;
 use kernel_context::foreign::ForeignPortal;
 use kernel_vm::{
@@ -96,6 +98,18 @@ extern "C" fn rust_main() -> ! {
         println!("{}", app);
     }
     println!("**************/");
+    let initproc = read_all(FS.open("initproc", OpenFlags::RDONLY).unwrap());
+    println!("Add initproc: {}", initproc.len());
+    if let Some(mut process) = Process::from_elf(ElfFile::new(initproc.as_slice()).unwrap()) {
+        println!("Add initproc");
+        process.address_space.map_portal(tramp);
+        unsafe {
+            TASK_MANAGER.insert(process.pid, process);
+            println!("Add initproc");
+        }
+    }
+    println!("Add initproc");
+
     const PROTAL_TRANSIT: usize = VPN::<Sv39>::MAX.base().val();
     loop {
         if let Some(task) = unsafe { TASK_MANAGER.fetch() } {

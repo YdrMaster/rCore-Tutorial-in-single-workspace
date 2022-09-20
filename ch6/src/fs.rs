@@ -1,6 +1,7 @@
-use alloc::string::String;
+use crate::mm::HEAP;
 use alloc::sync::Arc;
-use easy_fs::{BlockDevice, EasyFileSystem, FSManager, FileHandle, Inode, OpenFlags};
+use alloc::{string::String, vec::Vec};
+use easy_fs::{BlockDevice, EasyFileSystem, FSManager, FileHandle, Inode, OpenFlags, BLOCK_SZ};
 use lazy_static::*;
 
 use crate::virtio_block::BLOCK_DEVICE;
@@ -61,4 +62,20 @@ impl FileSystem {
 
 lazy_static! {
     pub static ref FS: Arc<FileSystem> = Arc::new(FileSystem::new());
+}
+
+pub fn read_all(fd: Arc<FileHandle>) -> Vec<u8> {
+    let mut offset = 0usize;
+    let mut buffer = [0u8; 512];
+    let mut v: Vec<u8> = Vec::new();
+    loop {
+        let len = fd.inode.read_at(offset, &mut buffer);
+        unsafe { println!("Len {} Offset {} HEAP {:#?}", len, offset, HEAP) };
+        if len == 0 {
+            break;
+        }
+        offset += len;
+        v.extend_from_slice(&buffer[..len]);
+    }
+    v
 }
