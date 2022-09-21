@@ -1,10 +1,10 @@
 ﻿use alloc::alloc::handle_alloc_error;
-use buddy_allocator::{BuddyAllocator, LinkedListBuddy, UsizeBuddy};
 use console::log;
 use core::{
     alloc::{GlobalAlloc, Layout},
     ptr::NonNull,
 };
+use customizable_buddy::{BuddyAllocator, LinkedListBuddy, UsizeBuddy};
 use kernel_vm::page_table::{MmuMeta, Sv39};
 
 /// 初始化全局分配器和内核堆分配器。
@@ -13,9 +13,9 @@ pub fn init() {
     #[repr(C, align(4096))]
     pub struct Memory<const N: usize>([u8; N]);
 
-    const MEMORY_SIZE: usize = 256 << Sv39::PAGE_BITS;
+    const MEMORY_SIZE: usize = 512 << Sv39::PAGE_BITS;
 
-    /// 托管空间 1 MiB
+    /// 托管空间 2 MiB
     static mut MEMORY: Memory<MEMORY_SIZE> = Memory([0u8; MEMORY_SIZE]);
     unsafe {
         let ptr = NonNull::new(MEMORY.0.as_mut_ptr()).unwrap();
@@ -60,16 +60,17 @@ unsafe impl GlobalAlloc for Global {
         } else if let Ok((ptr, size)) = PAGE.allocate_layout::<u8>(
             Layout::from_size_align_unchecked(layout.size().next_power_of_two(), layout.align()),
         ) {
-            log::trace!("global transfers {} pages to heap", size >> Sv39::PAGE_BITS);
+            log::error!("global transfers {} pages to heap", size >> Sv39::PAGE_BITS);
             HEAP.transfer(ptr, size);
             HEAP.allocate_layout::<u8>(layout).unwrap().0.as_ptr()
         } else {
+            log::error!("!!!");
             handle_alloc_error(layout)
         }
     }
 
     #[inline]
     unsafe fn dealloc(&self, ptr: *mut u8, layout: Layout) {
-        HEAP.deallocate(NonNull::new(ptr).unwrap(), layout.size())
+        HEAP.deallocate_layout(NonNull::new(ptr).unwrap(), layout)
     }
 }

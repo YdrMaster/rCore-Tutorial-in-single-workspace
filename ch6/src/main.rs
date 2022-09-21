@@ -34,6 +34,7 @@ use kernel_vm::{
 use riscv::register::*;
 use sbi_rt::*;
 use spin::Once;
+use syscall::Caller;
 use task_manage::TaskManager;
 use xmas_elf::ElfFile;
 
@@ -119,7 +120,7 @@ extern "C" fn rust_main() -> ! {
                     ctx.move_next();
                     let id: Id = ctx.a(7).into();
                     let args = [ctx.a(0), ctx.a(1), ctx.a(2), ctx.a(3), ctx.a(4), ctx.a(5)];
-                    match syscall::handle(id, args) {
+                    match syscall::handle(Caller { entity: 0, flow: 0 }, id, args) {
                         Ret::Done(ret) => match id {
                             Id::EXIT => unsafe {
                                 TASK_MANAGER.del(task.pid);
@@ -333,7 +334,7 @@ mod impls {
 
     impl IO for SyscallContext {
         #[inline]
-        fn write(&self, fd: usize, buf: usize, count: usize) -> isize {
+        fn write(&self, caller: Caller, fd: usize, buf: usize, count: usize) -> isize {
             const READABLE: VmFlags<Sv39> = VmFlags::build_from_str("RV");
 
             if fd == 0 {
@@ -358,7 +359,7 @@ mod impls {
             }
         }
 
-        fn read(&self, fd: usize, buf: usize, count: usize) -> isize {
+        fn read(&self, caller: Caller, fd: usize, buf: usize, count: usize) -> isize {
             const WRITEABLE: VmFlags<Sv39> = VmFlags::build_from_str("W_V");
             if fd == 1 {
                 if let Some(mut ptr) = unsafe { TASK_MANAGER.current().unwrap() }
@@ -384,18 +385,18 @@ mod impls {
             }
         }
 
-        fn open(&self, path: usize, flags: usize) -> isize {
+        fn open(&self, caller: Caller, path: usize, flags: usize) -> isize {
             -1
         }
 
-        fn close(&self, fd: usize) -> isize {
+        fn close(&self, caller: Caller, fd: usize) -> isize {
             -1
         }
     }
 
     impl Process for SyscallContext {
         #[inline]
-        fn exit(&self, _status: usize) -> isize {
+        fn exit(&self, _caller: Caller, _status: usize) -> isize {
             let current = unsafe { TASK_MANAGER.current().unwrap() };
             if let Some(parent) = unsafe { TASK_MANAGER.get_task(current.parent) } {
                 let pair = parent
@@ -415,7 +416,7 @@ mod impls {
             0
         }
 
-        fn fork(&self) -> isize {
+        fn fork(&self, _caller: Caller) -> isize {
             let current = unsafe { TASK_MANAGER.current().unwrap() };
             let mut child_proc = current.fork().unwrap();
             let pid = child_proc.pid;
@@ -427,7 +428,7 @@ mod impls {
             pid.get_val() as isize
         }
 
-        fn exec(&self, path: usize, count: usize) -> isize {
+        fn exec(&self, _caller: Caller, path: usize, count: usize) -> isize {
             const READABLE: VmFlags<Sv39> = VmFlags::build_from_str("RV");
             let current = unsafe { TASK_MANAGER.current().unwrap() };
             if let Some(ptr) = current.address_space.translate(VAddr::new(path), READABLE) {
@@ -447,7 +448,7 @@ mod impls {
         // 简化的 wait 系统调用，pid == -1，则需要等待所有子进程结束，若当前进程有子进程，则返回 -1，否则返回 0
         // pid 为具体的某个值，表示需要等待某个子进程结束，因此只需要在 TASK_MANAGER 中查找是否有任务
         // 简化了进程的状态模型
-        fn wait(&self, pid: isize, exit_code_ptr: usize) -> isize {
+        fn wait(&self, _caller: Caller, pid: isize, exit_code_ptr: usize) -> isize {
             let current = unsafe { TASK_MANAGER.current().unwrap() };
             const WRITABLE: VmFlags<Sv39> = VmFlags::build_from_str("W_V");
             if let Some(mut ptr) = current
@@ -474,14 +475,14 @@ mod impls {
 
     impl Scheduling for SyscallContext {
         #[inline]
-        fn sched_yield(&self) -> isize {
+        fn sched_yield(&self, _caller: Caller) -> isize {
             0
         }
     }
 
     impl Clock for SyscallContext {
         #[inline]
-        fn clock_gettime(&self, clock_id: ClockId, tp: usize) -> isize {
+        fn clock_gettime(&self, _caller: Caller, clock_id: ClockId, tp: usize) -> isize {
             const WRITABLE: VmFlags<Sv39> = VmFlags::build_from_str("W_V");
             match clock_id {
                 ClockId::CLOCK_MONOTONIC => {

@@ -8,6 +8,7 @@
 pub mod foreign;
 
 /// 线程上下文。
+#[derive(Clone)]
 #[repr(C)]
 pub struct LocalContext {
     sctx: usize,
@@ -43,18 +44,6 @@ impl LocalContext {
             supervisor: false,
             interrupt: true,
             sepc: entry,
-        }
-    }
-
-    /// 复制父进程的上下文
-    #[inline]
-    pub fn clone(&self) -> Self {
-        Self {
-            sctx: self.sctx,
-            x: self.x,
-            supervisor: self.supervisor,
-            interrupt: self.interrupt,
-            sepc: self.sepc,
         }
     }
 
