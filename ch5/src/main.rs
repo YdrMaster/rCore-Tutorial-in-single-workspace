@@ -2,8 +2,7 @@
 #![no_main]
 #![feature(naked_functions, asm_sym, asm_const, const_btree_new)]
 #![feature(default_alloc_error_handler)]
-// #![deny(warnings)]
-#![allow(deprecated)]
+#![deny(warnings)]
 
 mod loader;
 mod mm;
@@ -328,6 +327,7 @@ mod impls {
                 {
                     let mut ptr = unsafe { ptr.as_mut() } as *mut u8;
                     for _ in 0..count {
+                        #[allow(deprecated)]
                         let c = sbi_rt::legacy::console_getchar() as u8;
                         unsafe {
                             *ptr = c;
@@ -343,16 +343,6 @@ mod impls {
                 log::error!("unsupported fd: {fd}");
                 -1
             }
-        }
-        
-        #[inline]
-        fn open(&self, path: usize, flags: usize) -> isize {
-            -1
-        }
-
-        #[inline]
-        fn close(&self, fd: usize) -> isize {
-            -1
         }
     }
 

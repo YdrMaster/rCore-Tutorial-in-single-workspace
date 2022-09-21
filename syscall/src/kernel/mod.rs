@@ -36,8 +36,12 @@ pub trait IO: Sync {
     fn write(&self, caller: Caller, fd: usize, buf: usize, count: usize) -> isize {
         unimplemented!()
     }
-    fn open(&self, caller: Caller, path: usize, flags: usize) -> isize;
-    fn close(&self, caller: Caller, fd: usize) -> isize;
+    fn open(&self, caller: Caller, path: usize, flags: usize) -> isize {
+        unimplemented!()
+    }
+    fn close(&self, caller: Caller, fd: usize) -> isize {
+        unimplemented!()
+    }
 }
 
 pub trait Memory: Sync {
