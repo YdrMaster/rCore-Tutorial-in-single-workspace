@@ -1,5 +1,21 @@
 ## CH6
 
+目前的进度：
+- 在 `xtask` 中对 `easy-fs` 进行封装制作镜像，在 QEMU 中添加虚拟块设备
+- 在 `ch6` 框架下利用现有模块重新实现 `VirtIO` 驱动，需要用到内核地址空间及当前的内存分配机制
+- 修复内核栈溢出等关于内存的问题
+- 增加下述接口并重现第五章的功能，移除 `loader`，通过 `easy-fs` 加载程序并执行
+
+待完成内容：
+- `kernel_vm` 地址翻译接口需求：文件读写的系统调用需要将用户传过来的虚拟地址翻译成物理地址，可能存在跨页问题，参考 `rCore-Tutorial` 中的 `mm::page_table::translated_byte_buffer` 函数
+- 多级目录参考实现，目前还是只实现了 `root_inode` 下的扁平目录
+
+总结：
+- `easy-fs` 关于模块化的设计已经相对比较完善了，主要是如何将其接入现有框架
+- 还需要继续讨论内存分配和回收的问题
+- `fuse` 的设计对于文件系统模块化有很好的启发作用
+- 现在的 `driver` 耦合性还比较强，还需要进一步完善
+
 ### EasyFS
 
 #### Block
@@ -57,36 +73,72 @@ pub struct Inode {
 - 目前的文件系统默认是扁平化的设计，无法访问多级目录，为了增加灵活性，可以将一部分查找接口暴露给上层进行定义和使用:
 
 ```rust
-pub trait InodeManager {
-  /// 根据路径创建索引节点，成功则返回节点指针
-  fn create(&self, path: &str) -> Option<Arc<Inode>>;
-  /// 根据路径查找索引节点，成功则返回节点指针
-  fn lookup(&self, path: &str) -> Option<Arc<Inode>>;
-  /// 根据源路经和目标路径建立硬链接，成功则返回节点指针
-  fn link(&self, src: &str, dst: &str) -> Option<Arc<Inode>>;
-  /// 根据路径删除链接
-  fn unlink(&self, path: &str);
-  // 根据路径读取目录，成功则返回目录内部的节点
-  fn readdir(&self, path: &str) -> Option<Vec<Arc<Inode>>>;
-  /// 之后还可以根据需要定义接口，目前实验用不到那么多
-  /// 可以参考 Fuse 文档扩展设计
+pub trait FSManager {
+    /// Open a file
+    fn open(&self, path: &str, flags: OpenFlags) -> Option<Arc<FileHandle>>;
+
+    /// Find a file
+    fn find(&self, path: &str) -> Option<Arc<Inode>>;
+
+    /// Create a hard link to source file
+    fn link(&self, src: &str, dst: &str) -> isize;
+
+    /// Remove a hard link
+    fn unlink(&self, path: &str) -> isize;
+
+    /// List inodes under the target directory
+    fn readdir(&self, path: &str) -> Option<Vec<String>>;
 }
 ```
 
-其余默认提供的接口包括：
+- 内核可以根据提供的接口自行定义按路径查找的逻辑，`easy-fs` 的实现中，已经给出了 `Inode` 的大部分操作，列举如下：
 
 ```rust
 impl Inode {
-  /// 泛型读写方法简化对于磁盘上`DiskInode`的访问流程
-  fn read_disk_inode<V>(&self, f: impl FnOnce(&DiskInode) -> V) -> V;
-  fn modify_disk_inode<V>(&self, f: impl FnOnce(&mut DiskInode) -> V) -> V;
-  /// 根据传入的偏移量对数据进行读写
-  pub fn read_at(&self, offset: usize, buf: &mut [u8]) -> usize;
-  pub fn write_at(&self, offset: usize, buf: &[u8]) -> usize;
-  pub fn clear(&self)；
+    /// Create a vfs inode
+    pub fn new(
+        block_id: u32,
+        block_offset: usize,
+        fs: Arc<Mutex<EasyFileSystem>>,
+        block_device: Arc<dyn BlockDevice>,
+    ) -> Self;
+
+    /// Call a function over a disk inode to read it
+    fn read_disk_inode<V>(&self, f: impl FnOnce(&DiskInode) -> V) -> V;
+
+    /// Call a function over a disk inode to modify it
+    fn modify_disk_inode<V>(&self, f: impl FnOnce(&mut DiskInode) -> V) -> V;
+
+    /// Find inode under a disk inode by name
+    fn find_inode_id(&self, name: &str, disk_inode: &DiskInode) -> Option<u32>;
+
+    /// Find inode under current inode by name
+    pub fn find(&self, name: &str) -> Option<Arc<Inode>>;
+
+    /// Increase the size of a disk inode
+    fn increase_size(
+        &self,
+        new_size: u32,
+        disk_inode: &mut DiskInode,
+        fs: &mut MutexGuard<EasyFileSystem>,
+    );
+
+    /// Create inode under current inode by name.
+    /// Attention: use find previously to ensure the new file not existing.
+    pub fn create(&self, name: &str) -> Option<Arc<Inode>>;
+
+    /// List inodes by id under current inode
+    pub fn readdir(&self) -> Vec<String>;
+
+    /// Read data from current inode
+    pub fn read_at(&self, offset: usize, buf: &mut [u8]) -> usize;
+
+    /// Write data to current inode
+    pub fn write_at(&self, offset: usize, buf: &[u8]) -> usize;
+
+    /// Clear the data in current inode
+    pub fn clear(&self);
 }
 ```
 
-总体设计结构如图所示：
-
-![](fs.png)
+- 内核对 `FileHandle` 进行维护时，可以自行实现路径到 `FileHandle` 的映射缓存（参考 Linux 相关代码
