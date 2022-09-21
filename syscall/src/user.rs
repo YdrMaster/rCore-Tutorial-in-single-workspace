@@ -1,4 +1,5 @@
 ﻿use crate::{ClockId, SyscallId, TimeSpec};
+use bitflags::*;
 use native::*;
 
 /// see <https://man7.org/linux/man-pages/man2/write.2.html>.
@@ -10,6 +11,32 @@ pub fn write(fd: usize, buffer: &[u8]) -> isize {
 #[inline]
 pub fn read(fd: usize, buffer: &[u8]) -> isize {
     unsafe { syscall3(SyscallId::READ, fd, buffer.as_ptr() as _, buffer.len()) }
+}
+
+bitflags! {
+    pub struct OpenFlags: u32 {
+        const RDONLY = 0;
+        const WRONLY = 1 << 0;
+        const RDWR = 1 << 1;
+        const CREATE = 1 << 9;
+        const TRUNC = 1 << 10;
+    }
+}
+
+#[inline]
+pub fn open(path: &str, flags: OpenFlags) -> isize {
+    unsafe {
+        syscall2(
+            SyscallId::OPENAT,
+            path.as_ptr() as usize,
+            flags.bits as usize,
+        )
+    }
+}
+
+#[inline]
+pub fn close(fd: usize) -> isize {
+    unsafe { syscall1(SyscallId::CLOSE, fd) }
 }
 
 /// see <https://man7.org/linux/man-pages/man2/exit.2.html>.
@@ -59,7 +86,6 @@ pub fn waitpid(pid: isize, exit_code_ptr: *mut i32) -> isize {
             return pid;
         }
     }
-    
 }
 
 /// 这个模块包含调用系统调用的最小封装，用户可以直接使用这些函数调用自定义的系统调用。

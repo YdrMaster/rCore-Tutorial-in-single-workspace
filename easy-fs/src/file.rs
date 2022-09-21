@@ -26,24 +26,6 @@ impl UserBuffer {
     }
 }
 
-/// File trait
-pub trait File: Send + Sync {
-    /// If readable
-    fn readable(&self) -> bool;
-    /// If writable
-    fn writable(&self) -> bool;
-    /// Read file to `UserBuffer`
-    fn read(&mut self, buf: UserBuffer) -> usize;
-    /// Write `UserBuffer` to file
-    fn write(&mut self, buf: UserBuffer) -> usize;
-}
-
-/// Standard input
-pub struct Stdin;
-
-/// Standard output
-pub struct Stdout;
-
 bitflags! {
   /// Open file flags
   pub struct OpenFlags: u32 {
@@ -78,7 +60,7 @@ impl OpenFlags {
 #[derive(Clone)]
 pub struct FileHandle {
     /// FileSystem Inode
-    pub inode: Arc<Inode>,
+    pub inode: Option<Arc<Inode>>,
     /// Open options: able to read
     pub read: bool,
     /// Open options: able to write
@@ -93,7 +75,16 @@ pub struct FileHandle {
 impl FileHandle {
     pub fn new(read: bool, write: bool, inode: Arc<Inode>) -> Self {
         Self {
-            inode,
+            inode: Some(inode),
+            read,
+            write,
+            offset: 0,
+        }
+    }
+
+    pub fn empty(read: bool, write: bool) -> Self {
+        Self {
+            inode: None,
             read,
             write,
             offset: 0,
@@ -101,37 +92,45 @@ impl FileHandle {
     }
 }
 
-impl File for FileHandle {
-    fn readable(&self) -> bool {
+impl FileHandle {
+    pub fn readable(&self) -> bool {
         self.read
     }
 
-    fn writable(&self) -> bool {
+    pub fn writable(&self) -> bool {
         self.write
     }
 
-    fn read(&mut self, mut buf: UserBuffer) -> usize {
+    pub fn read(&mut self, mut buf: UserBuffer) -> isize {
         let mut total_read_size: usize = 0;
-        for slice in buf.buffers.iter_mut() {
-            let read_size = self.inode.read_at(self.offset, *slice);
-            if read_size == 0 {
-                break;
+        if let Some(inode) = &self.inode {
+            for slice in buf.buffers.iter_mut() {
+                let read_size = inode.read_at(self.offset, *slice);
+                if read_size == 0 {
+                    break;
+                }
+                self.offset += read_size;
+                total_read_size += read_size;
             }
-            self.offset += read_size;
-            total_read_size += read_size;
+            total_read_size as _
+        } else {
+            -1
         }
-        total_read_size
     }
 
-    fn write(&mut self, buf: UserBuffer) -> usize {
+    pub fn write(&mut self, buf: UserBuffer) -> isize {
         let mut total_write_size: usize = 0;
-        for slice in buf.buffers.iter() {
-            let write_size = self.inode.write_at(self.offset, *slice);
-            assert_eq!(write_size, slice.len());
-            self.offset += write_size;
-            total_write_size += write_size;
+        if let Some(inode) = &self.inode {
+            for slice in buf.buffers.iter() {
+                let write_size = inode.write_at(self.offset, *slice);
+                assert_eq!(write_size, slice.len());
+                self.offset += write_size;
+                total_write_size += write_size;
+            }
+            total_write_size as _
+        } else {
+            -1
         }
-        total_write_size
     }
 }
 

@@ -68,13 +68,15 @@ pub fn read_all(fd: Arc<FileHandle>) -> Vec<u8> {
     let mut offset = 0usize;
     let mut buffer = [0u8; 512];
     let mut v: Vec<u8> = Vec::new();
-    loop {
-        let len = fd.inode.read_at(offset, &mut buffer);
-        if len == 0 {
-            break;
+    if let Some(inode) = &fd.inode {
+        loop {
+            let len = inode.read_at(offset, &mut buffer);
+            if len == 0 {
+                break;
+            }
+            offset += len;
+            v.extend_from_slice(&buffer[..len]);
         }
-        offset += len;
-        v.extend_from_slice(&buffer[..len]);
     }
     v
 }

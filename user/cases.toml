@@ -63,4 +63,5 @@ cases = [
     "04priv_csr",
     "user_shell",
     "initproc",
+    "filetest_simple",
 ]

@@ -489,6 +489,7 @@ dependencies = [
 name = "syscall"
 version = "0.1.0"
 dependencies = [
+ "bitflags",
  "spin 0.9.4",
 ]
 
