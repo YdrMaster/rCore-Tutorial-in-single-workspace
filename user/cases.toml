@@ -64,4 +64,5 @@ cases = [
     "user_shell",
     "initproc",
     "filetest_simple",
+    "cat_filea",
 ]

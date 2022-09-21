@@ -2,7 +2,7 @@
 #![no_main]
 #![feature(naked_functions, asm_sym, asm_const)]
 #![feature(default_alloc_error_handler)]
-// #![deny(warnings)]
+#![deny(warnings)]
 
 mod fs;
 mod mm;
@@ -15,14 +15,11 @@ extern crate console;
 #[macro_use]
 extern crate alloc;
 
-use core::mem::size_of;
-
 use crate::{
     fs::{read_all, FS},
     impls::{Sv39Manager, SyscallContext},
     process::{Process, TaskId},
 };
-use alloc::vec::Vec;
 use console::log;
 use easy_fs::{FSManager, OpenFlags};
 use impls::Console;
@@ -339,7 +336,7 @@ mod impls {
 
     impl IO for SyscallContext {
         #[inline]
-        fn write(&self, caller: Caller, fd: usize, buf: usize, count: usize) -> isize {
+        fn write(&self, _caller: Caller, fd: usize, buf: usize, count: usize) -> isize {
             let current = unsafe { TASK_MANAGER.current().unwrap() };
             if let Some(ptr) = current.address_space.translate(VAddr::new(buf), READABLE) {
                 if fd == 0 {
@@ -377,7 +374,9 @@ mod impls {
             }
         }
 
-        fn read(&self, caller: Caller, fd: usize, buf: usize, count: usize) -> isize {
+        #[inline]
+        #[allow(deprecated)]
+        fn read(&self, _caller: Caller, fd: usize, buf: usize, count: usize) -> isize {
             let current = unsafe { TASK_MANAGER.current().unwrap() };
             if fd == 0 || fd >= current.fd_table.len() {
                 return -1;
@@ -420,6 +419,7 @@ mod impls {
             }
         }
 
+        #[inline]
         fn open(&self, _caller: Caller, path: usize, flags: usize) -> isize {
             // FS.open(, flags)
             let current = unsafe { TASK_MANAGER.current().unwrap() };
@@ -452,8 +452,14 @@ mod impls {
             }
         }
 
-        fn close(&self, caller: Caller, fd: usize) -> isize {
-            -1
+        #[inline]
+        fn close(&self, _caller: Caller, fd: usize) -> isize {
+            let current = unsafe { TASK_MANAGER.current().unwrap() };
+            if fd >= current.fd_table.len() || current.fd_table[fd].is_none() {
+                return -1;
+            }
+            current.fd_table[fd].take();
+            0
         }
     }
 

@@ -1,7 +1,6 @@
-use crate::mm::HEAP;
 use alloc::sync::Arc;
 use alloc::{string::String, vec::Vec};
-use easy_fs::{BlockDevice, EasyFileSystem, FSManager, FileHandle, Inode, OpenFlags, BLOCK_SZ};
+use easy_fs::{EasyFileSystem, FSManager, FileHandle, Inode, OpenFlags};
 use lazy_static::*;
 
 use crate::virtio_block::BLOCK_DEVICE;
@@ -38,16 +37,16 @@ impl FSManager for FileSystem {
         self.root.find(path)
     }
 
-    fn readdir(&self, path: &str) -> Option<alloc::vec::Vec<String>> {
+    fn readdir(&self, _path: &str) -> Option<alloc::vec::Vec<String>> {
         Some(self.root.readdir())
     }
 
-    fn link(&self, src: &str, dst: &str) -> isize {
-        todo!()
+    fn link(&self, _src: &str, _dst: &str) -> isize {
+        unimplemented!()
     }
 
-    fn unlink(&self, path: &str) -> isize {
-        todo!()
+    fn unlink(&self, _path: &str) -> isize {
+        unimplemented!()
     }
 }
 

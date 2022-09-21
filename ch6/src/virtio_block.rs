@@ -1,5 +1,4 @@
 use alloc::sync::Arc;
-use console::log::warn;
 use core::{alloc::Layout, ptr::NonNull};
 use easy_fs::BlockDevice;
 use kernel_vm::page_table::{MmuMeta, Sv39, VAddr, VmFlags};

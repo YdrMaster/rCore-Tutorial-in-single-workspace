@@ -1,6 +1,6 @@
 ﻿use alloc::alloc::handle_alloc_error;
 use buddy_allocator::{BuddyAllocator, LinkedListBuddy, UsizeBuddy};
-use console::log::{self, warn, debug};
+use console::log;
 use core::{
     alloc::{GlobalAlloc, Layout},
     ptr::NonNull,
