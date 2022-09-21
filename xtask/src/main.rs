@@ -1,8 +1,10 @@
+mod fs_pack;
 mod user;
 
 #[macro_use]
 extern crate clap;
 
+use crate::fs_pack::easy_fs_pack;
 use clap::Parser;
 use command_ext::{BinUtil, Cargo, CommandExt, Qemu};
 use once_cell::sync::Lazy;
@@ -70,7 +72,7 @@ impl BuildArgs {
         let mut env: HashMap<&str, OsString> = HashMap::new();
         let package = match self.ch {
             1 => if self.lab { "ch1-lab" } else { "ch1" }.to_string(),
-            2 | 3 | 4 | 5 => {
+            2 | 3 | 4 | 5 | 6 => {
                 user::build_for(self.ch, false);
                 env.insert(
                     "APP_ASM",
@@ -81,7 +83,7 @@ impl BuildArgs {
                         .to_os_string(),
                 );
                 format!("ch{}", self.ch)
-            },
+            }
             _ => unreachable!(),
         };
         // 生成
@@ -147,18 +149,41 @@ struct QemuArgs {
 impl QemuArgs {
     fn run(self) {
         let elf = self.build.make();
+        // easy_fs_pack(cases, target)
         if let Some(p) = &self.qemu_dir {
             Qemu::search_at(p);
         }
         Qemu::system("riscv64")
             .args(&["-machine", "virt"])
+            .arg("-nographic")
             .arg("-bios")
             .arg(PROJECT.join("rustsbi-qemu.bin"))
             .arg("-kernel")
             .arg(objcopy(elf, true))
             .args(&["-smp", &self.smp.unwrap_or(1).to_string()])
             .args(&["-serial", "mon:stdio"])
-            .arg("-nographic")
+            // Add VirtIO Device
+            .args(&[
+                "-drive",
+                format!(
+                    "file={},if=none,format=raw,id=x0",
+                    TARGET
+                        .join(if self.build.release {
+                            "release"
+                        } else {
+                            "debug"
+                        })
+                        .join("fs.img")
+                        .into_os_string()
+                        .into_string()
+                        .unwrap()
+                )
+                .as_str(),
+            ])
+            .args(&[
+                "-device",
+                "virtio-blk-device,drive=x0,bus=virtio-mmio-bus.0",
+            ])
             .optional(&self.gdb, |qemu, gdb| {
                 qemu.args(&["-S", "-gdb", &format!("tcp::{gdb}")]);
             })

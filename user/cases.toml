@@ -53,3 +53,16 @@ cases = [
     "user_shell",
     "initproc",
 ]
+
+[ch6]
+cases = [
+    "00hello_world",
+    "01store_fault",
+    "02power",
+    "03priv_inst",
+    "04priv_csr",
+    "user_shell",
+    "initproc",
+    "filetest_simple",
+    "cat_filea",
+]

@@ -7,12 +7,14 @@ members = [
     "ch3",
     "ch4",
     "ch5",
+    "ch6",
     "user",
     "console",
     "syscall",
     "kernel-context",
     "kernel-vm",
     "utils",
+    "easy-fs",
 ]
 default-members = ["xtask"]
 
