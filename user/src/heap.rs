@@ -15,6 +15,7 @@ pub fn init() {
             core::mem::size_of::<usize>().trailing_zeros() as _,
             NonNull::new(MEMORY.as_mut_ptr()).unwrap(),
         );
+        HEAP.transfer(NonNull::new_unchecked(MEMORY.as_mut_ptr()), MEMORY.len());
     }
 }
 
