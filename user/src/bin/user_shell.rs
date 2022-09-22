@@ -13,20 +13,20 @@ const DL: u8 = 0x7fu8;
 const BS: u8 = 0x08u8;
 
 use alloc::string::String;
-use user_lib::{exec, fork, waitpid, getchar};
+use user_lib::{exec, fork, getchar, waitpid};
 
 #[no_mangle]
 pub fn main() -> i32 {
     println!("Rust user shell");
-    let mut line: String = String::new();   // 记录着当前输入的命令
+    let mut line: String = String::new(); // 记录着当前输入的命令
     print!(">> ");
     loop {
         let c = getchar();
         match c {
-            LF | CR => {        // 换行
-                println!("");
+            LF | CR => {
+                // 换行
+                println!();
                 if !line.is_empty() {
-                    // line.push('\0');
                     let pid = fork();
                     if pid == 0 {
                         // child process
@@ -45,7 +45,8 @@ pub fn main() -> i32 {
                 }
                 print!(">> ");
             }
-            BS | DL => {        // backspace
+            BS | DL => {
+                // backspace
                 if !line.is_empty() {
                     print!("{}", BS as char);
                     print!(" ");

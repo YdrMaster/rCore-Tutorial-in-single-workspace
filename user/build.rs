@@ -2,6 +2,7 @@ fn main() {
     use std::{env, fs, path::PathBuf};
 
     println!("cargo:rerun-if-changed=build.rs");
+    println!("cargo:rerun-if-env-changed=LOG");
     println!("cargo:rerun-if-env-changed=BASE_ADDRESS");
 
     if let Some(base) = env::var("BASE_ADDRESS")

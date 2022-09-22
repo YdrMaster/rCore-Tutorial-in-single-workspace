@@ -16,6 +16,7 @@ pub use syscall::*;
 #[link_section = ".text.entry"]
 pub extern "C" fn _start() -> ! {
     console::init_console(&Console);
+    console::set_log_level(option_env!("LOG"));
     heap::init();
     exit(main());
     unreachable!()
