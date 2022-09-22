@@ -3,9 +3,3 @@ xtask = "run --package xtask --release --"
 make = "xtask make"
 asm = "xtask asm"
 qemu = "xtask qemu"
-
-# [source.crates-io]
-# replace-with = 'ustc'
-# [source.ustc]
-# registry = "https://mirrors.ustc.edu.cn/crates.io-index"
-

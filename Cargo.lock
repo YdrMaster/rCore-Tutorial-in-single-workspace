@@ -38,20 +38,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "bef38d45163c2f1dde094a7dfd33ccf595c92905c8f8f4fdc18d06fb1037718a"
 
 [[package]]
-name = "buddy-allocator"
-version = "0.0.1"
-source = "git+https://github.com/YdrMaster/buddy-allocator?rev=fae1979#fae197976dd034fa4f31d3b9f20c61246a56269a"
-
-[[package]]
-name = "buddy_system_allocator"
-version = "0.6.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b4e85e760e105b46ae0bd1236578793c6c147ae7463fe95c8350296b8bfcb830"
-dependencies = [
- "spin 0.7.1",
-]
-
-[[package]]
 name = "cfg-if"
 version = "1.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -133,8 +119,8 @@ dependencies = [
 name = "ch6"
 version = "0.0.1"
 dependencies = [
- "buddy-allocator",
  "console",
+ "customizable-buddy",
  "easy-fs",
  "kernel-context",
  "kernel-vm",
@@ -497,7 +483,7 @@ dependencies = [
 name = "task-manage"
 version = "0.1.0"
 dependencies = [
- "buddy-allocator",
+ "customizable-buddy",
 ]
 
 [[package]]
@@ -534,8 +520,8 @@ checksum = "dcc811dc4066ac62f84f11307873c4850cb653bfa9b1719cee2bd2204a4bc5dd"
 name = "user_lib"
 version = "0.0.1"
 dependencies = [
- "buddy_system_allocator",
  "console",
+ "customizable-buddy",
  "syscall",
 ]
 

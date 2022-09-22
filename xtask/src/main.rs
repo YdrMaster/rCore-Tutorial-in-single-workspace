@@ -151,17 +151,18 @@ impl QemuArgs {
         if let Some(p) = &self.qemu_dir {
             Qemu::search_at(p);
         }
-        Qemu::system("riscv64")
-            .args(&["-machine", "virt"])
+        let mut qemu = Qemu::system("riscv64");
+        qemu.args(&["-machine", "virt"])
             .arg("-nographic")
             .arg("-bios")
             .arg(PROJECT.join("rustsbi-qemu.bin"))
             .arg("-kernel")
             .arg(objcopy(elf, true))
             .args(&["-smp", &self.smp.unwrap_or(1).to_string()])
-            .args(&["-serial", "mon:stdio"])
+            .args(&["-serial", "mon:stdio"]);
+        if self.build.ch > 5 {
             // Add VirtIO Device
-            .args(&[
+            qemu.args(&[
                 "-drive",
                 format!(
                     "file={},if=none,format=raw,id=x0",
@@ -181,11 +182,12 @@ impl QemuArgs {
             .args(&[
                 "-device",
                 "virtio-blk-device,drive=x0,bus=virtio-mmio-bus.0",
-            ])
-            .optional(&self.gdb, |qemu, gdb| {
-                qemu.args(&["-S", "-gdb", &format!("tcp::{gdb}")]);
-            })
-            .invoke();
+            ]);
+        }
+        qemu.optional(&self.gdb, |qemu, gdb| {
+            qemu.args(&["-S", "-gdb", &format!("tcp::{gdb}")]);
+        })
+        .invoke();
     }
 }
 

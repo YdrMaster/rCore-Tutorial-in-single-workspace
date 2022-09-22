@@ -6,7 +6,4 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-buddy-allocator = { git = "https://github.com/YdrMaster/buddy-allocator", rev = "fae1979" }
-
-
-
+customizable-buddy = "0.0.2"
