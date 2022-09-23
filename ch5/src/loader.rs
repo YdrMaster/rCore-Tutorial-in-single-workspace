@@ -1,31 +1,29 @@
 use alloc::vec::Vec;
-/// 根据应用名加载用户进程
-use lazy_static::*;
+use spin::Lazy;
 
-lazy_static! {
-    static ref APP_NAMES: Vec<&'static str> = {
-        extern "C" {
-            static apps: utils::AppMeta;
-            fn app_names();
-        }
-        let app_num = unsafe { apps.get_app_num() };
-        let mut start = app_names as usize as *const u8;
-        let mut v = Vec::new();
-        unsafe {
-            for _ in 0..app_num {
-                let mut end = start;
-                while end.read_volatile() != b'\0' {
-                    end = end.add(1);
-                }
-                let slice = core::slice::from_raw_parts(start, end as usize - start as usize);
-                let str = core::str::from_utf8(slice).unwrap();
-                v.push(str);
-                start = end.add(1);
+/// 根据应用名加载用户进程
+static APP_NAMES: Lazy<Vec<&'static str>> = Lazy::new(|| {
+    extern "C" {
+        static apps: utils::AppMeta;
+        fn app_names();
+    }
+    let app_num = unsafe { apps.get_app_num() };
+    let mut start = app_names as usize as *const u8;
+    let mut v = Vec::new();
+    unsafe {
+        for _ in 0..app_num {
+            let mut end = start;
+            while end.read_volatile() != b'\0' {
+                end = end.add(1);
             }
+            let slice = core::slice::from_raw_parts(start, end as usize - start as usize);
+            let str = core::str::from_utf8(slice).unwrap();
+            v.push(str);
+            start = end.add(1);
         }
-        v
-    };
-}
+    }
+    v
+});
 
 /// 获取应用程序 elf 数据
 pub fn get_app_data(app_name: &str) -> Option<&'static [u8]> {

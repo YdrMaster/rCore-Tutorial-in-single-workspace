@@ -2,7 +2,7 @@
 name = "ch5"
 version = "0.0.1"
 edition = "2021"
-authors = ["YdrMaster <ydrml@hotmail.com>"]
+authors = ["zflcs <1491657576@qq.com>"]
 
 [dependencies]
 sbi-rt = { git = "https://github.com/rustsbi/sbi-rt", branch = "dev" }
@@ -10,8 +10,6 @@ customizable-buddy = "0.0.2"
 xmas-elf = "0.8.0"
 riscv = "0.8.0"
 spin = "0.9.4"
-lazy_static = { version = "1.4.0", features = ["spin_no_std"] }
-
 
 console = { path = "../console" }
 utils = { path = "../utils" }

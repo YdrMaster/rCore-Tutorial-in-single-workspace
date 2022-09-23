@@ -1,8 +1,7 @@
 use super::{BlockDevice, BLOCK_SZ};
-use alloc::collections::VecDeque;
-use alloc::sync::Arc;
-use lazy_static::*;
-use spin::Mutex;
+use alloc::{collections::VecDeque, sync::Arc};
+use spin::{Lazy, Mutex};
+
 /// Cached block inside memory
 pub struct BlockCache {
     /// cached block data
@@ -121,11 +120,10 @@ impl BlockCacheManager {
     }
 }
 
-lazy_static! {
-    /// The global block cache manager
-    pub static ref BLOCK_CACHE_MANAGER: Mutex<BlockCacheManager> =
-        Mutex::new(BlockCacheManager::new());
-}
+/// The global block cache manager
+pub static BLOCK_CACHE_MANAGER: Lazy<Mutex<BlockCacheManager>> =
+    Lazy::new(|| Mutex::new(BlockCacheManager::new()));
+
 /// Get the block cache corresponding to the given block id and block device
 pub fn get_block_cache(
     block_id: usize,
