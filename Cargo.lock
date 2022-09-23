@@ -38,6 +38,11 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "bef38d45163c2f1dde094a7dfd33ccf595c92905c8f8f4fdc18d06fb1037718a"
 
 [[package]]
+name = "buddy-allocator"
+version = "0.0.1"
+source = "git+https://github.com/YdrMaster/buddy-allocator?rev=fae1979#fae197976dd034fa4f31d3b9f20c61246a56269a"
+
+[[package]]
 name = "cfg-if"
 version = "1.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -483,7 +488,8 @@ dependencies = [
 name = "task-manage"
 version = "0.1.0"
 dependencies = [
- "customizable-buddy",
+ "buddy-allocator",
+ "kernel-context",
 ]
 
 [[package]]
