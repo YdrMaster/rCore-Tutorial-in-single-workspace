@@ -1,7 +1,6 @@
-
 use super::{
     manager::TaskManager,
-    scheduler::{Schedule, FifoScheduler},
+    scheduler::{FifoScheduler, Schedule},
 };
 use kernel_context::foreign::ForeignPortal;
 
@@ -16,18 +15,18 @@ pub struct Processor<T, I: Copy + Ord> {
     current: Option<I>,
 }
 
-impl <T, I: Copy + Ord> Processor<T, I> {
+impl<T, I: Copy + Ord> Processor<T, I> {
     /// 新建 Processor
     pub const fn new() -> Self {
         Self {
             portal: ForeignPortal::EMPTY,
             manager: TaskManager::new(),
-            scheduler: FifoScheduler::new(), 
+            scheduler: FifoScheduler::new(),
             current: None,
         }
     }
     /// 找到下一个进程
-    pub fn find_next(&mut self) -> Option<&mut T>{
+    pub fn find_next(&mut self) -> Option<&mut T> {
         if let Some(id) = self.scheduler.fetch() {
             if let Some(task) = self.manager.get_task(id) {
                 self.current = Some(id);
@@ -37,7 +36,7 @@ impl <T, I: Copy + Ord> Processor<T, I> {
             }
         } else {
             None
-        }        
+        }
     }
     /// 设置异界传送门
     pub fn set_portal(&mut self, portal: ForeignPortal) {

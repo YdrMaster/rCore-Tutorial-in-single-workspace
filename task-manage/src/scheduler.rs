@@ -1,5 +1,4 @@
-
-use alloc::{vec::Vec};
+use alloc::vec::Vec;
 
 /// Schedule trait，根据进程的 id 进行调度
 /// add 添加 id
@@ -15,7 +14,6 @@ pub trait Schedule<I: Copy + Ord> {
     fn add_front(&mut self, id: I);
 }
 
-
 pub struct FifoScheduler<I: Copy + Ord> {
     task_queue: Vec<I>,
 }
@@ -26,8 +24,6 @@ impl<I: Copy + Ord> FifoScheduler<I> {
             task_queue: Vec::new(),
         }
     }
-
-    
 }
 
 impl<I: Copy + Ord> Schedule<I> for FifoScheduler<I> {

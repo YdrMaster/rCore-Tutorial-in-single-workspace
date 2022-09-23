@@ -11,7 +11,7 @@ pub struct TaskManager<T, I: Copy + Ord> {
 impl<T, I: Copy + Ord> TaskManager<T, I> {
     /// 新建任务管理器
     pub const fn new() -> Self {
-        Self { 
+        Self {
             tasks: BTreeMap::new(),
         }
     }

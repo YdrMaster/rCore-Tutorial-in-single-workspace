@@ -1,11 +1,11 @@
-﻿mod mapper;
+mod mapper;
 mod visitor;
 
 extern crate alloc;
 
 use crate::PageManager;
-use core::{fmt, marker::PhantomData, ops::Range, ptr::NonNull};
 use alloc::vec::Vec;
+use core::{fmt, marker::PhantomData, ops::Range, ptr::NonNull};
 use mapper::Mapper;
 use page_table::{PageTable, PageTableFormatter, Pos, VAddr, VmFlags, VmMeta, PPN, VPN};
 use visitor::Visitor;
@@ -24,9 +24,9 @@ impl<Meta: VmMeta, M: PageManager<Meta>> AddressSpace<Meta, M> {
     /// 创建新地址空间。
     #[inline]
     pub fn new() -> Self {
-        Self{
+        Self {
             areas: Vec::new(),
-            page_manager: M::new_root(), 
+            page_manager: M::new_root(),
             phantom_data: PhantomData,
             tramp: (PPN::INVALID, VmFlags::ZERO),
         }
@@ -123,22 +123,15 @@ impl<Meta: VmMeta, M: PageManager<Meta>> AddressSpace<Meta, M> {
                 .ans()
                 .filter(|pte| pte.is_valid())
                 .map(|pte| {
-                    (
-                        pte.flags(),
-                        unsafe {
-                            NonNull::new_unchecked(
-                                self.page_manager
-                                    .p_to_v::<u8>(pte.ppn())
-                                    .as_ptr()
-                            )
-                        }
-                    )
-                }
-            ).unwrap();
+                    (pte.flags(), unsafe {
+                        NonNull::new_unchecked(self.page_manager.p_to_v::<u8>(pte.ppn()).as_ptr())
+                    })
+                })
+                .unwrap();
             let vpn_range = range.start..range.end;
             // 虚拟地址块中页数量
             let count = range.end.val() - range.start.val();
-            let size = count << Meta::PAGE_BITS;    
+            let size = count << Meta::PAGE_BITS;
             // 分配 count 个 flags 属性的物理页面
             let paddr = new_addrspace.page_manager.allocate(count, &mut flags);
             let ppn = new_addrspace.page_manager.v_to_p(paddr);

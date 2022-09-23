@@ -1,6 +1,8 @@
-﻿use crate::{mm::PAGE, Sv39Manager};
+use crate::{mm::PAGE, Sv39Manager};
+use alloc::vec::Vec;
+use core::sync::atomic::{AtomicUsize, Ordering};
 use core::{alloc::Layout, str::FromStr};
-use kernel_context::{foreign::ForeignContext, LocalContext, foreign::ForeignPortal};
+use kernel_context::{foreign::ForeignContext, foreign::ForeignPortal, LocalContext};
 use kernel_vm::{
     page_table::{MmuMeta, Sv39, VAddr, VmFlags, PPN, VPN},
     AddressSpace,
@@ -9,8 +11,6 @@ use xmas_elf::{
     header::{self, HeaderPt2, Machine},
     program, ElfFile,
 };
-use alloc::vec::Vec;
-use core::sync::atomic::{AtomicUsize, Ordering};
 
 #[derive(Eq, PartialEq, Debug, Clone, Copy, Hash, Ord, PartialOrd)]
 pub struct TaskId(usize);
@@ -29,7 +29,7 @@ impl TaskId {
 
     pub fn get_val(&self) -> usize {
         self.0
-    } 
+    }
 }
 
 /// 进程。
@@ -44,7 +44,6 @@ pub struct Process {
 }
 
 impl Process {
-
     pub fn exec(&mut self, elf: ElfFile) {
         let proc = Process::from_elf(elf).unwrap();
         let tramp = self.address_space.tramp;
@@ -52,7 +51,6 @@ impl Process {
         self.address_space.map_portal(tramp);
         self.context = proc.context;
     }
-
 
     pub fn fork(&mut self) -> Option<Process> {
         // 子进程 pid
@@ -64,12 +62,9 @@ impl Process {
         // 复制父进程上下文
         let context = self.context.context.clone();
         let satp = (8 << 60) | address_space.root_ppn().val();
-        let foreign_ctx = ForeignContext {
-            context,
-            satp,
-        };
+        let foreign_ctx = ForeignContext { context, satp };
         self.children.push(pid);
-        Some( Self {
+        Some(Self {
             pid,
             parent: self.pid,
             children: Vec::new(),

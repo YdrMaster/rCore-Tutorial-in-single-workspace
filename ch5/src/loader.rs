@@ -1,6 +1,6 @@
+use alloc::vec::Vec;
 /// 根据应用名加载用户进程
 use lazy_static::*;
-use alloc::vec::Vec;
 
 lazy_static! {
     static ref APP_NAMES: Vec<&'static str> = {
@@ -8,7 +8,7 @@ lazy_static! {
             static apps: utils::AppMeta;
             fn app_names();
         }
-        let app_num = unsafe { apps.get_app_num() }; 
+        let app_num = unsafe { apps.get_app_num() };
         let mut start = app_names as usize as *const u8;
         let mut v = Vec::new();
         unsafe {
@@ -27,15 +27,16 @@ lazy_static! {
     };
 }
 
-/// 获取应用程序 elf 数据 
+/// 获取应用程序 elf 数据
 pub fn get_app_data(app_name: &str) -> Option<&'static [u8]> {
     extern "C" {
         static apps: utils::AppMeta;
     }
     let app_num = unsafe { apps.get_app_num() as usize };
-    (0..app_num).find(|&i| APP_NAMES[i] == app_name).map(|i|
-        unsafe { apps.iter_elf().nth(i) }
-    ).unwrap()
+    (0..app_num)
+        .find(|&i| APP_NAMES[i] == app_name)
+        .map(|i| unsafe { apps.iter_elf().nth(i) })
+        .unwrap()
 }
 
 /// 获取 app_list
@@ -46,4 +47,3 @@ pub fn list_apps() {
     }
     println!("**************/");
 }
-

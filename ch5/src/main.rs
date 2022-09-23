@@ -75,12 +75,14 @@ extern "C" fn rust_main() -> ! {
     mm::test();
     // 异界传送门
     let portal = ForeignPortal::new();
-    unsafe { PROCESSOR.set_portal(portal); }
+    unsafe {
+        PROCESSOR.set_portal(portal);
+    }
 
     // 建立内核地址空间
     let mut ks = kernel_space();
     let tramp = (
-        PPN::<Sv39>::new(unsafe {&PROCESSOR.portal } as *const _ as usize >> Sv39::PAGE_BITS),
+        PPN::<Sv39>::new(unsafe { &PROCESSOR.portal } as *const _ as usize >> Sv39::PAGE_BITS),
         VmFlags::build_from_str("XWRV"),
     );
     // 传送门映射到所有地址空间
@@ -98,7 +100,7 @@ extern "C" fn rust_main() -> ! {
     const PROTAL_TRANSIT: usize = VPN::<Sv39>::MAX.base().val();
     loop {
         if let Some(task) = unsafe { PROCESSOR.find_next() } {
-            task.execute(unsafe {&mut PROCESSOR.portal }, PROTAL_TRANSIT);
+            task.execute(unsafe { &mut PROCESSOR.portal }, PROTAL_TRANSIT);
             match scause::read().cause() {
                 scause::Trap::Exception(scause::Exception::UserEnvCall) => {
                     use syscall::{SyscallId as Id, SyscallResult as Ret};
@@ -112,7 +114,7 @@ extern "C" fn rust_main() -> ! {
                                 PROCESSOR.make_current_exited();
                             },
                             _ => {
-                                let ctx = &mut task.context.context ;
+                                let ctx = &mut task.context.context;
                                 *ctx.a_mut(0) = ret as _;
                                 unsafe {
                                     PROCESSOR.make_current_suspend();
