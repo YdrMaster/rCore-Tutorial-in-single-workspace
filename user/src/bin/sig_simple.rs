@@ -17,11 +17,11 @@ pub fn main() -> i32 {
     new.handler = func as usize;
     println!("pid = {}", getpid());
     println!("signal_simple: sigaction");
-    if sigaction(SIGUSR1, &new, &old) < 0 {
+    if sigaction(SignalNo::SIGUSR1, &new, &old) < 0 {
         panic!("Sigaction failed!");
     }
     println!("signal_simple: kill");
-    if kill(getpid(), SIGUSR1) < 0 {
+    if kill(getpid(), SignalNo::SIGUSR1) < 0 {
         println!("Kill failed!");
         exit(1);
     }

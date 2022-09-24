@@ -4,6 +4,7 @@
 #![feature(default_alloc_error_handler)]
 #![deny(warnings)]
 
+mod exit_process;
 mod fs;
 mod mm;
 mod process;
@@ -28,7 +29,10 @@ use kernel_vm::{
     page_table::{MmuMeta, Sv39, VAddr, VmFlags, PPN, VPN},
     AddressSpace,
 };
-use processor::{init_processor, PROCESSOR};
+use processor::init_processor;
+pub use processor::PROCESSOR;
+use exit_process::exit_process;
+use signal::SignalResult;
 use riscv::register::*;
 use sbi_rt::*;
 use spin::Once;
@@ -75,6 +79,7 @@ extern "C" fn rust_main() -> ! {
     syscall::init_process(&SyscallContext);
     syscall::init_scheduling(&SyscallContext);
     syscall::init_clock(&SyscallContext);
+    syscall::init_signal(&SyscallContext);
     // 初始化内核堆
     mm::init();
     mm::test();
@@ -115,19 +120,36 @@ extern "C" fn rust_main() -> ! {
                     ctx.move_next();
                     let id: Id = ctx.a(7).into();
                     let args = [ctx.a(0), ctx.a(1), ctx.a(2), ctx.a(3), ctx.a(4), ctx.a(5)];
-                    match syscall::handle(Caller { entity: 0, flow: 0 }, id, args) {
-                        Ret::Done(ret) => match id {
-                            Id::EXIT => unsafe { PROCESSOR.make_current_exited() },
-                            _ => {
-                                let ctx = &mut task.context.context;
-                                *ctx.a_mut(0) = ret as _;
-                                unsafe { PROCESSOR.make_current_suspend() };
+                    let syscall_ret = syscall::handle(Caller { entity: 0, flow: 0 }, id, args);
+                    // 目前信号处理位置放在 syscall 执行之后，这只是临时的实现。
+                    // 正确处理信号的位置应该是在 “trap 中处理异常和中断和异常之后，返回用户态之前”。
+                    // 例如发现有访存异常时，应该触发 SIGSEGV 信号然后进行处理。
+                    // 但目前 syscall 之后直接切换用户程序，没有 “返回用户态” 这一步，甚至 trap 本身也没了。
+                    // 
+                    // 最简单粗暴的方法是，在 `scause::Trap` 分类的每一条分支之后都加上信号处理，
+                    // 当然这样可能代码上不够优雅。处理信号的具体时机还需要后续再讨论。
+                    match task.signal.handle_signals(ctx) {
+                        // 进程应该结束执行
+                        SignalResult::ProcessKilled(_exit_code) => {
+                            exit_process();
+                            unsafe { PROCESSOR.make_current_exited() }
+                        },
+                        _ => {
+                            match syscall_ret {
+                                Ret::Done(ret) => match id {
+                                    Id::EXIT => unsafe { PROCESSOR.make_current_exited() },
+                                    _ => {
+                                        let ctx = &mut task.context.context;
+                                        *ctx.a_mut(0) = ret as _;
+                                        unsafe { PROCESSOR.make_current_suspend() };
+                                    }
+                                },
+                                Ret::Unsupported(_) => {
+                                    log::info!("id = {id:?}");
+                                    unsafe { PROCESSOR.make_current_exited() };
+                                }
                             }
                         },
-                        Ret::Unsupported(_) => {
-                            log::info!("id = {id:?}");
-                            unsafe { PROCESSOR.make_current_exited() };
-                        }
                     }
                 }
                 e => {
@@ -214,6 +236,7 @@ mod impls {
         mm::PAGE,
         process::TaskId,
         PROCESSOR,
+        exit_process,
     };
     use alloc::vec::Vec;
     use alloc::{alloc::handle_alloc_error, string::String};
@@ -225,6 +248,7 @@ mod impls {
         page_table::{MmuMeta, Pte, Sv39, VAddr, VmFlags, PPN, VPN},
         PageManager,
     };
+    use signal::SignalNo;
     use spin::Mutex;
     use syscall::*;
     use xmas_elf::ElfFile;
@@ -367,6 +391,10 @@ mod impls {
                     let mut ptr = ptr.as_ptr();
                     for _ in 0..count {
                         let c = sbi_rt::legacy::console_getchar() as u8;
+                        // 是 ctrl+C，需要发送 SIGINT 信号
+                        if c == 3 {
+                            current.signal.add_signal(SignalNo::SIGINT);
+                        }
                         unsafe {
                             *ptr = c;
                             ptr = ptr.add(1);
@@ -447,23 +475,7 @@ mod impls {
     impl Process for SyscallContext {
         #[inline]
         fn exit(&self, _caller: Caller, _status: usize) -> isize {
-            let current = unsafe { PROCESSOR.current().unwrap() };
-            if let Some(parent) = unsafe { PROCESSOR.get_task(current.parent) } {
-                let pair = parent
-                    .children
-                    .iter()
-                    .enumerate()
-                    .find(|(_, &id)| id == current.pid);
-                if let Some((idx, _)) = pair {
-                    parent.children.remove(idx);
-                    // log::debug!("parent remove child {}", parent.children.remove(idx));
-                }
-                for (_, &id) in current.children.iter().enumerate() {
-                    // log::warn!("parent insert child {}", id);
-                    parent.children.push(id);
-                }
-            }
-            0
+            exit_process()
         }
 
         fn fork(&self, _caller: Caller) -> isize {
@@ -557,6 +569,77 @@ mod impls {
                     }
                 }
                 _ => -1,
+            }
+        }
+    }
+
+    impl Signal for SyscallContext {
+        fn kill(&self, _caller: Caller, pid: isize, signum: u8) -> isize {
+            if let Some(target_task) = unsafe { PROCESSOR.get_task(TaskId::from(pid as usize)) } {
+                if let Ok(signal_no) = SignalNo::try_from(signum) {
+                    if signal_no != SignalNo::ERR {
+                        target_task.signal.add_signal(signal_no);
+                        return 0;
+                    }
+                }
+            }
+            -1
+        }
+    
+        fn sigaction(&self,
+            _caller: Caller, 
+            signum: u8,
+            action: usize,
+            old_action: usize,
+        ) -> isize {
+            if signum as usize > signal::MAX_SIG {
+                return -1;
+            }
+            let current = unsafe { PROCESSOR.current().unwrap() };
+            if let Ok(signal_no) = SignalNo::try_from(signum) {
+                if signal_no == SignalNo::ERR {
+                    return -1;
+                }
+                // 如果需要返回原来的处理函数，则从信号模块中获取
+                if old_action as usize != 0 {
+                    if let Some(mut ptr) = current.address_space.translate(VAddr::new(old_action), WRITEABLE) {
+                        if let Some(signal_action) = current.signal.get_action_ref(signal_no) {
+                            *unsafe { ptr.as_mut() } = signal_action;
+                        } else {
+                            return -1
+                        }
+                    } else { // 如果返回了 None，说明 signal_no 无效
+                        return -1;
+                    }
+                }
+                // 如果需要设置新的处理函数，则设置到信号模块中
+                if action as usize != 0 {
+                    if let Some(ptr) = current.address_space.translate(VAddr::new(action), READABLE) {
+                        // 如果返回了 false，说明 signal_no 无效
+                        if !current.signal.set_action(signal_no, &unsafe {*ptr.as_ptr()}) {
+                            return -1;
+                        }
+                    } else {
+                        return -1
+                    }
+                }
+                return 0;
+            }
+            -1
+        }
+    
+        fn sigprocmask(&self, _caller: Caller, mask: usize) -> isize {
+            let current = unsafe { PROCESSOR.current().unwrap() };
+            current.signal.update_mask(mask) as isize
+        }
+    
+        fn sigreturn(&self, _caller: Caller) -> isize {
+            let current = unsafe { PROCESSOR.current().unwrap() };
+            // 如成功，则需要修改当前用户程序的 LocalContext
+            if current.signal.sig_return(&mut current.context.context) {
+                0
+            } else {
+                -1
             }
         }
     }

@@ -6,10 +6,9 @@ compile_error!("You can only use one of `supervisor` or `user` features at a tim
 
 mod syscalls;
 mod time;
-mod signal;
 
 pub use time::*;
-pub use signal::*;
+pub use signal_defs::{SignalAction, SignalNo, MAX_SIG};
 
 #[cfg(feature = "user")]
 mod user;

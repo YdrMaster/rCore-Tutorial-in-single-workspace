@@ -23,7 +23,7 @@ pub fn main() -> i32 {
     new.handler = func as usize;
 
     println!("sig_ctrlc: sigaction");
-    if sigaction(SIGINT, &new, &old) < 0 {
+    if sigaction(SignalNo::SIGINT, &new, &old) < 0 {
         panic!("Sigaction failed!");
     }
     println!("sig_ctrlc: getchar....");

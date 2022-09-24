@@ -25,7 +25,7 @@ fn user_sig_test_failsignum() {
     let mut new = SignalAction::default();
     let old = SignalAction::default();
     new.handler = func as usize;
-    if sigaction(50, &new, &old) >= 0 {
+    if sigaction(50.into(), &new, &old) >= 0 {
         panic!("Wrong sigaction but success!");
     }
 }
@@ -35,10 +35,10 @@ fn user_sig_test_kill() {
     let old = SignalAction::default();
     new.handler = func as usize;
 
-    if sigaction(SIGUSR1, &new, &old) < 0 {
+    if sigaction(SignalNo::SIGUSR1, &new, &old) < 0 {
         panic!("Sigaction failed!");
     }
-    if kill(getpid(), SIGUSR1) < 0 {
+    if kill(getpid(), SignalNo::SIGUSR1) < 0 {
         println!("Kill failed!");
         exit(1);
     }
@@ -50,11 +50,11 @@ fn user_sig_test_multiprocsignals() {
         let mut new = SignalAction::default();
         let old = SignalAction::default();
         new.handler = func as usize;
-        if sigaction(SIGUSR1, &new, &old) < 0 {
+        if sigaction(SignalNo::SIGUSR1, &new, &old) < 0 {
             panic!("Sigaction failed!");
         }
     } else {
-        if kill(pid, SIGUSR1) < 0 {
+        if kill(pid, SignalNo::SIGUSR1) < 0 {
             println!("Kill failed!");
             exit(1);
         }
@@ -69,11 +69,11 @@ fn user_sig_test_restore() {
     let old2 = SignalAction::default();
     new.handler = func as usize;
 
-    if sigaction(SIGUSR1, &new, &old) < 0 {
+    if sigaction(SignalNo::SIGUSR1, &new, &old) < 0 {
         panic!("Sigaction failed!");
     }
 
-    if sigaction(SIGUSR1, &old, &old2) < 0 {
+    if sigaction(SignalNo::SIGUSR1, &old, &old2) < 0 {
         panic!("Sigaction failed!");
     }
 
@@ -84,8 +84,8 @@ fn user_sig_test_restore() {
 }
 
 fn kernel_sig_test_ignore() {
-    sigprocmask(1 << SIGSTOP);
-    if kill(getpid(), SIGSTOP) < 0 {
+    sigprocmask(1 << SignalNo::SIGSTOP as usize);
+    if kill(getpid(), SignalNo::SIGSTOP) < 0 {
         println!("kill faild\n");
         exit(-1);
     }
@@ -94,12 +94,12 @@ fn kernel_sig_test_ignore() {
 fn kernel_sig_test_stop_cont() {
     let pid = fork();
     if pid == 0 {
-        kill(getpid(), SIGSTOP);
+        kill(getpid(), SignalNo::SIGSTOP);
         sleep(1000);
         exit(-1);
     } else {
         sleep(5000);
-        kill(pid, SIGCONT);
+        kill(pid, SignalNo::SIGCONT);
         let mut exit_code = 0;
         wait(&mut exit_code);
     }
@@ -110,15 +110,15 @@ fn kernel_sig_test_failignorekill() {
     let old = SignalAction::default();
     new.handler = func as usize;
 
-    if sigaction(9, &new, &old) >= 0 {
+    if sigaction(SignalNo::SIGKILL, &new, &old) >= 0 {
         panic!("Should not set sigaction to kill!");
     }
 
-    if sigaction(9, &new, 0 as *const SignalAction) >= 0 {
+    if sigaction(SignalNo::SIGKILL, &new, 0 as *const SignalAction) >= 0 {
         panic!("Should not set sigaction to kill!");
     }
 
-    if sigaction(9, 0 as *const SignalAction, &old) >= 0 {
+    if sigaction(SignalNo::SIGKILL, 0 as *const SignalAction, &old) >= 0 {
         panic!("Should not set sigaction to kill!");
     }
 }
@@ -134,24 +134,24 @@ fn final_sig_test() {
 
     let pid = fork();
     if pid == 0 {
-        if sigaction(SIGUSR1, &new, &old) < 0 {
+        if sigaction(SignalNo::SIGUSR1, &new, &old) < 0 {
             panic!("Sigaction failed!");
         }
-        if sigaction(14, &new2, &old2) < 0 {
+        if sigaction(14.into(), &new2, &old2) < 0 {
             panic!("Sigaction failed!");
         }
-        if kill(getpid(), SIGUSR1) < 0 {
+        if kill(getpid(), SignalNo::SIGUSR1) < 0 {
             println!("Kill failed!");
             exit(-1);
         }
     } else {
         sleep(1000);
-        if kill(pid, 14) < 0 {
+        if kill(pid, 14.into()) < 0 {
             println!("Kill failed!");
             exit(-1);
         }
         sleep(1000);
-        kill(pid, SIGKILL);
+        kill(pid, SignalNo::SIGKILL);
     }
 }
 

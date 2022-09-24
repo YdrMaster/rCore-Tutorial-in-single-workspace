@@ -1,8 +1,18 @@
-//! 每个编号对应的信号名及其含义
+#![no_std]
 
-// 目前 rCore-Tutorial 没有用到 [32, 64) 部分的实时信号，但仍给出定义
+#[repr(C)]
+#[derive(Debug, Clone, Copy, Default)]
+/// 信号处理函数的定义
+pub struct SignalAction {
+    pub handler: usize,
+    pub mask: usize,
+}
+
+/// 最大的信号编号
 pub const MAX_SIG: usize = 31;
 
+// 信号标号的定义
+// 目前 rCore-Tutorial 没有用到 [32, 64) 部分的实时信号，但仍给出定义
 numeric_enum_macro::numeric_enum! {
     #[repr(u8)]
     #[allow(missing_docs)]

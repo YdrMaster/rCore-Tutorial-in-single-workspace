@@ -9,15 +9,10 @@
 extern crate alloc;
 use alloc::boxed::Box;
 use kernel_context::LocalContext;
+pub use signal_defs::{SignalAction, SignalNo, MAX_SIG};
 
-
-mod signal_action;
 mod signal_result;
-mod signal_no;
-
-pub use signal_action::SignalAction;
 pub use signal_result::SignalResult;
-pub use signal_no::{SignalNo, MAX_SIG};
 
 /// 一个信号模块需要对外暴露的接口
 pub trait Signal: Send + Sync {

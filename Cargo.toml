@@ -17,6 +17,7 @@ members = [
     "kernel-vm",
     "utils",
     "easy-fs",
+    "signal-defs",
     "signal",
     "signal-impl",
 ]

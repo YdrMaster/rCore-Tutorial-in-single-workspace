@@ -1,4 +1,4 @@
-﻿use crate::{ClockId, SyscallId, TimeSpec, SignalAction};
+﻿use crate::{ClockId, SyscallId, TimeSpec, SignalAction, SignalNo};
 use bitflags::*;
 use native::*;
 
@@ -93,13 +93,13 @@ pub fn getpid() -> isize {
 }
 
 #[inline]
-pub fn kill(pid: isize, signum: u8) -> isize {
+pub fn kill(pid: isize, signum: SignalNo) -> isize {
     unsafe { syscall2(SyscallId::KILL, pid as _, signum as _) }
 }
 
 #[inline]
 pub fn sigaction(
-    signum: u8,
+    signum: SignalNo,
     action: *const SignalAction,
     old_action: *const SignalAction,
 ) -> isize {

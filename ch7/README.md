@@ -4,15 +4,13 @@
 
 ## 主体实现
 
-目前 `/ch7` 模块复制自 `/ch6`，还未引入实现
-
-
+目前 `/ch7` 模块复制自 `/ch6`，已经有了基本的信号实现。
 
 在 `/xtask/src/user.rs` 和 `/user/cases.toml` 中加入了第七章相关信息。
 
 ## 用户测例
 
-添加测例：`sig_ctrlc` `sig_simple` `sig_simple2` `sig_tests`
+添加测例：`sig_ctrlc` `sig_simple` `sig_simple2` `sig_tests`，其中 `sig_ctrlc` `sig_simple` `sig_simple2` 可通过。
 
 目前仅添加了信号相关的测例，后续还会加入其他测例。
 
@@ -29,11 +27,11 @@
 - `sigprocmask` 修改信号掩码
 - `sigreturn` 从信号处理函数中返回
 
-并添加 `/syscall/src/signal.rs`，包含一些用户程序和内核通用的信号标号和处理函数定义。
+并添加 `/signal-defs`，包含一些用户程序和内核通用的信号标号和处理函数定义。
 
 > 这里 `SignalAction::mask` 使用 `usize` 而非 `i32`，是为了兼容将来可能会有的标号在 `[32,64)` 之间的实时信号。
 > 
-> 这里信号标号使用 `u8`，是为了与上面的 `mask` 区分，提示用户程序在 `kill()` 和 `sigaction()` 中应使用信号的标号，而在 `sigprocmask` 中应使用信号的掩码
+> 这里信号标号使用 `SignalNo`，是为了与上面的 `mask` 区分，提示用户程序在 `kill()` 和 `sigaction()` 中应使用信号的标号，而在 `sigprocmask` 中应使用信号的掩码
 
 ### 额外添加的 syscall 和代码
 

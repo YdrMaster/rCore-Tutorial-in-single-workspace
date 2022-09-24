@@ -466,6 +466,13 @@ name = "signal"
 version = "0.1.0"
 dependencies = [
  "kernel-context",
+ "signal-defs",
+]
+
+[[package]]
+name = "signal-defs"
+version = "0.1.0"
+dependencies = [
  "numeric-enum-macro",
 ]
 
@@ -520,6 +527,7 @@ name = "syscall"
 version = "0.1.0"
 dependencies = [
  "bitflags",
+ "signal-defs",
  "spin 0.9.4",
 ]
 

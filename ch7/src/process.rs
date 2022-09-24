@@ -1,5 +1,6 @@
 ﻿use crate::{mm::PAGE, Sv39Manager};
 use alloc::vec::Vec;
+use alloc::boxed::Box;
 use core::sync::atomic::{AtomicUsize, Ordering};
 use core::{alloc::Layout, str::FromStr};
 use easy_fs::FileHandle;
@@ -8,6 +9,8 @@ use kernel_vm::{
     page_table::{MmuMeta, Sv39, VAddr, VmFlags, PPN, VPN},
     AddressSpace,
 };
+use signal::Signal;
+use signal_impl::SignalImpl;
 use spin::Mutex;
 use xmas_elf::{
     header::{self, HeaderPt2, Machine},
@@ -44,8 +47,11 @@ pub struct Process {
     pub context: ForeignContext,
     pub address_space: AddressSpace<Sv39, Sv39Manager>,
 
-    // 文件描述符表
+    /// 文件描述符表
     pub fd_table: Vec<Option<Mutex<FileHandle>>>,
+
+    /// 信号模块
+    pub signal: Box<dyn Signal>,
 }
 
 impl Process {
@@ -85,6 +91,7 @@ impl Process {
             context: foreign_ctx,
             address_space,
             fd_table: new_fd_table,
+            signal: self.signal.from_fork(),
         })
     }
 
@@ -158,6 +165,7 @@ impl Process {
                 // Stdout
                 Some(Mutex::new(FileHandle::empty(false, true))),
             ],
+            signal: Box::new(SignalImpl::new()),
         })
     }
 
