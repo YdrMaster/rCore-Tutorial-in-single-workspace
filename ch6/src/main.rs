@@ -1,6 +1,6 @@
 #![no_std]
 #![no_main]
-#![feature(naked_functions, asm_sym, asm_const)]
+#![feature(naked_functions, asm_sym, asm_const, const_btree_new)]
 #![feature(default_alloc_error_handler)]
 #![deny(warnings)]
 
@@ -8,6 +8,7 @@ mod fs;
 mod mm;
 mod process;
 mod virtio_block;
+mod processor;
 
 #[macro_use]
 extern crate console;
@@ -18,12 +19,11 @@ extern crate alloc;
 use crate::{
     fs::{read_all, FS},
     impls::{Sv39Manager, SyscallContext},
-    process::{Process, TaskId},
+    process::{Process},
 };
 use console::log;
 use easy_fs::{FSManager, OpenFlags};
 use impls::Console;
-use kernel_context::foreign::ForeignPortal;
 use kernel_vm::{
     page_table::{MmuMeta, Sv39, VAddr, VmFlags, PPN, VPN},
     AddressSpace,
@@ -32,8 +32,9 @@ use riscv::register::*;
 use sbi_rt::*;
 use spin::Once;
 use syscall::Caller;
-use task_manage::Processor;
 use xmas_elf::ElfFile;
+use processor::{PROCESSOR, init_processor};
+
 
 // 应用程序内联进来。
 core::arch::global_asm!(include_str!(env!("APP_ASM")));
@@ -61,7 +62,6 @@ unsafe extern "C" fn _start() -> ! {
 }
 
 static mut KERNEL_SPACE: Once<AddressSpace<Sv39, Sv39Manager>> = Once::new();
-static mut PROCESSOR: Processor<Process, TaskId> = Processor::new();
 
 extern "C" fn rust_main() -> ! {
     let layout = linker::KernelLayout::locate();
@@ -83,8 +83,7 @@ extern "C" fn rust_main() -> ! {
     unsafe { KERNEL_SPACE.call_once(|| kernel_space(layout)) };
     // 异界传送门
     // 可以直接放在栈上
-    let portal = ForeignPortal::new();
-    unsafe { PROCESSOR.set_portal(portal) };
+    init_processor();
     let tramp = (
         PPN::<Sv39>::new(unsafe { &PROCESSOR.portal } as *const _ as usize >> Sv39::PAGE_BITS),
         VmFlags::build_from_str("XWRV"),
