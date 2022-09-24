@@ -1,9 +1,6 @@
-
 use core::marker::PhantomData;
 
-use super::{
-    manager::Manage,
-};
+use super::manager::Manage;
 use kernel_context::foreign::ForeignPortal;
 
 /// Processor 数据结构
@@ -17,7 +14,7 @@ pub struct Processor<T, I: Copy + Ord, M: Manage<T, I>> {
     phantom_data: PhantomData<T>,
 }
 
-impl <T, I: Copy + Ord, M: Manage<T, I>> Processor<T, I, M> {
+impl<T, I: Copy + Ord, M: Manage<T, I>> Processor<T, I, M> {
     /// 新建 Processor
     pub const fn new() -> Self {
         Self {
@@ -28,7 +25,7 @@ impl <T, I: Copy + Ord, M: Manage<T, I>> Processor<T, I, M> {
         }
     }
     /// 找到下一个进程
-    pub fn find_next(&mut self) -> Option<&mut T>{
+    pub fn find_next(&mut self) -> Option<&mut T> {
         if let Some(id) = self.manager.as_mut().unwrap().fetch() {
             if let Some(task) = self.manager.as_mut().unwrap().get_mut(id) {
                 self.current = Some(id);
@@ -38,7 +35,7 @@ impl <T, I: Copy + Ord, M: Manage<T, I>> Processor<T, I, M> {
             }
         } else {
             None
-        }        
+        }
     }
     /// 设置异界传送门
     pub fn set_portal(&mut self, portal: ForeignPortal) {

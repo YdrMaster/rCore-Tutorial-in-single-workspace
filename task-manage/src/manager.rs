@@ -1,6 +1,6 @@
 /// Manager trait
-pub trait Manage <T, I: Copy + Ord> {
-    /// 插入 item 
+pub trait Manage<T, I: Copy + Ord> {
+    /// 插入 item
     fn insert(&mut self, id: I, item: T);
     /// 删除 item
     fn delete(&mut self, id: I);

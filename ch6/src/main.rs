@@ -7,8 +7,8 @@
 mod fs;
 mod mm;
 mod process;
-mod virtio_block;
 mod processor;
+mod virtio_block;
 
 #[macro_use]
 extern crate console;
@@ -19,7 +19,7 @@ extern crate alloc;
 use crate::{
     fs::{read_all, FS},
     impls::{Sv39Manager, SyscallContext},
-    process::{Process},
+    process::Process,
 };
 use console::log;
 use easy_fs::{FSManager, OpenFlags};
@@ -28,13 +28,12 @@ use kernel_vm::{
     page_table::{MmuMeta, Sv39, VAddr, VmFlags, PPN, VPN},
     AddressSpace,
 };
+use processor::{init_processor, PROCESSOR};
 use riscv::register::*;
 use sbi_rt::*;
 use spin::Once;
 use syscall::Caller;
 use xmas_elf::ElfFile;
-use processor::{PROCESSOR, init_processor};
-
 
 // 应用程序内联进来。
 core::arch::global_asm!(include_str!(env!("APP_ASM")));

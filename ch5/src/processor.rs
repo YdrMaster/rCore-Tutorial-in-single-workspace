@@ -1,20 +1,14 @@
-
-use task_manage::{Processor, Manage};
-use crate::process::{TaskId, Process};
-use alloc::{collections::{BTreeMap, VecDeque}};
+use crate::process::{Process, TaskId};
+use alloc::collections::{BTreeMap, VecDeque};
 use kernel_context::foreign::ForeignPortal;
+use task_manage::{Manage, Processor};
 
-
-pub static mut PROCESSOR: Processor::<Process, TaskId, ProcManager> 
-            = Processor::new();
+pub static mut PROCESSOR: Processor<Process, TaskId, ProcManager> = Processor::new();
 
 pub fn init_processor() {
-    let manager = ProcManager::new();
-    // 异界传送门
-    let portal = ForeignPortal::new();
     unsafe {
-        PROCESSOR.set_manager(manager);
-        PROCESSOR.set_portal(portal);
+        PROCESSOR.set_manager(ProcManager::new());
+        PROCESSOR.set_portal(ForeignPortal::new());
     }
 }
 
@@ -29,7 +23,7 @@ pub struct ProcManager {
 impl ProcManager {
     /// 新建任务管理器
     pub fn new() -> Self {
-        Self { 
+        Self {
             tasks: BTreeMap::new(),
             ready_queue: VecDeque::new(),
         }

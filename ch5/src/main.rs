@@ -1,10 +1,9 @@
 #![no_std]
 #![no_main]
-#![feature(naked_functions, asm_sym, asm_const, const_btree_new)]
+#![feature(naked_functions, asm_sym, asm_const)]
 #![feature(default_alloc_error_handler)]
 #![deny(warnings)]
 
-mod loader;
 mod mm;
 mod process;
 mod processor;
@@ -15,20 +14,21 @@ extern crate console;
 #[macro_use]
 extern crate alloc;
 
-use crate::{
-    impls::{Console, Sv39Manager, SyscallContext},
-    process::{Process},
-};
+use alloc::collections::BTreeMap;
 use console::log;
+use core::ffi::CStr;
+use impls::{Console, Sv39Manager, SyscallContext};
 use kernel_vm::{
     page_table::{MmuMeta, Sv39, VAddr, VmFlags, PPN, VPN},
     AddressSpace,
 };
+use process::Process;
+use processor::{init_processor, PROCESSOR};
 use riscv::register::*;
 use sbi_rt::*;
+use spin::Lazy;
 use syscall::Caller;
 use xmas_elf::ElfFile;
-use processor::{PROCESSOR, init_processor};
 
 // 应用程序内联进来。
 core::arch::global_asm!(include_str!(env!("APP_ASM")));
@@ -55,6 +55,22 @@ unsafe extern "C" fn _start() -> ! {
     )
 }
 
+/// 加载用户进程。
+static APPS: Lazy<BTreeMap<&'static str, &'static [u8]>> = Lazy::new(|| {
+    extern "C" {
+        static apps: utils::AppMeta;
+        static app_names: u8;
+    }
+    unsafe {
+        apps.iter_elf()
+            .scan(&app_names as *const _ as usize, |addr, data| {
+                let name = CStr::from_ptr(*addr as _).to_str().unwrap();
+                *addr += name.as_bytes().len() + 1;
+                Some((name, data))
+            })
+    }
+    .collect()
+});
 
 extern "C" fn rust_main() -> ! {
     let layout = linker::KernelLayout::locate();
@@ -69,13 +85,11 @@ extern "C" fn rust_main() -> ! {
     syscall::init_process(&SyscallContext);
     syscall::init_scheduling(&SyscallContext);
     syscall::init_clock(&SyscallContext);
-
     // 初始化内核堆
     mm::init();
     mm::test();
-
+    // 初始化处理器
     init_processor();
-
     // 建立内核地址空间
     let mut ks = kernel_space(layout);
     let tramp = (
@@ -85,9 +99,11 @@ extern "C" fn rust_main() -> ! {
     // 传送门映射到所有地址空间
     ks.map_portal(tramp);
 
-    loader::list_apps();
+    println!("/**** APPS ****");
+    APPS.keys().for_each(|app| println!("{app}"));
+    println!("**************/");
     // 加载应用程序
-    let initproc_data = loader::get_app_data("initproc").unwrap();
+    let initproc_data = APPS.get("initproc").unwrap();
     if let Some(mut process) = Process::from_elf(ElfFile::new(initproc_data).unwrap()) {
         process.address_space.map_portal(tramp);
         unsafe { PROCESSOR.add(process.pid, process) };
@@ -175,8 +191,7 @@ fn kernel_space(layout: linker::KernelLayout) -> AddressSpace<Sv39, Sv39Manager>
 
 /// 各种接口库的实现。
 mod impls {
-    use crate::process::TaskId;
-    use crate::{loader::get_app_data, mm::PAGE, PROCESSOR};
+    use crate::{mm::PAGE, process::TaskId, APPS, PROCESSOR};
     use alloc::alloc::handle_alloc_error;
     use console::log;
     use core::{alloc::Layout, num::NonZeroUsize, ptr::NonNull};
@@ -368,7 +383,7 @@ mod impls {
                 let name = unsafe {
                     core::str::from_utf8_unchecked(core::slice::from_raw_parts(ptr.as_ptr(), count))
                 };
-                let data = ElfFile::new(get_app_data(name).unwrap()).unwrap();
+                let data = ElfFile::new(APPS[name]).unwrap();
                 current.exec(data);
                 // unsafe { TASKMANAGER.add(current.pid); }
                 0
