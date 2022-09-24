@@ -6,8 +6,10 @@ compile_error!("You can only use one of `supervisor` or `user` features at a tim
 
 mod syscalls;
 mod time;
+mod signal;
 
 pub use time::*;
+pub use signal::*;
 
 #[cfg(feature = "user")]
 mod user;

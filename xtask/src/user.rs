@@ -28,6 +28,12 @@ struct Ch6 {
     ch6: Cases,
 }
 
+#[derive(Deserialize)]
+struct Ch7 {
+    ch7: Cases,
+}
+
+
 #[derive(Deserialize, Default)]
 struct Cases {
     base: Option<u64>,
@@ -102,6 +108,7 @@ pub fn build_for(ch: u8, release: bool) {
         4 => toml::from_str::<Ch4>(&cfg).map(|ch| ch.ch4),
         5 => toml::from_str::<Ch5>(&cfg).map(|ch| ch.ch5),
         6 => toml::from_str::<Ch6>(&cfg).map(|ch| ch.ch6),
+        7 => toml::from_str::<Ch7>(&cfg).map(|ch| ch.ch7),
         _ => unreachable!(),
     }
     .unwrap_or_default();
@@ -168,7 +175,7 @@ app_names:"
         bins.iter().enumerate().for_each(|(_, path)| {
             writeln!(ld, "    .string {:?}", path.file_name().unwrap()).unwrap();
         });
-    } else if ch == 6 {
+    } else if ch >= 6 {
         easy_fs_pack(
             &cases.cases.unwrap(),
             TARGET

@@ -1,0 +1,25 @@
+[package]
+name = "ch7"
+version = "0.0.1"
+edition = "2021"
+authors = ["scPointer <jax01@foxmail.com>"]
+
+[dependencies]
+virtio-drivers = { git = "https://github.com/rcore-os/virtio-drivers", rev = "4ee80e5" }
+sbi-rt = { git = "https://github.com/rustsbi/sbi-rt", branch = "dev" }
+customizable-buddy = "0.0.2"
+xmas-elf = "0.8.0"
+riscv = "0.8.0"
+spin = "0.9.4"
+
+linker = { path = "../linker" }
+console = { path = "../console" }
+utils = { path = "../utils" }
+kernel-context = { path = "../kernel-context" }
+kernel-vm = { path = "../kernel-vm" }
+syscall = { path = "../syscall", features = ["kernel"] }
+task-manage = { path = "../task-manage" }
+easy-fs = { path = "../easy-fs" }
+
+[build-dependencies]
+linker = { path = "../linker" }

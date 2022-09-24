@@ -8,6 +8,7 @@ members = [
     "ch4",
     "ch5",
     "ch6",
+    "ch7",
     "user",
     "linker",
     "console",

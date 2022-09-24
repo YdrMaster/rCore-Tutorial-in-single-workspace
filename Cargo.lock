@@ -139,6 +139,26 @@ dependencies = [
 ]
 
 [[package]]
+name = "ch7"
+version = "0.0.1"
+dependencies = [
+ "console",
+ "customizable-buddy",
+ "easy-fs",
+ "kernel-context",
+ "kernel-vm",
+ "linker",
+ "riscv",
+ "sbi-rt",
+ "spin 0.9.4",
+ "syscall",
+ "task-manage",
+ "utils",
+ "virtio-drivers",
+ "xmas-elf",
+]
+
+[[package]]
 name = "clap"
 version = "3.2.22"
 source = "registry+https://github.com/rust-lang/crates.io-index"
