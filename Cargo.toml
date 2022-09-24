@@ -17,6 +17,8 @@ members = [
     "kernel-vm",
     "utils",
     "easy-fs",
+    "signal",
+    "signal-impl",
 ]
 default-members = ["xtask"]
 

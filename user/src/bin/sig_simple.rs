@@ -15,7 +15,7 @@ pub fn main() -> i32 {
     let mut new = SignalAction::default();
     let old = SignalAction::default();
     new.handler = func as usize;
-
+    println!("pid = {}", getpid());
     println!("signal_simple: sigaction");
     if sigaction(SIGUSR1, &new, &old) < 0 {
         panic!("Sigaction failed!");

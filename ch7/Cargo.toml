@@ -20,6 +20,8 @@ kernel-vm = { path = "../kernel-vm" }
 syscall = { path = "../syscall", features = ["kernel"] }
 task-manage = { path = "../task-manage" }
 easy-fs = { path = "../easy-fs" }
+signal = { path = "../signal" }
+signal-impl = { path = "../signal-impl" }
 
 [build-dependencies]
 linker = { path = "../linker" }

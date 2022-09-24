@@ -27,6 +27,9 @@ pub trait Process: Sync {
     fn wait(&self, caller: Caller, pid: isize, exit_code_ptr: usize) -> isize {
         unimplemented!()
     }
+    fn getpid(&self, caller: Caller) -> isize {
+        unimplemented!()
+    }
 }
 
 pub trait IO: Sync {
@@ -122,6 +125,7 @@ pub fn handle(caller: Caller, id: SyscallId, args: [usize; 6]) -> SyscallResult 
         Id::CLONE => PROCESS.call(id, |proc| proc.fork(caller)),
         Id::EXECVE => PROCESS.call(id, |proc| proc.exec(caller, args[0], args[1])),
         Id::WAIT4 => PROCESS.call(id, |proc| proc.wait(caller, args[0] as _, args[1])),
+        Id::GETPID => PROCESS.call(id, |proc| proc.getpid(caller)),
         Id::CLOCK_GETTIME => CLOCK.call(id, |clock| {
             clock.clock_gettime(caller, ClockId(args[0]), args[1])
         }),

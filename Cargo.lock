@@ -150,6 +150,8 @@ dependencies = [
  "linker",
  "riscv",
  "sbi-rt",
+ "signal",
+ "signal-impl",
  "spin 0.9.4",
  "syscall",
  "task-manage",
@@ -334,6 +336,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "546c37ac5d9e56f55e73b677106873d9d9f5190605e41a856503623648488cae"
 
 [[package]]
+name = "numeric-enum-macro"
+version = "0.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "300e4bdb6b46b592948e700ea1ef24a4296491f6a0ee722b258040abd15a3714"
+
+[[package]]
 name = "once_cell"
 version = "1.15.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -451,6 +459,22 @@ dependencies = [
  "proc-macro2",
  "quote",
  "syn",
+]
+
+[[package]]
+name = "signal"
+version = "0.1.0"
+dependencies = [
+ "kernel-context",
+ "numeric-enum-macro",
+]
+
+[[package]]
+name = "signal-impl"
+version = "0.1.0"
+dependencies = [
+ "kernel-context",
+ "signal",
 ]
 
 [[package]]

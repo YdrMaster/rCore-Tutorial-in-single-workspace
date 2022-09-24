@@ -95,6 +95,12 @@ impl LocalContext {
         self.sepc
     }
 
+    /// 修改上下文的 pc。
+    #[inline]
+    pub fn pc_mut(&mut self) -> &mut usize {
+        &mut self.sepc
+    }
+
     /// 将 pc 移至下一条指令。
     ///
     /// # Notice

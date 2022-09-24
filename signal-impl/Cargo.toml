@@ -1,0 +1,9 @@
+[package]
+name = "signal-impl"
+version = "0.1.0"
+edition = "2021"
+authors = ["scPointer <jax01@foxmail.com>"]
+
+[dependencies]
+kernel-context = { path = "../kernel-context" }
+signal = { path = "../signal" }

@@ -521,6 +521,11 @@ mod impls {
                 }
             }
         }
+
+        fn getpid(&self, _caller: Caller) -> isize {
+            let current = unsafe { PROCESSOR.current().unwrap() };
+            current.pid.get_val() as _
+        }
     }
 
     impl Scheduling for SyscallContext {
