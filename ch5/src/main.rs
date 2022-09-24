@@ -7,6 +7,7 @@
 mod loader;
 mod mm;
 mod process;
+mod processor;
 
 #[macro_use]
 extern crate console;
@@ -16,10 +17,9 @@ extern crate alloc;
 
 use crate::{
     impls::{Console, Sv39Manager, SyscallContext},
-    process::{Process, TaskId},
+    process::{Process},
 };
 use console::log;
-use kernel_context::foreign::ForeignPortal;
 use kernel_vm::{
     page_table::{MmuMeta, Sv39, VAddr, VmFlags, PPN, VPN},
     AddressSpace,
@@ -27,8 +27,8 @@ use kernel_vm::{
 use riscv::register::*;
 use sbi_rt::*;
 use syscall::Caller;
-use task_manage::Processor;
 use xmas_elf::ElfFile;
+use processor::{PROCESSOR, init_processor};
 
 // 应用程序内联进来。
 core::arch::global_asm!(include_str!(env!("APP_ASM")));
@@ -55,7 +55,6 @@ unsafe extern "C" fn _start() -> ! {
     )
 }
 
-static mut PROCESSOR: Processor<Process, TaskId> = Processor::new();
 
 extern "C" fn rust_main() -> ! {
     // bss 段清零
@@ -73,9 +72,8 @@ extern "C" fn rust_main() -> ! {
     // 初始化内核堆
     mm::init();
     mm::test();
-    // 异界传送门
-    let portal = ForeignPortal::new();
-    unsafe { PROCESSOR.set_portal(portal); }
+
+    init_processor();
 
     // 建立内核地址空间
     let mut ks = kernel_space();
