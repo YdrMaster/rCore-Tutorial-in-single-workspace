@@ -10,8 +10,12 @@ customizable-buddy = "0.0.2"
 xmas-elf = "0.8.0"
 riscv = "0.8.0"
 
+linker = { path = "../linker" }
 console = { path = "../console" }
 utils = { path = "../utils" }
 kernel-context = { path = "../kernel-context" }
 kernel-vm = { path = "../kernel-vm" }
 syscall = { path = "../syscall", features = ["kernel"] }
+
+[build-dependencies]
+linker = { path = "../linker" }

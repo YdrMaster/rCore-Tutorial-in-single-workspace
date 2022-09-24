@@ -44,7 +44,7 @@ unsafe extern "C" fn _start() -> ! {
 
 extern "C" fn rust_main() -> ! {
     // bss 段清零
-    utils::zero_bss();
+    unsafe { linker::KernelLayout::locate().zero_bss() };
     // 初始化 `console`
     console::init_console(&Console);
     console::set_log_level(option_env!("LOG"));

@@ -45,7 +45,7 @@ core::arch::global_asm!(include_str!(env!("APP_ASM")));
 #[no_mangle]
 #[link_section = ".text.entry"]
 unsafe extern "C" fn _start() -> ! {
-    const STACK_SIZE: usize = 128 * 4096;
+    const STACK_SIZE: usize = 16 * 4096;
 
     #[link_section = ".bss.uninit"]
     static mut STACK: [u8; STACK_SIZE] = [0u8; STACK_SIZE];
@@ -64,8 +64,9 @@ static mut KERNEL_SPACE: Once<AddressSpace<Sv39, Sv39Manager>> = Once::new();
 static mut PROCESSOR: Processor<Process, TaskId> = Processor::new();
 
 extern "C" fn rust_main() -> ! {
+    let layout = linker::KernelLayout::locate();
     // bss 段清零
-    utils::zero_bss();
+    unsafe { layout.zero_bss() };
     // 初始化 `console`
     console::init_console(&Console);
     console::set_log_level(option_env!("LOG"));
@@ -173,12 +174,12 @@ pub const MMIO: &[(usize, usize)] = &[
 fn kernel_space() -> AddressSpace<Sv39, Sv39Manager> {
     // 打印段位置
     extern "C" {
-        fn __text();
+        fn _start();
         fn __rodata();
         fn __data();
         fn __end();
     }
-    let _text = VAddr::<Sv39>::new(__text as _);
+    let _text = VAddr::<Sv39>::new(_start as _);
     let _rodata = VAddr::<Sv39>::new(__rodata as _);
     let _data = VAddr::<Sv39>::new(__data as _);
     let _end = VAddr::<Sv39>::new(__end as _);

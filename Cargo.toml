@@ -9,6 +9,7 @@ members = [
     "ch5",
     "ch6",
     "user",
+    "linker",
     "console",
     "syscall",
     "kernel-context",

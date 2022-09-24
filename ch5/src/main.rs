@@ -58,8 +58,9 @@ unsafe extern "C" fn _start() -> ! {
 static mut PROCESSOR: Processor<Process, TaskId> = Processor::new();
 
 extern "C" fn rust_main() -> ! {
+    let layout = linker::KernelLayout::locate();
     // bss 段清零
-    utils::zero_bss();
+    unsafe { layout.zero_bss() };
     // 初始化 `console`
     console::init_console(&Console);
     console::set_log_level(option_env!("LOG"));
@@ -80,7 +81,7 @@ extern "C" fn rust_main() -> ! {
     }
 
     // 建立内核地址空间
-    let mut ks = kernel_space();
+    let mut ks = kernel_space(layout);
     let tramp = (
         PPN::<Sv39>::new(unsafe { &PROCESSOR.portal } as *const _ as usize >> Sv39::PAGE_BITS),
         VmFlags::build_from_str("XWRV"),
@@ -153,43 +154,35 @@ fn panic(info: &core::panic::PanicInfo) -> ! {
     unreachable!()
 }
 
-fn kernel_space() -> AddressSpace<Sv39, Sv39Manager> {
+fn kernel_space(layout: linker::KernelLayout) -> AddressSpace<Sv39, Sv39Manager> {
     // 打印段位置
-    extern "C" {
-        fn __text();
-        fn __rodata();
-        fn __data();
-        fn __end();
-    }
-    let _text = VAddr::<Sv39>::new(__text as _);
-    let _rodata = VAddr::<Sv39>::new(__rodata as _);
-    let _data = VAddr::<Sv39>::new(__data as _);
-    let _end = VAddr::<Sv39>::new(__end as _);
-    log::info!("__text ----> {:#10x}", _text.val());
-    log::info!("__rodata --> {:#10x}", _rodata.val());
-    log::info!("__data ----> {:#10x}", _data.val());
-    log::info!("__end -----> {:#10x}", _end.val());
+    let text = VAddr::<Sv39>::new(layout.text);
+    let rodata = VAddr::<Sv39>::new(layout.rodata);
+    let data = VAddr::<Sv39>::new(layout.data);
+    let end = VAddr::<Sv39>::new(layout.end);
+    log::info!("__text ----> {:#10x}", text.val());
+    log::info!("__rodata --> {:#10x}", rodata.val());
+    log::info!("__data ----> {:#10x}", data.val());
+    log::info!("__end -----> {:#10x}", end.val());
     println!();
 
     // 内核地址空间
     let mut space = AddressSpace::<Sv39, Sv39Manager>::new();
     space.map_extern(
-        _text.floor().._rodata.ceil(),
-        PPN::new(_text.floor().val()),
+        text.floor()..rodata.ceil(),
+        PPN::new(text.floor().val()),
         VmFlags::build_from_str("X_RV"),
     );
     space.map_extern(
-        _rodata.floor().._data.ceil(),
-        PPN::new(_rodata.floor().val()),
+        rodata.floor()..data.ceil(),
+        PPN::new(rodata.floor().val()),
         VmFlags::build_from_str("__RV"),
     );
     space.map_extern(
-        _data.floor().._end.ceil(),
-        PPN::new(_data.floor().val()),
+        data.floor()..end.ceil(),
+        PPN::new(data.floor().val()),
         VmFlags::build_from_str("_WRV"),
     );
-    // log::debug!("{space:?}");
-    println!();
     unsafe { satp::set(satp::Mode::Sv39, 0, space.root_ppn().val()) };
     space
 }
