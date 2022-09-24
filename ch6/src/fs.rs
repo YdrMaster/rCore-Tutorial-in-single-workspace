@@ -1,7 +1,6 @@
-use alloc::sync::Arc;
-use alloc::{string::String, vec::Vec};
+use alloc::{string::String, sync::Arc, vec::Vec};
 use easy_fs::{EasyFileSystem, FSManager, FileHandle, Inode, OpenFlags};
-use lazy_static::*;
+use spin::Lazy;
 
 use crate::virtio_block::BLOCK_DEVICE;
 
@@ -59,9 +58,7 @@ impl FileSystem {
     }
 }
 
-lazy_static! {
-    pub static ref FS: Arc<FileSystem> = Arc::new(FileSystem::new());
-}
+pub static FS: Lazy<Arc<FileSystem>> = Lazy::new(|| Arc::new(FileSystem::new()));
 
 pub fn read_all(fd: Arc<FileHandle>) -> Vec<u8> {
     let mut offset = 0usize;

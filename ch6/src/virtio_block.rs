@@ -1,12 +1,10 @@
+use crate::{mm::PAGE, KERNEL_SPACE};
 use alloc::sync::Arc;
 use core::{alloc::Layout, ptr::NonNull};
 use easy_fs::BlockDevice;
 use kernel_vm::page_table::{MmuMeta, Sv39, VAddr, VmFlags};
-use lazy_static::*;
-use spin::Mutex;
+use spin::{Lazy, Mutex};
 use virtio_drivers::{Hal, VirtIOBlk, VirtIOHeader};
-
-use crate::{mm::PAGE, KERNEL_SPACE};
 
 const VIRTIO0: usize = 0x10001000;
 
@@ -76,6 +74,4 @@ impl Hal for VirtioHal {
     }
 }
 
-lazy_static! {
-    pub static ref BLOCK_DEVICE: Arc<dyn BlockDevice> = Arc::new(VirtIOBlock::new());
-}
+pub static BLOCK_DEVICE: Lazy<Arc<dyn BlockDevice>> = Lazy::new(|| Arc::new(VirtIOBlock::new()));

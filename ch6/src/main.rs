@@ -46,7 +46,7 @@ core::arch::global_asm!(include_str!(env!("APP_ASM")));
 #[no_mangle]
 #[link_section = ".text.entry"]
 unsafe extern "C" fn _start() -> ! {
-    const STACK_SIZE: usize = 128 * 4096;
+    const STACK_SIZE: usize = 16 * 4096;
 
     #[link_section = ".bss.uninit"]
     static mut STACK: [u8; STACK_SIZE] = [0u8; STACK_SIZE];
@@ -64,8 +64,9 @@ unsafe extern "C" fn _start() -> ! {
 static mut KERNEL_SPACE: Once<AddressSpace<Sv39, Sv39Manager>> = Once::new();
 
 extern "C" fn rust_main() -> ! {
+    let layout = linker::KernelLayout::locate();
     // bss 段清零
-    utils::zero_bss();
+    unsafe { layout.zero_bss() };
     // 初始化 `console`
     console::init_console(&Console);
     console::set_log_level(option_env!("LOG"));
@@ -79,12 +80,12 @@ extern "C" fn rust_main() -> ! {
     mm::init();
     mm::test();
     // 建立内核地址空间
-    unsafe { KERNEL_SPACE.call_once(kernel_space) };
+    unsafe { KERNEL_SPACE.call_once(|| kernel_space(layout)) };
     // 异界传送门
     // 可以直接放在栈上
     init_processor();
     let tramp = (
-        PPN::<Sv39>::new(unsafe {&PROCESSOR.portal } as *const _ as usize >> Sv39::PAGE_BITS),
+        PPN::<Sv39>::new(unsafe { &PROCESSOR.portal } as *const _ as usize >> Sv39::PAGE_BITS),
         VmFlags::build_from_str("XWRV"),
     );
     // 传送门映射到所有地址空间
@@ -100,16 +101,14 @@ extern "C" fn rust_main() -> ! {
         let initproc = read_all(FS.open("initproc", OpenFlags::RDONLY).unwrap());
         if let Some(mut process) = Process::from_elf(ElfFile::new(initproc.as_slice()).unwrap()) {
             process.address_space.map_portal(tramp);
-            unsafe {
-                PROCESSOR.add(process.pid, process);
-            }
+            unsafe { PROCESSOR.add(process.pid, process) };
         }
     }
 
     const PROTAL_TRANSIT: usize = VPN::<Sv39>::MAX.base().val();
     loop {
         if let Some(task) = unsafe { PROCESSOR.find_next() } {
-            task.execute(unsafe {&mut PROCESSOR.portal }, PROTAL_TRANSIT);
+            task.execute(unsafe { &mut PROCESSOR.portal }, PROTAL_TRANSIT);
             match scause::read().cause() {
                 scause::Trap::Exception(scause::Exception::UserEnvCall) => {
                     use syscall::{SyscallId as Id, SyscallResult as Ret};
@@ -119,30 +118,22 @@ extern "C" fn rust_main() -> ! {
                     let args = [ctx.a(0), ctx.a(1), ctx.a(2), ctx.a(3), ctx.a(4), ctx.a(5)];
                     match syscall::handle(Caller { entity: 0, flow: 0 }, id, args) {
                         Ret::Done(ret) => match id {
-                            Id::EXIT => unsafe {
-                                PROCESSOR.make_current_exited();
-                            },
+                            Id::EXIT => unsafe { PROCESSOR.make_current_exited() },
                             _ => {
-                                let ctx = &mut task.context.context ;
+                                let ctx = &mut task.context.context;
                                 *ctx.a_mut(0) = ret as _;
-                                unsafe {
-                                    PROCESSOR.make_current_suspend();
-                                }
+                                unsafe { PROCESSOR.make_current_suspend() };
                             }
                         },
                         Ret::Unsupported(_) => {
                             log::info!("id = {id:?}");
-                            unsafe {
-                                PROCESSOR.make_current_exited();
-                            }
+                            unsafe { PROCESSOR.make_current_exited() };
                         }
                     }
                 }
                 e => {
                     log::error!("unsupported trap: {e:?}");
-                    unsafe {
-                        PROCESSOR.make_current_exited();
-                    }
+                    unsafe { PROCESSOR.make_current_exited() };
                 }
             }
         } else {
@@ -167,39 +158,33 @@ pub const MMIO: &[(usize, usize)] = &[
     (0x1000_1000, 0x00_1000), // Virtio Block in virt machine
 ];
 
-fn kernel_space() -> AddressSpace<Sv39, Sv39Manager> {
+fn kernel_space(layout: linker::KernelLayout) -> AddressSpace<Sv39, Sv39Manager> {
     // 打印段位置
-    extern "C" {
-        fn __text();
-        fn __rodata();
-        fn __data();
-        fn __end();
-    }
-    let _text = VAddr::<Sv39>::new(__text as _);
-    let _rodata = VAddr::<Sv39>::new(__rodata as _);
-    let _data = VAddr::<Sv39>::new(__data as _);
-    let _end = VAddr::<Sv39>::new(__end as _);
-    log::info!("__text ----> {:#10x}", _text.val());
-    log::info!("__rodata --> {:#10x}", _rodata.val());
-    log::info!("__data ----> {:#10x}", _data.val());
-    log::info!("__end -----> {:#10x}", _end.val());
+    let text = VAddr::<Sv39>::new(layout.text);
+    let rodata = VAddr::<Sv39>::new(layout.rodata);
+    let data = VAddr::<Sv39>::new(layout.data);
+    let end = VAddr::<Sv39>::new(layout.end);
+    log::info!("__text ----> {:#10x}", text.val());
+    log::info!("__rodata --> {:#10x}", rodata.val());
+    log::info!("__data ----> {:#10x}", data.val());
+    log::info!("__end -----> {:#10x}", end.val());
     println!();
 
     // 内核地址空间
     let mut space = AddressSpace::<Sv39, Sv39Manager>::new();
     space.map_extern(
-        _text.floor().._rodata.ceil(),
-        PPN::new(_text.floor().val()),
+        text.floor()..rodata.ceil(),
+        PPN::new(text.floor().val()),
         VmFlags::build_from_str("X_RV"),
     );
     space.map_extern(
-        _rodata.floor().._data.ceil(),
-        PPN::new(_rodata.floor().val()),
+        rodata.floor()..data.ceil(),
+        PPN::new(rodata.floor().val()),
         VmFlags::build_from_str("__RV"),
     );
     space.map_extern(
-        _data.floor().._end.ceil(),
-        PPN::new(_data.floor().val()),
+        data.floor()..end.ceil(),
+        PPN::new(data.floor().val()),
         VmFlags::build_from_str("_WRV"),
     );
 
@@ -219,8 +204,6 @@ fn kernel_space() -> AddressSpace<Sv39, Sv39Manager> {
         );
     }
 
-    // log::debug!("{space:?}");
-    println!();
     unsafe { satp::set(satp::Mode::Sv39, 0, space.root_ppn().val()) };
     space
 }

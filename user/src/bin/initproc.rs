@@ -3,7 +3,7 @@
 
 extern crate user_lib;
 
-use user_lib::{fork, exec, wait, sched_yield, println};
+use user_lib::{exec, fork, println, sched_yield, wait};
 
 #[no_mangle]
 fn main() -> i32 {
@@ -18,7 +18,9 @@ fn main() -> i32 {
             if pid == -1 {
                 sched_yield();
                 continue;
-            } else { break; }
+            } else {
+                break;
+            }
         }
     }
     0

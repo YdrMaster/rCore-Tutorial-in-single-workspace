@@ -3,18 +3,6 @@
 #![no_std]
 #![deny(warnings, missing_docs)]
 
-/// bss 段清零。
-///
-/// 需要定义 sbss 和 ebss 全局符号才能定位 bss。
-#[inline]
-pub fn zero_bss() {
-    extern "C" {
-        static mut sbss: u64;
-        static mut ebss: u64;
-    }
-    unsafe { r0::zero_bss(&mut sbss, &mut ebss) };
-}
-
 /// 应用程序元数据
 #[repr(C)]
 pub struct AppMeta {

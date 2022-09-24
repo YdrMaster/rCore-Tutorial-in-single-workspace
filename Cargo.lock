@@ -64,6 +64,7 @@ version = "0.0.1"
 dependencies = [
  "console",
  "kernel-context",
+ "linker",
  "riscv",
  "sbi-rt",
  "syscall",
@@ -76,6 +77,7 @@ version = "0.0.1"
 dependencies = [
  "console",
  "kernel-context",
+ "linker",
  "riscv",
  "sbi-rt",
  "syscall",
@@ -90,6 +92,7 @@ dependencies = [
  "customizable-buddy",
  "kernel-context",
  "kernel-vm",
+ "linker",
  "riscv",
  "sbi-rt",
  "syscall",
@@ -105,7 +108,7 @@ dependencies = [
  "customizable-buddy",
  "kernel-context",
  "kernel-vm",
- "lazy_static",
+ "linker",
  "riscv",
  "sbi-rt",
  "spin 0.9.4",
@@ -124,10 +127,10 @@ dependencies = [
  "easy-fs",
  "kernel-context",
  "kernel-vm",
- "lazy_static",
+ "linker",
  "riscv",
  "sbi-rt",
- "spin 0.7.1",
+ "spin 0.9.4",
  "syscall",
  "task-manage",
  "utils",
@@ -201,7 +204,6 @@ name = "easy-fs"
 version = "0.1.0"
 dependencies = [
  "bitflags",
- "lazy_static",
  "spin 0.7.1",
 ]
 
@@ -263,15 +265,19 @@ name = "lazy_static"
 version = "1.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e2abad23fbc42b3700f2f279844dc832adb2b2eb069b2df918f455c4e18cc646"
-dependencies = [
- "spin 0.5.2",
-]
 
 [[package]]
 name = "libc"
 version = "0.2.133"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c0f80d65747a3e43d1596c7c5492d95d5edddaabd45a7fcdb02b95f644164966"
+
+[[package]]
+name = "linker"
+version = "0.0.1"
+dependencies = [
+ "r0",
+]
 
 [[package]]
 name = "lock_api"
@@ -412,26 +418,20 @@ checksum = "d29ab0c6d3fc0ee92fe66e2d99f700eab17a8d57d1c1d3b748380fb20baa78cd"
 
 [[package]]
 name = "serde"
-version = "1.0.144"
+version = "1.0.145"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0f747710de3dcd43b88c9168773254e809d8ddbdf9653b84e2554ab219f17860"
+checksum = "728eb6351430bccb993660dfffc5a72f91ccc1295abaa8ce19b27ebe4f75568b"
 
 [[package]]
 name = "serde_derive"
-version = "1.0.144"
+version = "1.0.145"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "94ed3a816fb1d101812f83e789f888322c34e291f894f19590dc310963e87a00"
+checksum = "81fa1584d3d1bcacd84c277a0dfe21f5b0f6accf4a23d04d4c6d61f1af522b4c"
 dependencies = [
  "proc-macro2",
  "quote",
  "syn",
 ]
-
-[[package]]
-name = "spin"
-version = "0.5.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6e63cff320ae2c57904679ba7cb63280a3dc4613885beafb148ee7bf9aa9042d"
 
 [[package]]
 name = "spin"
@@ -528,9 +528,6 @@ dependencies = [
 [[package]]
 name = "utils"
 version = "0.0.1"
-dependencies = [
- "r0",
-]
 
 [[package]]
 name = "version_check"
