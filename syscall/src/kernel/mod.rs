@@ -27,6 +27,9 @@ pub trait Process: Sync {
     fn wait(&self, caller: Caller, pid: isize, exit_code_ptr: usize) -> isize {
         unimplemented!()
     }
+    fn getpid(&self, caller: Caller) -> isize {
+        unimplemented!()
+    }
 }
 
 pub trait IO: Sync {
@@ -75,11 +78,35 @@ pub trait Clock: Sync {
     }
 }
 
+pub trait Signal: Sync {
+    fn kill(&self, caller: Caller, pid: isize, signum: u8) -> isize {
+        unimplemented!()
+    }
+
+    fn sigaction(&self,
+        caller: Caller, 
+        signum: u8,
+        action: usize,
+        old_action: usize,
+    ) -> isize {
+        unimplemented!()
+    }
+
+    fn sigprocmask(&self, caller: Caller, mask: usize) -> isize {
+        unimplemented!()
+    }
+
+    fn sigreturn(&self, caller: Caller) -> isize {
+        unimplemented!()
+    }
+}
+
 static PROCESS: Container<dyn Process> = Container::new();
 static IO: Container<dyn IO> = Container::new();
 static MEMORY: Container<dyn Memory> = Container::new();
 static SCHEDULING: Container<dyn Scheduling> = Container::new();
 static CLOCK: Container<dyn Clock> = Container::new();
+static SIGNAL: Container<dyn Signal> = Container::new();
 
 #[inline]
 pub fn init_process(process: &'static dyn Process) {
@@ -106,6 +133,11 @@ pub fn init_clock(clock: &'static dyn Clock) {
     CLOCK.init(clock);
 }
 
+#[inline]
+pub fn init_signal(signal: &'static dyn Signal) {
+    SIGNAL.init(signal);
+}
+
 pub enum SyscallResult {
     Done(isize),
     Unsupported(SyscallId),
@@ -122,6 +154,7 @@ pub fn handle(caller: Caller, id: SyscallId, args: [usize; 6]) -> SyscallResult 
         Id::CLONE => PROCESS.call(id, |proc| proc.fork(caller)),
         Id::EXECVE => PROCESS.call(id, |proc| proc.exec(caller, args[0], args[1])),
         Id::WAIT4 => PROCESS.call(id, |proc| proc.wait(caller, args[0] as _, args[1])),
+        Id::GETPID => PROCESS.call(id, |proc| proc.getpid(caller)),
         Id::CLOCK_GETTIME => CLOCK.call(id, |clock| {
             clock.clock_gettime(caller, ClockId(args[0]), args[1])
         }),
@@ -131,6 +164,12 @@ pub fn handle(caller: Caller, id: SyscallId, args: [usize; 6]) -> SyscallResult 
             let [addr, length, prot, flags, fd, offset] = args;
             memory.mmap(caller, addr, length, prot as _, flags as _, fd as _, offset)
         }),
+        Id::KILL => SIGNAL.call(id, |signal| signal.kill(caller, args[0] as _, args[1] as _)),
+        Id::RT_SIGACTION => SIGNAL.call(id, |signal| 
+            signal.sigaction(caller, args[0] as _, args[1], args[2])
+        ),
+        Id::RT_SIGPROCMASK => SIGNAL.call(id, |signal| signal.sigprocmask(caller, args[0])),
+        Id::RT_SIGRETURN => SIGNAL.call(id, |signal| signal.sigreturn(caller)),
         _ => SyscallResult::Unsupported(id),
     }
 }

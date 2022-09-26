@@ -8,6 +8,7 @@ members = [
     "ch4",
     "ch5",
     "ch6",
+    "ch7",
     "user",
     "linker",
     "console",
@@ -16,6 +17,9 @@ members = [
     "kernel-vm",
     "utils",
     "easy-fs",
+    "signal-defs",
+    "signal",
+    "signal-impl",
 ]
 default-members = ["xtask"]
 

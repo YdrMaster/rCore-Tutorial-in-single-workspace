@@ -9,6 +9,7 @@ authors = ["YdrMaster <ydrml@hotmail.com>"]
 [dependencies]
 spin = "0.9.4"
 bitflags = "1.2.1"
+signal-defs = { path = "../signal-defs" }
 
 [features]
 kernel = []

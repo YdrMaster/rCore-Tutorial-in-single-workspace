@@ -8,6 +8,7 @@ mod syscalls;
 mod time;
 
 pub use time::*;
+pub use signal_defs::{SignalAction, SignalNo, MAX_SIG};
 
 #[cfg(feature = "user")]
 mod user;

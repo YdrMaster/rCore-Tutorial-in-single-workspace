@@ -1,4 +1,4 @@
-﻿use crate::{ClockId, SyscallId, TimeSpec};
+﻿use crate::{ClockId, SyscallId, TimeSpec, SignalAction, SignalNo};
 use bitflags::*;
 use native::*;
 
@@ -86,6 +86,34 @@ pub fn waitpid(pid: isize, exit_code_ptr: *mut i32) -> isize {
             return pid;
         }
     }
+}
+
+pub fn getpid() -> isize {
+    unsafe { syscall0(SyscallId::GETPID) }
+}
+
+#[inline]
+pub fn kill(pid: isize, signum: SignalNo) -> isize {
+    unsafe { syscall2(SyscallId::KILL, pid as _, signum as _) }
+}
+
+#[inline]
+pub fn sigaction(
+    signum: SignalNo,
+    action: *const SignalAction,
+    old_action: *const SignalAction,
+) -> isize {
+    unsafe { syscall3(SyscallId::RT_SIGACTION, signum as _, action as _, old_action as _) }
+}
+
+#[inline]
+pub fn sigprocmask(mask: usize) -> isize {
+    unsafe { syscall1(SyscallId::RT_SIGPROCMASK, mask) }
+}
+
+#[inline]
+pub fn sigreturn() -> isize {
+    unsafe { syscall0(SyscallId::RT_SIGRETURN) }
 }
 
 /// 这个模块包含调用系统调用的最小封装，用户可以直接使用这些函数调用自定义的系统调用。

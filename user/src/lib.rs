@@ -64,3 +64,17 @@ impl console::Console for Console {
         syscall::write(0, s.as_bytes());
     }
 }
+
+pub fn sleep(period_ms: usize) {
+    let mut time: TimeSpec = TimeSpec::ZERO;
+    clock_gettime(ClockId::CLOCK_MONOTONIC, &mut time as *mut _ as _);
+    let time = time + TimeSpec::from_millsecond(period_ms);
+    loop {
+        let mut now: TimeSpec = TimeSpec::ZERO;
+        clock_gettime(ClockId::CLOCK_MONOTONIC, &mut now as *mut _ as _);
+        if now > time {
+            break;
+        }
+        sched_yield();
+    }
+}
