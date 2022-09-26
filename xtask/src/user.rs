@@ -1,4 +1,4 @@
-﻿use crate::{fs_pack::easy_fs_pack, objcopy, PROJECT, TARGET, TARGET_ARCH};
+use crate::{fs_pack::easy_fs_pack, objcopy, PROJECT, TARGET, TARGET_ARCH};
 use command_ext::{Cargo, CommandExt};
 use serde_derive::Deserialize;
 use std::{ffi::OsStr, fs::File, io::Write, path::PathBuf};
@@ -32,7 +32,6 @@ struct Ch6 {
 struct Ch7 {
     ch7: Cases,
 }
-
 
 #[derive(Deserialize, Default)]
 struct Cases {

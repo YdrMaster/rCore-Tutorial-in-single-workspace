@@ -47,7 +47,7 @@ fn alloc_error_handler(layout: Layout) -> ! {
 
 pub fn getchar() -> u8 {
     let mut c = [0u8; 1];
-    read(1, &mut c);
+    read(STDIN, &mut c);
     c[0]
 }
 
@@ -56,12 +56,12 @@ struct Console;
 impl console::Console for Console {
     #[inline]
     fn put_char(&self, c: u8) {
-        syscall::write(0, &[c]);
+        syscall::write(STDOUT, &[c]);
     }
 
     #[inline]
     fn put_str(&self, s: &str) {
-        syscall::write(0, s.as_bytes());
+        syscall::write(STDOUT, s.as_bytes());
     }
 }
 

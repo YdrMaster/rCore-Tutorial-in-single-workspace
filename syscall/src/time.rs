@@ -1,4 +1,4 @@
-﻿//! see <https://github.com/torvalds/linux/blob/master/include/uapi/linux/time.h>.
+//! see <https://github.com/torvalds/linux/blob/master/include/uapi/linux/time.h>.
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 #[repr(transparent)]
@@ -52,7 +52,7 @@ impl TimeSpec {
     pub fn from_millsecond(millsecond: usize) -> Self {
         Self {
             tv_sec: millsecond / 1_000,
-            tv_nsec: millsecond % 1_000 * 1_000_000
+            tv_nsec: millsecond % 1_000 * 1_000_000,
         }
     }
 }

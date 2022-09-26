@@ -1,4 +1,4 @@
-﻿#![allow(unused_variables)]
+#![allow(unused_variables)]
 
 use crate::{ClockId, SyscallId};
 use spin::Once;
@@ -83,12 +83,7 @@ pub trait Signal: Sync {
         unimplemented!()
     }
 
-    fn sigaction(&self,
-        caller: Caller, 
-        signum: u8,
-        action: usize,
-        old_action: usize,
-    ) -> isize {
+    fn sigaction(&self, caller: Caller, signum: u8, action: usize, old_action: usize) -> isize {
         unimplemented!()
     }
 
@@ -165,9 +160,9 @@ pub fn handle(caller: Caller, id: SyscallId, args: [usize; 6]) -> SyscallResult 
             memory.mmap(caller, addr, length, prot as _, flags as _, fd as _, offset)
         }),
         Id::KILL => SIGNAL.call(id, |signal| signal.kill(caller, args[0] as _, args[1] as _)),
-        Id::RT_SIGACTION => SIGNAL.call(id, |signal| 
+        Id::RT_SIGACTION => SIGNAL.call(id, |signal| {
             signal.sigaction(caller, args[0] as _, args[1], args[2])
-        ),
+        }),
         Id::RT_SIGPROCMASK => SIGNAL.call(id, |signal| signal.sigprocmask(caller, args[0])),
         Id::RT_SIGRETURN => SIGNAL.call(id, |signal| signal.sigreturn(caller)),
         _ => SyscallResult::Unsupported(id),

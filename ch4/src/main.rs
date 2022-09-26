@@ -281,30 +281,31 @@ mod impls {
     pub struct SyscallContext;
 
     impl IO for SyscallContext {
-        #[inline]
         fn write(&self, caller: Caller, fd: usize, buf: usize, count: usize) -> isize {
-            const READABLE: VmFlags<Sv39> = VmFlags::build_from_str("RV");
-
-            if fd == 0 {
-                if let Some(ptr) = unsafe { PROCESSES.get_mut(caller.entity) }
-                    .unwrap()
-                    .address_space
-                    .translate(VAddr::new(buf), READABLE)
-                {
-                    print!("{}", unsafe {
-                        core::str::from_utf8_unchecked(core::slice::from_raw_parts(
-                            ptr.as_ptr(),
-                            count,
-                        ))
-                    });
-                    count as _
-                } else {
-                    log::error!("ptr not readable");
+            match fd {
+                STDOUT | STDDEBUG => {
+                    const READABLE: VmFlags<Sv39> = VmFlags::build_from_str("RV");
+                    if let Some(ptr) = unsafe { PROCESSES.get_mut(caller.entity) }
+                        .unwrap()
+                        .address_space
+                        .translate(VAddr::new(buf), READABLE)
+                    {
+                        print!("{}", unsafe {
+                            core::str::from_utf8_unchecked(core::slice::from_raw_parts(
+                                ptr.as_ptr(),
+                                count,
+                            ))
+                        });
+                        count as _
+                    } else {
+                        log::error!("ptr not readable");
+                        -1
+                    }
+                }
+                _ => {
+                    console::log::error!("unsupported fd: {fd}");
                     -1
                 }
-            } else {
-                log::error!("unsupported fd: {fd}");
-                -1
             }
         }
     }

@@ -316,11 +316,10 @@ mod impls {
     const WRITEABLE: VmFlags<Sv39> = VmFlags::build_from_str("W_V");
 
     impl IO for SyscallContext {
-        #[inline]
         fn write(&self, _caller: Caller, fd: usize, buf: usize, count: usize) -> isize {
             let current = unsafe { PROCESSOR.current().unwrap() };
             if let Some(ptr) = current.address_space.translate(VAddr::new(buf), READABLE) {
-                if fd == 0 {
+                if fd == STDOUT || fd == STDDEBUG {
                     print!("{}", unsafe {
                         core::str::from_utf8_unchecked(core::slice::from_raw_parts(
                             ptr.as_ptr(),
@@ -328,21 +327,14 @@ mod impls {
                         ))
                     });
                     count as _
-                } else if fd > 1 && fd < current.fd_table.len() {
-                    if let Some(file) = &current.fd_table[fd] {
-                        let mut _file = file.lock();
-                        if !_file.writable() {
-                            return -1;
-                        }
+                } else if let Some(file) = &current.fd_table[fd] {
+                    let mut file = file.lock();
+                    if file.writable() {
                         let mut v: Vec<&'static mut [u8]> = Vec::new();
-                        unsafe {
-                            let raw_buf: &'static mut [u8] =
-                                core::slice::from_raw_parts_mut(ptr.as_ptr(), count);
-                            v.push(raw_buf);
-                        }
-                        _file.write(UserBuffer::new(v)) as _
+                        unsafe { v.push(core::slice::from_raw_parts_mut(ptr.as_ptr(), count)) };
+                        file.write(UserBuffer::new(v)) as _
                     } else {
-                        log::error!("unsupported fd: {fd}");
+                        log::error!("file not writable");
                         -1
                     }
                 } else {
@@ -355,39 +347,27 @@ mod impls {
             }
         }
 
-        #[inline]
-        #[allow(deprecated)]
         fn read(&self, _caller: Caller, fd: usize, buf: usize, count: usize) -> isize {
             let current = unsafe { PROCESSOR.current().unwrap() };
-            if fd == 0 || fd >= current.fd_table.len() {
-                return -1;
-            }
             if let Some(ptr) = current.address_space.translate(VAddr::new(buf), WRITEABLE) {
-                if fd == 1 {
+                if fd == STDIN {
                     let mut ptr = ptr.as_ptr();
                     for _ in 0..count {
-                        let c = sbi_rt::legacy::console_getchar() as u8;
+                        #[allow(deprecated)]
                         unsafe {
-                            *ptr = c;
+                            *ptr = sbi_rt::legacy::console_getchar() as u8;
                             ptr = ptr.add(1);
                         }
                     }
                     count as _
-                } else if fd != 0 && fd < current.fd_table.len() {
-                    if let Some(file) = &current.fd_table[fd] {
-                        let mut _file = file.lock();
-                        if !_file.readable() {
-                            return -1;
-                        }
+                } else if let Some(file) = &current.fd_table[fd] {
+                    let mut file = file.lock();
+                    if file.readable() {
                         let mut v: Vec<&'static mut [u8]> = Vec::new();
-                        unsafe {
-                            let raw_buf: &'static mut [u8] =
-                                core::slice::from_raw_parts_mut(ptr.as_ptr(), count);
-                            v.push(raw_buf);
-                        }
-                        _file.read(UserBuffer::new(v)) as _
+                        unsafe { v.push(core::slice::from_raw_parts_mut(ptr.as_ptr(), count)) };
+                        file.read(UserBuffer::new(v)) as _
                     } else {
-                        log::error!("unsupported fd: {fd}");
+                        log::error!("file not readable");
                         -1
                     }
                 } else {
@@ -400,7 +380,6 @@ mod impls {
             }
         }
 
-        #[inline]
         fn open(&self, _caller: Caller, path: usize, flags: usize) -> isize {
             // FS.open(, flags)
             let current = unsafe { PROCESSOR.current().unwrap() };

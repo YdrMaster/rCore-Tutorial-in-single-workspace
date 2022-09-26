@@ -4,8 +4,8 @@
 
 extern crate alloc;
 use alloc::boxed::Box;
-use signal::{Signal, SignalResult, SignalAction, SignalNo, MAX_SIG};
 use kernel_context::LocalContext;
+use signal::{Signal, SignalAction, SignalNo, SignalResult, MAX_SIG};
 
 mod default_action;
 use default_action::DefaultAction;
@@ -14,7 +14,7 @@ use signal_set::SignalSet;
 
 /// 正在处理的信号
 pub enum HandlingSignal {
-    Frozen, // 是内核信号，需要暂停当前进程
+    Frozen,                   // 是内核信号，需要暂停当前进程
     UserSignal(LocalContext), // 是用户信号，需要保存之前的用户栈
 }
 
@@ -27,7 +27,7 @@ pub struct SignalImpl {
     /// 在信号处理函数中，保存之前的用户栈
     pub handling: Option<HandlingSignal>,
     /// 当前任务的信号处理函数集
-    pub actions: [Option<SignalAction>; MAX_SIG + 1],  
+    pub actions: [Option<SignalAction>; MAX_SIG + 1],
 }
 
 impl SignalImpl {
@@ -50,11 +50,12 @@ impl SignalImpl {
             num.into()
         })
     }
-    
+
     /// 检查是否收到一个信号，如果是，则接收并删除它
     fn fetch_and_remove(&mut self, signal_no: SignalNo) -> bool {
         if self.received.contain_bit(signal_no as usize)
-            && !self.mask.contain_bit(signal_no as usize) {
+            && !self.mask.contain_bit(signal_no as usize)
+        {
             self.received.remove_bit(signal_no as usize);
             true
         } else {
@@ -74,10 +75,9 @@ impl Signal for SignalImpl {
                 actions.copy_from_slice(&self.actions);
                 actions
             },
-            
         })
     }
-    
+
     fn clear(&mut self) {
         for action in &mut self.actions {
             action.take();
@@ -93,7 +93,7 @@ impl Signal for SignalImpl {
     fn is_handling_signal(&self) -> bool {
         self.handling.is_some()
     }
-    
+
     /// 设置一个信号处理函数。`sys_sigaction` 会使用
     fn set_action(&mut self, signum: SignalNo, action: &SignalAction) -> bool {
         if signum == SignalNo::SIGKILL || signum == SignalNo::SIGSTOP {
@@ -127,10 +127,11 @@ impl Signal for SignalImpl {
                     if self.fetch_and_remove(SignalNo::SIGCONT) {
                         self.handling.take();
                         SignalResult::Handled
-                    } else { // 否则，继续暂停
+                    } else {
+                        // 否则，继续暂停
                         SignalResult::ProcessSuspended
                     }
-                }, // 其他情况下，需要等待当前信号处理结束
+                } // 其他情况下，需要等待当前信号处理结束
                 _ => SignalResult::IsHandlingSignal,
             }
         } else if let Some(signal) = self.fetch_signal() {
@@ -140,7 +141,7 @@ impl Signal for SignalImpl {
                 SignalNo::SIGSTOP => {
                     self.handling = Some(HandlingSignal::Frozen);
                     SignalResult::ProcessSuspended
-                },
+                }
                 _ => {
                     if let Some(action) = self.actions[signal as usize] {
                         // 如果用户给定了处理方式，则按照 SignalAction 中的描述处理
@@ -156,7 +157,7 @@ impl Signal for SignalImpl {
                         // 然后再转换成 SignalResult
                         DefaultAction::from(signal).into()
                     }
-                },
+                }
             }
         } else {
             SignalResult::NoSignal
@@ -170,12 +171,12 @@ impl Signal for SignalImpl {
                 //println!("return to {:x} a0 {}", old_ctx.pc(), old_ctx.a(0));
                 *current_context = old_ctx;
                 true
-            },
+            }
             // 如果当前在处理内核信号，或者没有在处理信号，也就谈不上“返回”了
             _ => {
                 self.handling = handling_signal;
                 false
-            },
+            }
         }
     }
 }

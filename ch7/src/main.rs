@@ -24,6 +24,7 @@ use crate::{
 };
 use console::log;
 use easy_fs::{FSManager, OpenFlags};
+use exit_process::exit_process;
 use impls::Console;
 use kernel_vm::{
     page_table::{MmuMeta, Sv39, VAddr, VmFlags, PPN, VPN},
@@ -31,10 +32,9 @@ use kernel_vm::{
 };
 use processor::init_processor;
 pub use processor::PROCESSOR;
-use exit_process::exit_process;
-use signal::SignalResult;
 use riscv::register::*;
 use sbi_rt::*;
+use signal::SignalResult;
 use spin::Once;
 use syscall::Caller;
 use xmas_elf::ElfFile;
@@ -125,7 +125,7 @@ extern "C" fn rust_main() -> ! {
                     // 正确处理信号的位置应该是在 “trap 中处理异常和中断和异常之后，返回用户态之前”。
                     // 例如发现有访存异常时，应该触发 SIGSEGV 信号然后进行处理。
                     // 但目前 syscall 之后直接切换用户程序，没有 “返回用户态” 这一步，甚至 trap 本身也没了。
-                    // 
+                    //
                     // 最简单粗暴的方法是，在 `scause::Trap` 分类的每一条分支之后都加上信号处理，
                     // 当然这样可能代码上不够优雅。处理信号的具体时机还需要后续再讨论。
                     match task.signal.handle_signals(ctx) {
@@ -133,21 +133,19 @@ extern "C" fn rust_main() -> ! {
                         SignalResult::ProcessKilled(_exit_code) => {
                             exit_process();
                             unsafe { PROCESSOR.make_current_exited() }
-                        },
-                        _ => {
-                            match syscall_ret {
-                                Ret::Done(ret) => match id {
-                                    Id::EXIT => unsafe { PROCESSOR.make_current_exited() },
-                                    _ => {
-                                        let ctx = &mut task.context.context;
-                                        *ctx.a_mut(0) = ret as _;
-                                        unsafe { PROCESSOR.make_current_suspend() };
-                                    }
-                                },
-                                Ret::Unsupported(_) => {
-                                    log::info!("id = {id:?}");
-                                    unsafe { PROCESSOR.make_current_exited() };
+                        }
+                        _ => match syscall_ret {
+                            Ret::Done(ret) => match id {
+                                Id::EXIT => unsafe { PROCESSOR.make_current_exited() },
+                                _ => {
+                                    let ctx = &mut task.context.context;
+                                    *ctx.a_mut(0) = ret as _;
+                                    unsafe { PROCESSOR.make_current_suspend() };
                                 }
+                            },
+                            Ret::Unsupported(_) => {
+                                log::info!("id = {id:?}");
+                                unsafe { PROCESSOR.make_current_exited() };
                             }
                         },
                     }
@@ -232,11 +230,11 @@ fn kernel_space(layout: linker::KernelLayout) -> AddressSpace<Sv39, Sv39Manager>
 /// 各种接口库的实现。
 mod impls {
     use crate::{
+        exit_process,
         fs::{read_all, FS},
         mm::PAGE,
         process::TaskId,
         PROCESSOR,
-        exit_process,
     };
     use alloc::vec::Vec;
     use alloc::{alloc::handle_alloc_error, string::String};
@@ -340,11 +338,10 @@ mod impls {
     const WRITEABLE: VmFlags<Sv39> = VmFlags::build_from_str("W_V");
 
     impl IO for SyscallContext {
-        #[inline]
         fn write(&self, _caller: Caller, fd: usize, buf: usize, count: usize) -> isize {
             let current = unsafe { PROCESSOR.current().unwrap() };
             if let Some(ptr) = current.address_space.translate(VAddr::new(buf), READABLE) {
-                if fd == 0 {
+                if fd == STDOUT || fd == STDDEBUG {
                     print!("{}", unsafe {
                         core::str::from_utf8_unchecked(core::slice::from_raw_parts(
                             ptr.as_ptr(),
@@ -352,21 +349,14 @@ mod impls {
                         ))
                     });
                     count as _
-                } else if fd > 1 && fd < current.fd_table.len() {
-                    if let Some(file) = &current.fd_table[fd] {
-                        let mut _file = file.lock();
-                        if !_file.writable() {
-                            return -1;
-                        }
+                } else if let Some(file) = &current.fd_table[fd] {
+                    let mut file = file.lock();
+                    if file.writable() {
                         let mut v: Vec<&'static mut [u8]> = Vec::new();
-                        unsafe {
-                            let raw_buf: &'static mut [u8] =
-                                core::slice::from_raw_parts_mut(ptr.as_ptr(), count);
-                            v.push(raw_buf);
-                        }
-                        _file.write(UserBuffer::new(v)) as _
+                        unsafe { v.push(core::slice::from_raw_parts_mut(ptr.as_ptr(), count)) };
+                        file.write(UserBuffer::new(v)) as _
                     } else {
-                        log::error!("unsupported fd: {fd}");
+                        log::error!("file not writable");
                         -1
                     }
                 } else {
@@ -379,43 +369,27 @@ mod impls {
             }
         }
 
-        #[inline]
-        #[allow(deprecated)]
         fn read(&self, _caller: Caller, fd: usize, buf: usize, count: usize) -> isize {
             let current = unsafe { PROCESSOR.current().unwrap() };
-            if fd == 0 || fd >= current.fd_table.len() {
-                return -1;
-            }
             if let Some(ptr) = current.address_space.translate(VAddr::new(buf), WRITEABLE) {
-                if fd == 1 {
+                if fd == STDIN {
                     let mut ptr = ptr.as_ptr();
                     for _ in 0..count {
-                        let c = sbi_rt::legacy::console_getchar() as u8;
-                        // 是 ctrl+C，需要发送 SIGINT 信号
-                        if c == 3 {
-                            current.signal.add_signal(SignalNo::SIGINT);
-                        }
+                        #[allow(deprecated)]
                         unsafe {
-                            *ptr = c;
+                            *ptr = sbi_rt::legacy::console_getchar() as u8;
                             ptr = ptr.add(1);
                         }
                     }
                     count as _
-                } else if fd != 0 && fd < current.fd_table.len() {
-                    if let Some(file) = &current.fd_table[fd] {
-                        let mut _file = file.lock();
-                        if !_file.readable() {
-                            return -1;
-                        }
+                } else if let Some(file) = &current.fd_table[fd] {
+                    let mut file = file.lock();
+                    if file.readable() {
                         let mut v: Vec<&'static mut [u8]> = Vec::new();
-                        unsafe {
-                            let raw_buf: &'static mut [u8] =
-                                core::slice::from_raw_parts_mut(ptr.as_ptr(), count);
-                            v.push(raw_buf);
-                        }
-                        _file.read(UserBuffer::new(v)) as _
+                        unsafe { v.push(core::slice::from_raw_parts_mut(ptr.as_ptr(), count)) };
+                        file.read(UserBuffer::new(v)) as _
                     } else {
-                        log::error!("unsupported fd: {fd}");
+                        log::error!("file not readable");
                         -1
                     }
                 } else {
@@ -428,7 +402,6 @@ mod impls {
             }
         }
 
-        #[inline]
         fn open(&self, _caller: Caller, path: usize, flags: usize) -> isize {
             // FS.open(, flags)
             let current = unsafe { PROCESSOR.current().unwrap() };
@@ -585,9 +558,10 @@ mod impls {
             }
             -1
         }
-    
-        fn sigaction(&self,
-            _caller: Caller, 
+
+        fn sigaction(
+            &self,
+            _caller: Caller,
             signum: u8,
             action: usize,
             old_action: usize,
@@ -602,37 +576,47 @@ mod impls {
                 }
                 // 如果需要返回原来的处理函数，则从信号模块中获取
                 if old_action as usize != 0 {
-                    if let Some(mut ptr) = current.address_space.translate(VAddr::new(old_action), WRITEABLE) {
+                    if let Some(mut ptr) = current
+                        .address_space
+                        .translate(VAddr::new(old_action), WRITEABLE)
+                    {
                         if let Some(signal_action) = current.signal.get_action_ref(signal_no) {
                             *unsafe { ptr.as_mut() } = signal_action;
                         } else {
-                            return -1
+                            return -1;
                         }
-                    } else { // 如果返回了 None，说明 signal_no 无效
+                    } else {
+                        // 如果返回了 None，说明 signal_no 无效
                         return -1;
                     }
                 }
                 // 如果需要设置新的处理函数，则设置到信号模块中
                 if action as usize != 0 {
-                    if let Some(ptr) = current.address_space.translate(VAddr::new(action), READABLE) {
+                    if let Some(ptr) = current
+                        .address_space
+                        .translate(VAddr::new(action), READABLE)
+                    {
                         // 如果返回了 false，说明 signal_no 无效
-                        if !current.signal.set_action(signal_no, &unsafe {*ptr.as_ptr()}) {
+                        if !current
+                            .signal
+                            .set_action(signal_no, &unsafe { *ptr.as_ptr() })
+                        {
                             return -1;
                         }
                     } else {
-                        return -1
+                        return -1;
                     }
                 }
                 return 0;
             }
             -1
         }
-    
+
         fn sigprocmask(&self, _caller: Caller, mask: usize) -> isize {
             let current = unsafe { PROCESSOR.current().unwrap() };
             current.signal.update_mask(mask) as isize
         }
-    
+
         fn sigreturn(&self, _caller: Caller) -> isize {
             let current = unsafe { PROCESSOR.current().unwrap() };
             // 如成功，则需要修改当前用户程序的 LocalContext

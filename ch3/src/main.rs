@@ -155,19 +155,20 @@ mod impls {
     impl IO for SyscallContext {
         #[inline]
         fn write(&self, _caller: syscall::Caller, fd: usize, buf: usize, count: usize) -> isize {
-            use console::log::*;
-
-            if fd == 0 {
-                print!("{}", unsafe {
-                    core::str::from_utf8_unchecked(core::slice::from_raw_parts(
-                        buf as *const u8,
-                        count,
-                    ))
-                });
-                count as _
-            } else {
-                error!("unsupported fd: {fd}");
-                -1
+            match fd {
+                STDOUT | STDDEBUG => {
+                    print!("{}", unsafe {
+                        core::str::from_utf8_unchecked(core::slice::from_raw_parts(
+                            buf as *const u8,
+                            count,
+                        ))
+                    });
+                    count as _
+                }
+                _ => {
+                    console::log::error!("unsupported fd: {fd}");
+                    -1
+                }
             }
         }
     }

@@ -1,8 +1,8 @@
 //! 信号的管理和处理模块
-//! 
+//!
 //! 信号模块的实际实现见 `signal_impl` 子模块
-//! 
-//! 
+//!
+//!
 
 #![no_std]
 
@@ -20,7 +20,7 @@ pub trait Signal: Send + Sync {
     /// 需要**继承原任务的信号处理函数和掩码**。
     /// 此时 `task` 模块会调用此函数，根据原任务的信号模块生成新任务的信号模块
     fn from_fork(&mut self) -> Box<dyn Signal>;
-    
+
     /// `sys_exec`会使用。** `sys_exec` 不会继承信号处理函数和掩码**
     fn clear(&mut self);
 

@@ -1,4 +1,4 @@
-﻿use crate::{ClockId, SyscallId, TimeSpec, SignalAction, SignalNo};
+use crate::{ClockId, SignalAction, SignalNo, SyscallId, TimeSpec};
 use bitflags::*;
 use native::*;
 
@@ -103,7 +103,14 @@ pub fn sigaction(
     action: *const SignalAction,
     old_action: *const SignalAction,
 ) -> isize {
-    unsafe { syscall3(SyscallId::RT_SIGACTION, signum as _, action as _, old_action as _) }
+    unsafe {
+        syscall3(
+            SyscallId::RT_SIGACTION,
+            signum as _,
+            action as _,
+            old_action as _,
+        )
+    }
 }
 
 #[inline]
