@@ -56,7 +56,7 @@ extern "C" fn rust_main() -> ! {
     syscall::init_clock(&SyscallContext);
     // 确定应用程序位置
     extern "C" {
-        static apps: utils::AppMeta;
+        static apps: app_meta::AppMeta;
     }
     // 任务控制块
     let mut tcbs = [TaskControlBlock::ZERO; APP_CAPACITY];

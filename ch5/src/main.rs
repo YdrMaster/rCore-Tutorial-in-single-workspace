@@ -58,7 +58,7 @@ unsafe extern "C" fn _start() -> ! {
 /// 加载用户进程。
 static APPS: Lazy<BTreeMap<&'static str, &'static [u8]>> = Lazy::new(|| {
     extern "C" {
-        static apps: utils::AppMeta;
+        static apps: app_meta::AppMeta;
         static app_names: u8;
     }
     unsafe {

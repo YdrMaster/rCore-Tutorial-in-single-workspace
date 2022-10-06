@@ -3,6 +3,10 @@
 version = 3
 
 [[package]]
+name = "app-meta"
+version = "0.0.1"
+
+[[package]]
 name = "atty"
 version = "0.2.14"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -62,32 +66,33 @@ dependencies = [
 name = "ch2"
 version = "0.0.1"
 dependencies = [
+ "app-meta",
  "console",
  "kernel-context",
  "linker",
  "riscv",
  "sbi-rt",
  "syscall",
- "utils",
 ]
 
 [[package]]
 name = "ch3"
 version = "0.0.1"
 dependencies = [
+ "app-meta",
  "console",
  "kernel-context",
  "linker",
  "riscv",
  "sbi-rt",
  "syscall",
- "utils",
 ]
 
 [[package]]
 name = "ch4"
 version = "0.0.1"
 dependencies = [
+ "app-meta",
  "console",
  "customizable-buddy",
  "kernel-context",
@@ -96,7 +101,6 @@ dependencies = [
  "riscv",
  "sbi-rt",
  "syscall",
- "utils",
  "xmas-elf",
 ]
 
@@ -104,6 +108,7 @@ dependencies = [
 name = "ch5"
 version = "0.0.1"
 dependencies = [
+ "app-meta",
  "console",
  "customizable-buddy",
  "kernel-context",
@@ -114,7 +119,6 @@ dependencies = [
  "spin 0.9.4",
  "syscall",
  "task-manage",
- "utils",
  "xmas-elf",
 ]
 
@@ -122,6 +126,7 @@ dependencies = [
 name = "ch6"
 version = "0.0.1"
 dependencies = [
+ "app-meta",
  "console",
  "customizable-buddy",
  "easy-fs",
@@ -133,7 +138,6 @@ dependencies = [
  "spin 0.9.4",
  "syscall",
  "task-manage",
- "utils",
  "virtio-drivers",
  "xmas-elf",
 ]
@@ -142,6 +146,7 @@ dependencies = [
 name = "ch7"
 version = "0.0.1"
 dependencies = [
+ "app-meta",
  "console",
  "customizable-buddy",
  "easy-fs",
@@ -155,7 +160,6 @@ dependencies = [
  "spin 0.9.4",
  "syscall",
  "task-manage",
- "utils",
  "virtio-drivers",
  "xmas-elf",
 ]
@@ -552,10 +556,6 @@ dependencies = [
  "customizable-buddy",
  "syscall",
 ]
-
-[[package]]
-name = "utils"
-version = "0.0.1"
 
 [[package]]
 name = "version_check"

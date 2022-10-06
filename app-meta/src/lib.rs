@@ -1,9 +1,9 @@
-//! 一些零散的函数和定义。
+//! 通过 `AppMeta` 结构获取链接到二进制文件的应用程序元信息。
 
 #![no_std]
 #![deny(warnings, missing_docs)]
 
-/// 应用程序元数据
+/// 应用程序元数据。
 #[repr(C)]
 pub struct AppMeta {
     base: u64,
@@ -23,12 +23,6 @@ impl AppMeta {
     #[inline]
     pub fn iter_elf(&'static self) -> ElfIterator {
         ElfIterator { meta: self, i: 0 }
-    }
-
-    /// 获取应用程序数量
-    #[inline]
-    pub fn get_app_num(&'static self) -> u64 {
-        self.count
     }
 }
 

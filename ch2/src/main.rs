@@ -50,7 +50,7 @@ extern "C" fn rust_main() -> ! {
     syscall::init_process(&SyscallContext);
     // 确定应用程序位置
     extern "C" {
-        static apps: utils::AppMeta;
+        static apps: app_meta::AppMeta;
     }
     // 批处理
     for (i, app_base) in unsafe { apps.iter_static() }.enumerate() {
