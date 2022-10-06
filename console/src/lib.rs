@@ -4,7 +4,7 @@
 #![deny(warnings, missing_docs)]
 
 use core::{
-    fmt::{Arguments, Write},
+    fmt::{self, Write},
     str::FromStr,
 };
 use spin::Once;
@@ -67,7 +67,7 @@ pub fn test_log() {
 /// 给宏用的，用户不会直接调它。
 #[doc(hidden)]
 #[inline]
-pub fn _print(args: Arguments) {
+pub fn _print(args: fmt::Arguments) {
     Logger.write_fmt(args).unwrap();
 }
 
@@ -92,10 +92,10 @@ macro_rules! println {
 /// 这个 Unit struct 是 `core::fmt` 要求的。
 struct Logger;
 
-/// 实现 `core::fmt::Write` trait，格式化的基础。
+/// 实现 [`Write`] trait，格式化的基础。
 impl Write for Logger {
     #[inline]
-    fn write_str(&mut self, s: &str) -> Result<(), core::fmt::Error> {
+    fn write_str(&mut self, s: &str) -> Result<(), fmt::Error> {
         let _ = CONSOLE.get().unwrap().put_str(s);
         Ok(())
     }

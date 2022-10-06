@@ -50,10 +50,11 @@ extern "C" fn rust_main() -> ! {
     syscall::init_process(&SyscallContext);
     // 确定应用程序位置
     extern "C" {
-        static apps: app_meta::AppMeta;
+        static apps: linker::AppMeta;
     }
     // 批处理
-    for (i, app_base) in unsafe { apps.iter_static() }.enumerate() {
+    for (i, app) in unsafe { apps.iter() }.enumerate() {
+        let app_base = app.as_ptr() as usize;
         log::info!("load app{i} to {app_base:#x}");
         // 初始化上下文
         let mut ctx = LocalContext::user(app_base);

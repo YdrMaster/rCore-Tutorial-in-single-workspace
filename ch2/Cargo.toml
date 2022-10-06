@@ -8,7 +8,6 @@ authors = ["YdrMaster <ydrml@hotmail.com>"]
 sbi-rt = { git = "https://github.com/rustsbi/sbi-rt", branch = "dev" }
 riscv = "0.8.0"
 
-app-meta = { path = "../app-meta" }
 linker = { path = "../linker" }
 console = { path = "../console" }
 kernel-context = { path = "../kernel-context" }

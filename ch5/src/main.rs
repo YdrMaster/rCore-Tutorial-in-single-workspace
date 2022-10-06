@@ -58,11 +58,11 @@ unsafe extern "C" fn _start() -> ! {
 /// 加载用户进程。
 static APPS: Lazy<BTreeMap<&'static str, &'static [u8]>> = Lazy::new(|| {
     extern "C" {
-        static apps: app_meta::AppMeta;
+        static apps: linker::AppMeta;
         static app_names: u8;
     }
     unsafe {
-        apps.iter_elf()
+        apps.iter()
             .scan(&app_names as *const _ as usize, |addr, data| {
                 let name = CStr::from_ptr(*addr as _).to_str().unwrap();
                 *addr += name.as_bytes().len() + 1;

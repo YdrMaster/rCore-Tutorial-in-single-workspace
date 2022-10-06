@@ -77,9 +77,9 @@ extern "C" fn rust_main() -> ! {
     let mut ks = kernel_space(layout);
     // 加载应用程序
     extern "C" {
-        static apps: app_meta::AppMeta;
+        static apps: linker::AppMeta;
     }
-    for (i, elf) in unsafe { apps.iter_elf() }.enumerate() {
+    for (i, elf) in unsafe { apps.iter() }.enumerate() {
         let base = elf.as_ptr() as usize;
         log::info!("detect app[{i}]: {base:#x}..{:#x}", base + elf.len());
         if let Some(process) = Process::new(ElfFile::new(elf).unwrap()) {

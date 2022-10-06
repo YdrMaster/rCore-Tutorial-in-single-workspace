@@ -3,10 +3,6 @@
 version = 3
 
 [[package]]
-name = "app-meta"
-version = "0.0.1"
-
-[[package]]
 name = "atty"
 version = "0.2.14"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -66,7 +62,6 @@ dependencies = [
 name = "ch2"
 version = "0.0.1"
 dependencies = [
- "app-meta",
  "console",
  "kernel-context",
  "linker",
@@ -79,7 +74,6 @@ dependencies = [
 name = "ch3"
 version = "0.0.1"
 dependencies = [
- "app-meta",
  "console",
  "kernel-context",
  "linker",
@@ -92,7 +86,6 @@ dependencies = [
 name = "ch4"
 version = "0.0.1"
 dependencies = [
- "app-meta",
  "console",
  "customizable-buddy",
  "kernel-context",
@@ -108,7 +101,6 @@ dependencies = [
 name = "ch5"
 version = "0.0.1"
 dependencies = [
- "app-meta",
  "console",
  "customizable-buddy",
  "kernel-context",
@@ -126,7 +118,6 @@ dependencies = [
 name = "ch6"
 version = "0.0.1"
 dependencies = [
- "app-meta",
  "console",
  "customizable-buddy",
  "easy-fs",
@@ -146,7 +137,6 @@ dependencies = [
 name = "ch7"
 version = "0.0.1"
 dependencies = [
- "app-meta",
  "console",
  "customizable-buddy",
  "easy-fs",

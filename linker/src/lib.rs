@@ -1,7 +1,11 @@
-//! 在 kernel 的 build.rs 和 src 之间共享常量。
+//! 在 kernel 的 build.rs 和 src 之间共享常量和类型定义。
 
 #![no_std]
 #![deny(warnings, missing_docs)]
+
+mod app;
+
+pub use app::{AppIterator, AppMeta};
 
 /// 链接脚本。
 pub const SCRIPT: &[u8] = b"\

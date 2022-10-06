@@ -11,7 +11,6 @@ xmas-elf = "0.8.0"
 riscv = "0.8.0"
 spin = "0.9.4"
 
-app-meta = { path = "../app-meta" }
 linker = { path = "../linker" }
 console = { path = "../console" }
 kernel-context = { path = "../kernel-context" }

@@ -10,7 +10,6 @@ members = [
     "ch6",
     "ch7",
     "user",
-    "app-meta",
     "linker",
     "console",
     "syscall",
