@@ -5,5 +5,5 @@ edition = "2021"
 authors = ["YdrMaster <ydrml@hotmail.com>"]
 
 [dependencies]
-sbi-rt = { git = "https://github.com/rustsbi/sbi-rt", branch = "dev" }
+sbi-rt = "0.0.1"
 console = { path = "../console" }

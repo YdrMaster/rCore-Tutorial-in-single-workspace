@@ -6,7 +6,7 @@ authors = ["tkf2019 <kaifu6821@qq.com>"]
 
 [dependencies]
 virtio-drivers = { git = "https://github.com/rcore-os/virtio-drivers", rev = "4ee80e5" }
-sbi-rt = { git = "https://github.com/rustsbi/sbi-rt", branch = "dev" }
+sbi-rt = "0.0.1"
 customizable-buddy = "0.0.2"
 xmas-elf = "0.8.0"
 riscv = "0.8.0"
