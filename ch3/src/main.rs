@@ -57,12 +57,8 @@ extern "C" fn rust_main() -> ! {
     // 任务控制块
     let mut tcbs = [TaskControlBlock::ZERO; APP_CAPACITY];
     let mut index_mod = 0;
-    // 确定应用程序位置
-    extern "C" {
-        static apps: linker::AppMeta;
-    }
     // 初始化
-    for (i, app) in unsafe { apps.iter() }.enumerate() {
+    for (i, app) in linker::AppMeta::locate().iter().enumerate() {
         let entry = app.as_ptr() as usize;
         log::info!("load app{i} to {entry:#x}");
         tcbs[i].init(entry);

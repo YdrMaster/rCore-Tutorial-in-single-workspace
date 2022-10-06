@@ -76,10 +76,7 @@ extern "C" fn rust_main() -> ! {
     // 建立内核地址空间
     let mut ks = kernel_space(layout);
     // 加载应用程序
-    extern "C" {
-        static apps: linker::AppMeta;
-    }
-    for (i, elf) in unsafe { apps.iter() }.enumerate() {
+    for (i, elf) in linker::AppMeta::locate().iter().enumerate() {
         let base = elf.as_ptr() as usize;
         log::info!("detect app[{i}]: {base:#x}..{:#x}", base + elf.len());
         if let Some(process) = Process::new(ElfFile::new(elf).unwrap()) {

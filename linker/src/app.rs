@@ -8,6 +8,15 @@ pub struct AppMeta {
 }
 
 impl AppMeta {
+    /// 定位应用程序。
+    #[inline]
+    pub fn locate() -> &'static Self {
+        extern "C" {
+            static apps: AppMeta;
+        }
+        unsafe { &apps }
+    }
+
     /// 遍历链接进来的应用程序。
     #[inline]
     pub fn iter(&'static self) -> AppIterator {
