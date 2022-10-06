@@ -22,7 +22,3 @@ members = [
     "signal-impl",
 ]
 default-members = ["xtask"]
-
-[profile.release]
-opt-level = "s"
-debug = true
