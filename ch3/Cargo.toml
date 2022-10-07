@@ -6,7 +6,7 @@ authors = ["YdrMaster <ydrml@hotmail.com>"]
 
 [dependencies]
 sbi-rt = "0.0.1"
-riscv = "0.8.1"
+riscv = "0.9"
 
 linker = { path = "../linker" }
 console = { path = "../console" }

@@ -8,7 +8,7 @@ authors = ["zflcs <1491657576@qq.com>"]
 sbi-rt = "0.0.1"
 customizable-buddy = "0.0.2"
 xmas-elf = "0.8.0"
-riscv = "0.8.1"
+riscv = "0.9"
 spin = "0.9.4"
 
 linker = { path = "../linker" }
