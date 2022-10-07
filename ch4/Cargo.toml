@@ -5,7 +5,7 @@ edition = "2021"
 authors = ["YdrMaster <ydrml@hotmail.com>"]
 
 [dependencies]
-sbi-rt = { git = "https://github.com/rustsbi/sbi-rt", branch = "dev" }
+sbi-rt = "0.0.1"
 customizable-buddy = "0.0.2"
 xmas-elf = "0.8.0"
 riscv = "0.8.0"
