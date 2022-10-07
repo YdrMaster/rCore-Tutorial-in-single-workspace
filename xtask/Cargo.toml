@@ -8,7 +8,7 @@ authors = ["YdrMaster <ydrml@hotmail.com>"]
 
 [dependencies]
 clap = { version = "4.0", features = ["derive"] }
-command-ext = { git = "https://github.com/YdrMaster/command-ext.git", rev = "f25befb" }
+command-ext = { git = "https://github.com/YdrMaster/command-ext.git", rev = "a5e0e22" }
 once_cell = "1.15"
 
 serde = "1.0"

@@ -9,7 +9,7 @@ virtio-drivers = { git = "https://github.com/rcore-os/virtio-drivers", rev = "4e
 sbi-rt = "0.0.1"
 customizable-buddy = "0.0.2"
 xmas-elf = "0.8.0"
-riscv = "0.8.0"
+riscv = "0.8.1"
 spin = "0.9.4"
 
 linker = { path = "../linker" }
