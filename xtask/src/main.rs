@@ -5,8 +5,8 @@ mod user;
 extern crate clap;
 
 use clap::Parser;
-use command_ext::{BinUtil, Cargo, CommandExt, Qemu};
 use once_cell::sync::Lazy;
+use os_xtask_utils::{BinUtil, Cargo, CommandExt, Qemu};
 use std::{
     collections::HashMap,
     ffi::OsString,

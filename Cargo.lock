@@ -192,14 +192,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "command-ext"
-version = "0.1.0"
-source = "git+https://github.com/YdrMaster/command-ext.git?rev=a5e0e22#a5e0e229d41dc6ccb5aec0835b04b13d1cd1a33b"
-dependencies = [
- "once_cell",
-]
-
-[[package]]
 name = "console"
 version = "0.0.1"
 dependencies = [
@@ -316,6 +308,14 @@ name = "once_cell"
 version = "1.15.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e82dad04139b71a90c080c8463fe0dc7902db5192d939bd0950f074d014339e1"
+
+[[package]]
+name = "os-xtask-utils"
+version = "0.0.0"
+source = "git+https://github.com/YdrMaster/os-xtask-utils?rev=bba0509#bba05092776eb59869f76d57cf18dd5c7d6bee93"
+dependencies = [
+ "once_cell",
+]
 
 [[package]]
 name = "os_str_bytes"
@@ -616,9 +616,9 @@ name = "xtask"
 version = "0.0.1"
 dependencies = [
  "clap",
- "command-ext",
  "easy-fs",
  "once_cell",
+ "os-xtask-utils",
  "serde",
  "serde_derive",
  "toml",
