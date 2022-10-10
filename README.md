@@ -1,5 +1,9 @@
 ﻿# 模块化的 rCore-Tutorial
 
+[![CI](https://github.com/YdrMaster/rCore-Tutorial-in-single-workspace/actions/workflows/workflow.yml/badge.svg?branch=main)](https://github.com/YdrMaster/rCore-Tutorial-in-single-workspace/actions)
+[![issue](https://img.shields.io/github/issues/YdrMaster/rCore-Tutorial-in-single-workspace)](https://github.com/YdrMaster/rCore-Tutorial-in-single-workspace/issues)
+![license](https://img.shields.io/github/license/YdrMaster/rCore-Tutorial-in-single-workspace)
+
 - 只需要维护一个分支！
 - 支持 Windows 直接调试！
 

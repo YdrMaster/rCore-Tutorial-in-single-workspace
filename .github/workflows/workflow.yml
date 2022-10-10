@@ -8,10 +8,7 @@ on:
 
 jobs:
   make:
-    name: Run rust-clippy analyzing
     runs-on: ubuntu-latest
-    permissions:
-      security-events: write
     steps:
       - uses: actions/checkout@v3
 
@@ -22,14 +19,20 @@ jobs:
           components: rustfmt
           override: true
 
+      - name: Build syscall
+        uses: actions-rs/cargo@v1
+        with:
+          command: build
+          args: --package syscall
+
       - name: Check format
         uses: actions-rs/cargo@v1
         with:
           command: fmt
-          args: --check
+          args: --all --check
 
       - name: Make every chapter
-        run:
+        run: |
           cargo make --ch 1
           cargo make --ch 2
           cargo make --ch 3
