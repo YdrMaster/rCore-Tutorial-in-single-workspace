@@ -141,7 +141,7 @@ extern "C" fn rust_main() -> ! {
         }
     }
 
-    system_reset(RESET_TYPE_SHUTDOWN, RESET_REASON_NO_REASON);
+    system_reset(Shutdown, NoReason);
     unreachable!()
 }
 
@@ -149,8 +149,8 @@ extern "C" fn rust_main() -> ! {
 #[panic_handler]
 fn panic(info: &core::panic::PanicInfo) -> ! {
     println!("{info}");
-    system_reset(RESET_TYPE_SHUTDOWN, RESET_REASON_SYSTEM_FAILURE);
-    unreachable!()
+    system_reset(Shutdown, SystemFailure);
+    loop {}
 }
 
 pub const MMIO: &[(usize, usize)] = &[

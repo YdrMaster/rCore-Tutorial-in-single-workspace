@@ -121,7 +121,7 @@ extern "C" fn rust_main() -> ! {
         }
         i = (i + 1) % index_mod;
     }
-    system_reset(RESET_TYPE_SHUTDOWN, RESET_REASON_NO_REASON);
+    system_reset(Shutdown, NoReason);
     unreachable!()
 }
 
@@ -129,8 +129,8 @@ extern "C" fn rust_main() -> ! {
 #[panic_handler]
 fn panic(info: &core::panic::PanicInfo) -> ! {
     println!("{info}");
-    system_reset(RESET_TYPE_SHUTDOWN, RESET_REASON_SYSTEM_FAILURE);
-    unreachable!()
+    system_reset(Shutdown, SystemFailure);
+    loop {}
 }
 
 /// 各种接口库的实现

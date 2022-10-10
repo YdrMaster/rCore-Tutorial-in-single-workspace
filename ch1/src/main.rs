@@ -34,7 +34,7 @@ extern "C" fn rust_main() -> ! {
         #[allow(deprecated)]
         legacy::console_putchar(*c as _);
     }
-    system_reset(RESET_TYPE_SHUTDOWN, RESET_REASON_NO_REASON);
+    system_reset(Shutdown, NoReason);
     unreachable!()
 }
 
@@ -42,6 +42,6 @@ extern "C" fn rust_main() -> ! {
 #[panic_handler]
 fn panic(_: &core::panic::PanicInfo) -> ! {
     use sbi_rt::*;
-    system_reset(RESET_TYPE_SHUTDOWN, RESET_REASON_SYSTEM_FAILURE);
-    unreachable!()
+    system_reset(Shutdown, SystemFailure);
+    loop {}
 }

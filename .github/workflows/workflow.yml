@@ -1,0 +1,39 @@
+﻿name: CI
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+
+jobs:
+  make:
+    name: Run rust-clippy analyzing
+    runs-on: ubuntu-latest
+    permissions:
+      security-events: write
+    steps:
+      - uses: actions/checkout@v3
+
+      - uses: actions-rs/toolchain@v1
+        with:
+          profile: minimal
+          toolchain: nightly
+          components: rustfmt
+          override: true
+
+      - name: Check format
+        uses: actions-rs/cargo@v1
+        with:
+          command: fmt
+          args: --check
+
+      - name: Make every chapter
+        run:
+          cargo make --ch 1
+          cargo make --ch 2
+          cargo make --ch 3
+          cargo make --ch 4
+          cargo make --ch 5
+          cargo make --ch 6
+          cargo make --ch 7
