@@ -6,13 +6,13 @@ authors = ["YdrMaster <ydrml@hotmail.com>"]
 
 [dependencies]
 sbi-rt = { version = "0.0.2", features = ["legacy"] }
-customizable-buddy = "0.0.2"
 xmas-elf = "0.8.0"
 riscv = "0.9"
 
 linker = { path = "../linker" }
 console = { path = "../console" }
 kernel-context = { path = "../kernel-context" }
+kernel-alloc = { path = "../kernel-alloc" }
 kernel-vm = { path = "../kernel-vm" }
 syscall = { path = "../syscall", features = ["kernel"] }
 

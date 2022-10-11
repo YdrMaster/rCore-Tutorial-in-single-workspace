@@ -87,7 +87,7 @@ name = "ch4"
 version = "0.0.1"
 dependencies = [
  "console",
- "customizable-buddy",
+ "kernel-alloc",
  "kernel-context",
  "kernel-vm",
  "linker",
@@ -102,7 +102,7 @@ name = "ch5"
 version = "0.0.1"
 dependencies = [
  "console",
- "customizable-buddy",
+ "kernel-alloc",
  "kernel-context",
  "kernel-vm",
  "linker",
@@ -119,8 +119,8 @@ name = "ch6"
 version = "0.0.1"
 dependencies = [
  "console",
- "customizable-buddy",
  "easy-fs",
+ "kernel-alloc",
  "kernel-context",
  "kernel-vm",
  "linker",
@@ -138,8 +138,8 @@ name = "ch7"
 version = "0.0.1"
 dependencies = [
  "console",
- "customizable-buddy",
  "easy-fs",
+ "kernel-alloc",
  "kernel-context",
  "kernel-vm",
  "linker",
@@ -206,6 +206,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "eace6325758817ca21d4f27c2ec7d307bcac92f468ef5e0eaa2573787402a62e"
 
 [[package]]
+name = "customizable-buddy"
+version = "0.0.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "6f6c584413bb642e0f8c33faa63d7bd285335eb01b4db80be4119926ddcb96be"
+
+[[package]]
 name = "easy-fs"
 version = "0.1.0"
 dependencies = [
@@ -236,6 +242,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "62b467343b94ba476dcb2500d242dadbb39557df889310ac77c5d99100aaac33"
 dependencies = [
  "libc",
+]
+
+[[package]]
+name = "kernel-alloc"
+version = "0.1.0"
+dependencies = [
+ "customizable-buddy 0.0.3",
+ "log",
+ "page-table",
 ]
 
 [[package]]
@@ -540,7 +555,7 @@ name = "user_lib"
 version = "0.0.1"
 dependencies = [
  "console",
- "customizable-buddy",
+ "customizable-buddy 0.0.2",
  "syscall",
 ]
 

@@ -4,13 +4,11 @@
 #![feature(default_alloc_error_handler)]
 #![deny(warnings)]
 
-mod mm;
 mod process;
 
 #[macro_use]
 extern crate console;
 
-#[macro_use]
 extern crate alloc;
 
 use crate::{
@@ -71,8 +69,7 @@ extern "C" fn rust_main() -> ! {
     syscall::init_scheduling(&SyscallContext);
     syscall::init_clock(&SyscallContext);
     // 初始化内核堆
-    mm::init();
-    mm::test();
+    kernel_alloc::init!(pages = 512);
     // 建立内核地址空间
     let mut ks = kernel_space(layout);
     // 加载应用程序
@@ -183,10 +180,11 @@ fn map_portal(space: &mut AddressSpace<Sv39, Sv39Manager>, portal: &ForeignPorta
 
 /// 各种接口库的实现。
 mod impls {
-    use crate::{mm::PAGE, PROCESSES};
+    use crate::PROCESSES;
     use alloc::alloc::handle_alloc_error;
     use console::log;
     use core::{alloc::Layout, num::NonZeroUsize, ptr::NonNull};
+    use kernel_alloc::PAGE;
     use kernel_vm::{
         page_table::{MmuMeta, Pte, Sv39, VAddr, VmFlags, PPN, VPN},
         PageManager,

@@ -5,7 +5,6 @@
 #![deny(warnings)]
 
 mod fs;
-mod mm;
 mod process;
 mod processor;
 mod virtio_block;
@@ -76,8 +75,7 @@ extern "C" fn rust_main() -> ! {
     syscall::init_scheduling(&SyscallContext);
     syscall::init_clock(&SyscallContext);
     // 初始化内核堆
-    mm::init();
-    mm::test();
+    kernel_alloc::init!(pages = 4096);
     // 建立内核地址空间
     unsafe { KERNEL_SPACE.call_once(|| kernel_space(layout)) };
     // 异界传送门
@@ -211,7 +209,6 @@ fn kernel_space(layout: linker::KernelLayout) -> AddressSpace<Sv39, Sv39Manager>
 mod impls {
     use crate::{
         fs::{read_all, FS},
-        mm::PAGE,
         process::TaskId,
         PROCESSOR,
     };
@@ -221,6 +218,7 @@ mod impls {
     use core::{alloc::Layout, num::NonZeroUsize, ptr::NonNull};
     use easy_fs::UserBuffer;
     use easy_fs::{FSManager, OpenFlags};
+    use kernel_alloc::PAGE;
     use kernel_vm::{
         page_table::{MmuMeta, Pte, Sv39, VAddr, VmFlags, PPN, VPN},
         PageManager,

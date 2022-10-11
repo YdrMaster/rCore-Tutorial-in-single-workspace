@@ -4,14 +4,12 @@
 #![feature(default_alloc_error_handler)]
 #![deny(warnings)]
 
-mod mm;
 mod process;
 mod processor;
 
 #[macro_use]
 extern crate console;
 
-#[macro_use]
 extern crate alloc;
 
 use alloc::collections::BTreeMap;
@@ -86,8 +84,7 @@ extern "C" fn rust_main() -> ! {
     syscall::init_scheduling(&SyscallContext);
     syscall::init_clock(&SyscallContext);
     // 初始化内核堆
-    mm::init();
-    mm::test();
+    kernel_alloc::init!(pages = 512);
     // 初始化处理器
     init_processor();
     // 建立内核地址空间
@@ -191,10 +188,11 @@ fn kernel_space(layout: linker::KernelLayout) -> AddressSpace<Sv39, Sv39Manager>
 
 /// 各种接口库的实现。
 mod impls {
-    use crate::{mm::PAGE, process::TaskId, APPS, PROCESSOR};
+    use crate::{process::TaskId, APPS, PROCESSOR};
     use alloc::alloc::handle_alloc_error;
     use console::log;
     use core::{alloc::Layout, num::NonZeroUsize, ptr::NonNull};
+    use kernel_alloc::PAGE;
     use kernel_vm::{
         page_table::{MmuMeta, Pte, Sv39, VAddr, VmFlags, PPN, VPN},
         PageManager,
@@ -381,17 +379,18 @@ mod impls {
         fn exec(&self, _caller: Caller, path: usize, count: usize) -> isize {
             const READABLE: VmFlags<Sv39> = VmFlags::build_from_str("RV");
             let current = unsafe { PROCESSOR.current().unwrap() };
-            if let Some(ptr) = current.address_space.translate(VAddr::new(path), READABLE) {
-                let name = unsafe {
+            current
+                .address_space
+                .translate(VAddr::new(path), READABLE)
+                .map(|ptr| unsafe {
                     core::str::from_utf8_unchecked(core::slice::from_raw_parts(ptr.as_ptr(), count))
-                };
-                let data = ElfFile::new(APPS[name]).unwrap();
-                current.exec(data);
-                // unsafe { TASKMANAGER.add(current.pid); }
-                0
-            } else {
-                -1
-            }
+                })
+                .and_then(|name| APPS.get(name))
+                .and_then(|input| ElfFile::new(input).ok())
+                .map_or(-1, |data| {
+                    current.exec(data);
+                    0
+                })
         }
 
         // 简化的 wait 系统调用，pid == -1，则需要等待所有子进程结束，若当前进程有子进程，则返回 -1，否则返回 0

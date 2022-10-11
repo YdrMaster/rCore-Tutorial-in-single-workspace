@@ -1,8 +1,9 @@
-﻿use crate::{mm::PAGE, Sv39Manager};
+﻿use crate::Sv39Manager;
 use alloc::vec::Vec;
 use core::sync::atomic::{AtomicUsize, Ordering};
 use core::{alloc::Layout, str::FromStr};
 use easy_fs::FileHandle;
+use kernel_alloc::PAGE;
 use kernel_context::{foreign::ForeignContext, foreign::ForeignPortal, LocalContext};
 use kernel_vm::{
     page_table::{MmuMeta, Sv39, VAddr, VmFlags, PPN, VPN},

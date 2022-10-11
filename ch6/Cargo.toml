@@ -7,7 +7,6 @@ authors = ["tkf2019 <kaifu6821@qq.com>"]
 [dependencies]
 virtio-drivers = { git = "https://github.com/rcore-os/virtio-drivers", rev = "4ee80e5" }
 sbi-rt = { version = "0.0.2", features = ["legacy"] }
-customizable-buddy = "0.0.2"
 xmas-elf = "0.8.0"
 riscv = "0.9"
 spin = "0.9.4"
@@ -15,6 +14,7 @@ spin = "0.9.4"
 linker = { path = "../linker" }
 console = { path = "../console" }
 kernel-context = { path = "../kernel-context" }
+kernel-alloc = { path = "../kernel-alloc" }
 kernel-vm = { path = "../kernel-vm" }
 syscall = { path = "../syscall", features = ["kernel"] }
 task-manage = { path = "../task-manage" }
