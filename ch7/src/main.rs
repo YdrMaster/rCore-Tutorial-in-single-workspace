@@ -233,13 +233,11 @@ mod impls {
         process::TaskId,
         PROCESSOR,
     };
-    use alloc::vec::Vec;
-    use alloc::{alloc::handle_alloc_error, string::String};
+    use alloc::{string::String, vec::Vec};
     use console::log;
-    use core::{alloc::Layout, num::NonZeroUsize, ptr::NonNull};
+    use core::ptr::NonNull;
     use easy_fs::UserBuffer;
     use easy_fs::{FSManager, OpenFlags};
-    use kernel_alloc::PAGE;
     use kernel_vm::{
         page_table::{MmuMeta, Pte, Sv39, VAddr, VmFlags, PPN, VPN},
         PageManager,
@@ -259,13 +257,9 @@ mod impls {
     impl PageManager<Sv39> for Sv39Manager {
         #[inline]
         fn new_root() -> Self {
-            const SIZE: usize = 1 << Sv39::PAGE_BITS;
-            unsafe {
-                match PAGE.allocate(Sv39::PAGE_BITS, NonZeroUsize::new_unchecked(SIZE)) {
-                    Ok((ptr, _)) => Self(ptr),
-                    Err(_) => handle_alloc_error(Layout::from_size_align_unchecked(SIZE, SIZE)),
-                }
-            }
+            Self(unsafe {
+                NonNull::new_unchecked(kernel_alloc::alloc_pages(1).as_mut_ptr().cast())
+            })
         }
 
         #[inline]
@@ -293,23 +287,10 @@ mod impls {
             pte.flags().contains(Self::OWNED)
         }
 
+        #[inline]
         fn allocate(&mut self, len: usize, flags: &mut VmFlags<Sv39>) -> NonNull<u8> {
-            unsafe {
-                match PAGE.allocate(
-                    Sv39::PAGE_BITS,
-                    NonZeroUsize::new_unchecked(len << Sv39::PAGE_BITS),
-                ) {
-                    Ok((ptr, size)) => {
-                        assert_eq!(size, len << Sv39::PAGE_BITS);
-                        *flags |= Self::OWNED;
-                        ptr
-                    }
-                    Err(_) => handle_alloc_error(Layout::from_size_align_unchecked(
-                        len << Sv39::PAGE_BITS,
-                        1 << Sv39::PAGE_BITS,
-                    )),
-                }
-            }
+            *flags |= Self::OWNED;
+            unsafe { NonNull::new_unchecked(kernel_alloc::alloc_pages(len).as_mut_ptr().cast()) }
         }
 
         fn deallocate(&mut self, _pte: Pte<Sv39>, _len: usize) -> usize {

@@ -1,7 +1,6 @@
 ﻿use crate::Sv39Manager;
 use console::log;
-use core::{alloc::Layout, str::FromStr};
-use kernel_alloc::PAGE;
+use core::str::FromStr;
 use kernel_context::{foreign::ForeignContext, LocalContext};
 use kernel_vm::{
     page_table::{MmuMeta, Sv39, VAddr, VmFlags, PPN, VPN},
@@ -62,18 +61,13 @@ impl Process {
                 VmFlags::from_str(unsafe { core::str::from_utf8_unchecked(&flags) }).unwrap(),
             );
         }
-        unsafe {
-            let (pages, size) = PAGE
-                .allocate_layout::<u8>(Layout::from_size_align_unchecked(2 * PAGE_SIZE, PAGE_SIZE))
-                .unwrap();
-            assert_eq!(size, 2 * PAGE_SIZE);
-            core::slice::from_raw_parts_mut(pages.as_ptr(), 2 * PAGE_SIZE).fill(0);
-            address_space.map_extern(
-                VPN::new((1 << 26) - 2)..VPN::new(1 << 26),
-                PPN::new(pages.as_ptr() as usize >> Sv39::PAGE_BITS),
-                VmFlags::build_from_str("U_WRV"),
-            );
-        }
+        let stack = kernel_alloc::alloc_pages(2);
+        stack.fill(0);
+        address_space.map_extern(
+            VPN::new((1 << 26) - 2)..VPN::new(1 << 26),
+            PPN::new(stack.as_ptr() as usize >> Sv39::PAGE_BITS),
+            VmFlags::build_from_str("U_WRV"),
+        );
 
         log::info!("process entry = {:#x}", entry);
         log::debug!("{address_space:?}");

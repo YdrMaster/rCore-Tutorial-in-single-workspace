@@ -13,36 +13,37 @@ use core::{
 };
 use customizable_buddy::{BuddyAllocator, LinkedListBuddy, UsizeBuddy};
 
-/// 4 KiB 内存页类型。
-#[repr(C, align(4096))]
-pub struct Page4K([u8; 4096]);
-
-impl Page4K {
-    /// 空白页。
-    pub const ZERO: Self = Self([0u8; 4096]);
-}
-
-const BITS_PAGE: usize = core::mem::size_of::<Page4K>().trailing_zeros() as _;
-const BITS_PTR: usize = core::mem::size_of::<usize>().trailing_zeros() as _;
-
 /// 初始化 `n` 个页的托管区，这些页将放置在 bss 段上。
 #[macro_export]
 macro_rules! init {
-    (pages = $n:expr) => {{
-        static mut SPACE: [$crate::Page4K; $n] = [$crate::Page4K::ZERO; $n];
+    (pages = $n:expr) => {
+        $crate::init!(pages = $n; 4096)
+    };
+
+    (pages = $n:expr; $size:expr) => {{
+        #[repr(C, align($size))]
+        struct Page([u8; $size]);
+
+        impl Page {
+            const ZERO: Self = Self([0u8; $size]);
+        }
+
+        static mut SPACE: [Page; $n] = [Page::ZERO; $n];
         unsafe { $crate::_init(&mut SPACE, true) };
     }};
 }
 
 /// 初始化全局分配器和内核堆分配器。
 #[doc(hidden)]
-pub unsafe fn _init(region: &'static mut [Page4K], test: bool) {
+pub unsafe fn _init<T>(region: &'static mut [T], test: bool) {
+    PAGE_BITS = core::mem::size_of::<T>().trailing_zeros() as usize;
+
     let range = region.as_mut_ptr_range();
     log::info!("MEMORY = {range:?}");
     let ptr = NonNull::new(range.start).unwrap();
-    PAGE.init(BITS_PAGE, ptr);
-    HEAP.init(BITS_PTR, ptr);
-    PAGE.transfer(ptr, region.len() << BITS_PAGE);
+    PAGE.init(PAGE_BITS, ptr);
+    HEAP.init(PTR_BITS, ptr);
+    PAGE.transfer(ptr, region.len() << PAGE_BITS);
 
     // 测试堆分配回收
     if test {
@@ -59,11 +60,34 @@ pub unsafe fn _init(region: &'static mut [Page4K], test: bool) {
 
 type MutAllocator<const N: usize> = BuddyAllocator<N, UsizeBuddy, LinkedListBuddy>;
 
+const PTR_BITS: usize = core::mem::size_of::<usize>().trailing_zeros() as _;
+
+/// 页地址位数。
+static mut PAGE_BITS: usize = 0;
+
 /// 页分配器。
-pub static mut PAGE: MutAllocator<12> = MutAllocator::new();
+static mut PAGE: MutAllocator<12> = MutAllocator::new();
 
 /// 堆分配器。
 static mut HEAP: MutAllocator<21> = MutAllocator::new();
+
+/// 整页分配。
+pub fn alloc_pages(count: usize) -> &'static mut [usize] {
+    unsafe {
+        let layout = Layout::from_size_align_unchecked(count << PAGE_BITS, 1 << PAGE_BITS);
+        match PAGE.allocate_layout(layout) {
+            Ok((ptr, _)) => {
+                core::slice::from_raw_parts_mut(ptr.as_ptr(), count << (PAGE_BITS - PTR_BITS))
+            }
+            Err(_) => handle_alloc_error(layout),
+        }
+    }
+}
+
+/// 整页回收。
+pub fn dealloc_pages<T>(ptr: NonNull<T>, count: usize) {
+    unsafe { PAGE.deallocate(ptr, count << PAGE_BITS) }
+}
 
 struct Global;
 
@@ -78,7 +102,7 @@ unsafe impl GlobalAlloc for Global {
         } else if let Ok((ptr, size)) = PAGE.allocate_layout::<u8>(
             Layout::from_size_align_unchecked(layout.size().next_power_of_two(), layout.align()),
         ) {
-            log::trace!("global transfers {} pages to heap", size >> BITS_PAGE);
+            log::trace!("global transfers {size} bytes to heap");
             HEAP.transfer(ptr, size);
             HEAP.allocate_layout::<u8>(layout).unwrap().0.as_ptr()
         } else {
