@@ -8,7 +8,7 @@ authors = ["YdrMaster <ydrml@hotmail.com>"]
 
 [dependencies]
 clap = { version = "4.0", features = ["derive"] }
-os-xtask-utils = { git = "https://github.com/YdrMaster/os-xtask-utils", rev = "bba0509" }
+os-xtask-utils = "0.0.0"
 once_cell = "1.15"
 
 serde = "1.0"

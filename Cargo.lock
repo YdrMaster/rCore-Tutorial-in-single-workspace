@@ -156,9 +156,9 @@ dependencies = [
 
 [[package]]
 name = "clap"
-version = "4.0.11"
+version = "4.0.12"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4ed45cc2c62a3eff523e718d8576ba762c83a3146151093283ac62ae11933a73"
+checksum = "385007cbbed899260395a4107435fead4cad80684461b3cc78238bdcb0bad58f"
 dependencies = [
  "atty",
  "bitflags",
@@ -252,9 +252,9 @@ dependencies = [
 
 [[package]]
 name = "libc"
-version = "0.2.134"
+version = "0.2.135"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "329c933548736bc49fd575ee68c89e8be4d260064184389a5b77517cddd99ffb"
+checksum = "68783febc7782c6c5cb401fbda4de5a9898be1762314da0bb2c10ced61f18b0c"
 
 [[package]]
 name = "linker"
@@ -312,7 +312,8 @@ checksum = "e82dad04139b71a90c080c8463fe0dc7902db5192d939bd0950f074d014339e1"
 [[package]]
 name = "os-xtask-utils"
 version = "0.0.0"
-source = "git+https://github.com/YdrMaster/os-xtask-utils?rev=bba0509#bba05092776eb59869f76d57cf18dd5c7d6bee93"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f5e9cccd7bf690840399e09e283b7f5aa219886dc5770c083beee2adca0ffabe"
 dependencies = [
  "once_cell",
 ]
