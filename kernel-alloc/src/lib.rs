@@ -66,10 +66,10 @@ const PTR_BITS: usize = core::mem::size_of::<usize>().trailing_zeros() as _;
 static mut PAGE_BITS: usize = 0;
 
 /// 页分配器。
-static mut PAGE: MutAllocator<12> = MutAllocator::new();
+static mut PAGE: MutAllocator<12> = MutAllocator::new(); // 6 + 12 + 12 = 30 -> 1 GiB
 
 /// 堆分配器。
-static mut HEAP: MutAllocator<21> = MutAllocator::new();
+static mut HEAP: MutAllocator<21> = MutAllocator::new(); // 6 + 21 + 3  = 30 -> 1 GiB
 
 /// 整页分配。
 pub fn alloc_pages(count: usize) -> &'static mut [usize] {
