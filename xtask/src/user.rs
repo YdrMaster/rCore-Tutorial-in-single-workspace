@@ -1,37 +1,7 @@
 use crate::{fs_pack::easy_fs_pack, objcopy, PROJECT, TARGET, TARGET_ARCH};
 use os_xtask_utils::{Cargo, CommandExt};
 use serde_derive::Deserialize;
-use std::{ffi::OsStr, fs::File, io::Write, path::PathBuf};
-
-#[derive(Deserialize)]
-struct Ch2 {
-    ch2: Cases,
-}
-
-#[derive(Deserialize)]
-struct Ch3 {
-    ch3: Cases,
-}
-
-#[derive(Deserialize)]
-struct Ch4 {
-    ch4: Cases,
-}
-
-#[derive(Deserialize)]
-struct Ch5 {
-    ch5: Cases,
-}
-
-#[derive(Deserialize)]
-struct Ch6 {
-    ch6: Cases,
-}
-
-#[derive(Deserialize)]
-struct Ch7 {
-    ch7: Cases,
-}
+use std::{collections::HashMap, ffi::OsStr, fs::File, io::Write, path::PathBuf};
 
 #[derive(Deserialize, Default)]
 struct Cases {
@@ -101,16 +71,10 @@ fn build_one(name: impl AsRef<OsStr>, release: bool, base_address: u64) -> PathB
 
 pub fn build_for(ch: u8, release: bool) {
     let cfg = std::fs::read_to_string(PROJECT.join("user/cases.toml")).unwrap();
-    let mut cases = match ch {
-        2 => toml::from_str::<Ch2>(&cfg).map(|ch| ch.ch2),
-        3 => toml::from_str::<Ch3>(&cfg).map(|ch| ch.ch3),
-        4 => toml::from_str::<Ch4>(&cfg).map(|ch| ch.ch4),
-        5 => toml::from_str::<Ch5>(&cfg).map(|ch| ch.ch5),
-        6 => toml::from_str::<Ch6>(&cfg).map(|ch| ch.ch6),
-        7 => toml::from_str::<Ch7>(&cfg).map(|ch| ch.ch7),
-        _ => unreachable!(),
-    }
-    .unwrap_or_default();
+    let mut cases = toml::from_str::<HashMap<String, Cases>>(&cfg)
+        .unwrap()
+        .remove(&format!("ch{ch}"))
+        .unwrap_or_default();
     let CasesInfo { base, step, bins } = cases.build(release);
     if bins.is_empty() {
         return;
