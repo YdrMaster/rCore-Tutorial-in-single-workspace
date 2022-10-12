@@ -97,22 +97,9 @@ apps:
     )
     .unwrap();
 
-    (0..bins.len()).for_each(|i| {
-        writeln!(
-            ld,
-            "\
-    .quad app_{i}_start"
-        )
-        .unwrap()
-    });
+    (0..bins.len()).for_each(|i| writeln!(ld, "    .quad app_{i}_start").unwrap());
 
-    writeln!(
-        ld,
-        "\
-    .quad app_{}_end",
-        bins.len() - 1
-    )
-    .unwrap();
+    writeln!(ld, "    .quad app_{}_end", bins.len() - 1).unwrap();
 
     bins.iter().enumerate().for_each(|(i, path)| {
         writeln!(
