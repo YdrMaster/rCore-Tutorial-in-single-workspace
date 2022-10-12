@@ -30,29 +30,8 @@ use xmas_elf::ElfFile;
 
 // 应用程序内联进来。
 core::arch::global_asm!(include_str!(env!("APP_ASM")));
-
-/// Supervisor 汇编入口。
-///
-/// 设置栈并跳转到 Rust。
-#[naked]
-#[no_mangle]
-#[link_section = ".text.entry"]
-unsafe extern "C" fn _start() -> ! {
-    const STACK_SIZE: usize = 16 * 4096;
-
-    #[link_section = ".bss.uninit"]
-    static mut STACK: [u8; STACK_SIZE] = [0u8; STACK_SIZE];
-
-    core::arch::asm!(
-        "la sp, {stack} + {stack_size}",
-        "j  {main}",
-        stack_size = const STACK_SIZE,
-        stack      =   sym STACK,
-        main       =   sym rust_main,
-        options(noreturn),
-    )
-}
-
+// 定义内核入口。
+linker::boot0!(rust_main; stack = 16 * 4096);
 /// 加载用户进程。
 static APPS: Lazy<BTreeMap<&'static str, &'static [u8]>> = Lazy::new(|| {
     extern "C" {

@@ -16,31 +16,10 @@ use task::TaskControlBlock;
 
 // 应用程序内联进来。
 core::arch::global_asm!(include_str!(env!("APP_ASM")));
-
 // 应用程序数量。
 const APP_CAPACITY: usize = 32;
-
-/// Supervisor 汇编入口。
-///
-/// 设置栈并跳转到 Rust。
-#[naked]
-#[no_mangle]
-#[link_section = ".text.entry"]
-unsafe extern "C" fn _start() -> ! {
-    const STACK_SIZE: usize = (APP_CAPACITY + 2) * 4096;
-
-    #[link_section = ".bss.uninit"]
-    static mut STACK: [u8; STACK_SIZE] = [0u8; STACK_SIZE];
-
-    core::arch::asm!(
-        "la sp, {stack} + {stack_size}",
-        "j  {main}",
-        stack_size = const STACK_SIZE,
-        stack      =   sym STACK,
-        main       =   sym rust_main,
-        options(noreturn),
-    )
-}
+// 定义内核入口。
+linker::boot0!(rust_main; stack = (APP_CAPACITY + 2) * 4096);
 
 extern "C" fn rust_main() -> ! {
     // bss 段清零

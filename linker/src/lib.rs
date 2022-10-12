@@ -34,8 +34,36 @@ SECTIONS {
         *(.bss .bss.*)
         *(.sbss .sbss.*)
     }
+    . = ALIGN(8);
     __end = .;
 }";
+
+/// 定义内核入口。
+///
+/// 将设置一个启动栈，并在启动栈上调用高级语言入口。
+#[macro_export]
+macro_rules! boot0 {
+    ($entry:ident; stack = $stack:expr) => {
+        #[naked]
+        #[no_mangle]
+        #[link_section = ".text.entry"]
+        unsafe extern "C" fn _start() -> ! {
+            const STACK_SIZE: usize = $stack;
+
+            #[link_section = ".bss.uninit"]
+            static mut STACK: [u8; STACK_SIZE] = [0u8; STACK_SIZE];
+
+            core::arch::asm!(
+                "la sp, {stack} + {stack_size}",
+                "j  {main}",
+                stack_size = const STACK_SIZE,
+                stack      =   sym STACK,
+                main       =   sym rust_main,
+                options(noreturn),
+            )
+        }
+    };
+}
 
 /// 内核地址信息。
 #[derive(Debug)]
