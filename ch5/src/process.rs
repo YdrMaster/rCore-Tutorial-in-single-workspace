@@ -117,7 +117,6 @@ impl Process {
             );
         }
         let stack = kernel_alloc::alloc_pages(2);
-        stack.fill(0);
         address_space.map_extern(
             VPN::new((1 << 26) - 2)..VPN::new(1 << 26),
             PPN::new(stack.as_ptr() as usize >> Sv39::PAGE_BITS),

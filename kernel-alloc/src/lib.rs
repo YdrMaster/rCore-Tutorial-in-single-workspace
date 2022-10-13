@@ -6,7 +6,7 @@
 #[macro_use]
 extern crate alloc;
 
-use alloc::alloc::handle_alloc_error;
+use alloc::alloc::{alloc_zeroed, dealloc, handle_alloc_error};
 use core::{
     alloc::{GlobalAlloc, Layout},
     ptr::NonNull,
@@ -41,9 +41,8 @@ pub unsafe fn _init<T>(region: &'static mut [T], test: bool) {
     let range = region.as_mut_ptr_range();
     log::info!("MEMORY = {range:?}");
     let ptr = NonNull::new(range.start).unwrap();
-    PAGE.init(PAGE_BITS, ptr);
     HEAP.init(PTR_BITS, ptr);
-    PAGE.transfer(ptr, region.len() << PAGE_BITS);
+    HEAP.transfer(ptr, region.len() << PAGE_BITS);
 
     // 测试堆分配回收
     if test {
@@ -58,35 +57,33 @@ pub unsafe fn _init<T>(region: &'static mut [T], test: bool) {
     }
 }
 
-type MutAllocator<const N: usize> = BuddyAllocator<N, UsizeBuddy, LinkedListBuddy>;
-
 const PTR_BITS: usize = core::mem::size_of::<usize>().trailing_zeros() as _;
 
 /// 页地址位数。
 static mut PAGE_BITS: usize = 0;
 
-/// 页分配器。
-static mut PAGE: MutAllocator<12> = MutAllocator::new(); // 6 + 12 + 12 = 30 -> 1 GiB
-
 /// 堆分配器。
-static mut HEAP: MutAllocator<21> = MutAllocator::new(); // 6 + 21 + 3  = 30 -> 1 GiB
+///
+/// 6 + 21 + 3 = 30 -> 1 GiB
+static mut HEAP: BuddyAllocator<21, UsizeBuddy, LinkedListBuddy> = BuddyAllocator::new();
 
 /// 整页分配。
-pub fn alloc_pages(count: usize) -> &'static mut [usize] {
+#[inline]
+pub fn alloc_pages(count: usize) -> &'static mut [u8] {
     unsafe {
-        let layout = Layout::from_size_align_unchecked(count << PAGE_BITS, 1 << PAGE_BITS);
-        match PAGE.allocate_layout(layout) {
-            Ok((ptr, _)) => {
-                core::slice::from_raw_parts_mut(ptr.as_ptr(), count << (PAGE_BITS - PTR_BITS))
-            }
-            Err(_) => handle_alloc_error(layout),
-        }
+        let size = count << PAGE_BITS;
+        let layout = Layout::from_size_align_unchecked(size, 1 << PAGE_BITS);
+        core::slice::from_raw_parts_mut(alloc_zeroed(layout), size)
     }
 }
 
 /// 整页回收。
+#[inline]
 pub fn dealloc_pages<T>(ptr: NonNull<T>, count: usize) {
-    unsafe { PAGE.deallocate(ptr, count << PAGE_BITS) }
+    unsafe {
+        let layout = Layout::from_size_align_unchecked(count << PAGE_BITS, 1 << PAGE_BITS);
+        dealloc(ptr.as_ptr().cast(), layout)
+    }
 }
 
 struct Global;
@@ -99,12 +96,6 @@ unsafe impl GlobalAlloc for Global {
     unsafe fn alloc(&self, layout: Layout) -> *mut u8 {
         if let Ok((ptr, _)) = HEAP.allocate_layout::<u8>(layout) {
             ptr.as_ptr()
-        } else if let Ok((ptr, size)) = PAGE.allocate_layout::<u8>(
-            Layout::from_size_align_unchecked(layout.size().next_power_of_two(), layout.align()),
-        ) {
-            log::trace!("global transfers {size} bytes to heap");
-            HEAP.transfer(ptr, size);
-            HEAP.allocate_layout::<u8>(layout).unwrap().0.as_ptr()
         } else {
             handle_alloc_error(layout)
         }
