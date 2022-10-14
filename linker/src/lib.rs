@@ -140,10 +140,22 @@ impl KernelLayout {
         }
     }
 
+    /// 内核起始地址。
+    #[inline]
+    pub const fn start(&self) -> usize {
+        self.text
+    }
+
     /// 内核结尾地址。
     #[inline]
-    pub fn end(&self) -> usize {
+    pub const fn end(&self) -> usize {
         self.end
+    }
+
+    /// 内核静态二进制长度。
+    #[inline]
+    pub const fn len(&self) -> usize {
+        self.end - self.text
     }
 
     /// 清零 .bss 段。

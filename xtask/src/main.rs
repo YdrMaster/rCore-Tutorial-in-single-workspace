@@ -159,6 +159,7 @@ impl QemuArgs {
             .arg("-kernel")
             .arg(objcopy(elf, true))
             .args(&["-smp", &self.smp.unwrap_or(1).to_string()])
+            .args(&["-m", "64M"])
             .args(&["-serial", "mon:stdio"]);
         if self.build.ch > 5 {
             // Add VirtIO Device

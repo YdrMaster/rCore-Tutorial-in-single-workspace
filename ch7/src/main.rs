@@ -40,6 +40,8 @@ use xmas_elf::ElfFile;
 
 // 定义内核入口。
 linker::boot0!(rust_main; stack = 16 * 4096);
+// 物理内存容量 = 16 MiB。
+const MEMORY: usize = 16 << 20;
 // 内核地址空间。
 static mut KERNEL_SPACE: Once<AddressSpace<Sv39, Sv39Manager>> = Once::new();
 
@@ -58,10 +60,14 @@ extern "C" fn rust_main() -> ! {
     syscall::init_clock(&SyscallContext);
     syscall::init_signal(&SyscallContext);
     // 初始化内核堆
-    const HEAP: usize = 4096 * 4096;
-    unsafe { kernel_alloc::init(core::slice::from_raw_parts_mut(layout.end() as _, HEAP)) };
+    unsafe {
+        kernel_alloc::init(core::slice::from_raw_parts_mut(
+            layout.end() as _,
+            MEMORY - layout.len(),
+        ))
+    };
     // 建立内核地址空间
-    unsafe { KERNEL_SPACE.call_once(|| kernel_space(layout, HEAP)) };
+    unsafe { KERNEL_SPACE.call_once(|| kernel_space(layout, MEMORY)) };
     // 异界传送门
     // 可以直接放在栈上
     init_processor();
@@ -154,7 +160,7 @@ pub const MMIO: &[(usize, usize)] = &[
     (0x1000_1000, 0x00_1000), // Virtio Block in virt machine
 ];
 
-fn kernel_space(layout: linker::KernelLayout, heap: usize) -> AddressSpace<Sv39, Sv39Manager> {
+fn kernel_space(layout: linker::KernelLayout, memory: usize) -> AddressSpace<Sv39, Sv39Manager> {
     let mut space = AddressSpace::<Sv39, Sv39Manager>::new();
     for region in layout.iter() {
         log::info!("{region}");
@@ -176,10 +182,10 @@ fn kernel_space(layout: linker::KernelLayout, heap: usize) -> AddressSpace<Sv39,
     log::info!(
         "(heap) ---> {:#10x}..{:#10x}",
         layout.end(),
-        layout.end() + heap
+        layout.start() + memory
     );
     let s = VAddr::<Sv39>::new(layout.end());
-    let e = VAddr::<Sv39>::new(layout.end() + heap);
+    let e = VAddr::<Sv39>::new(layout.start() + memory);
     space.map_extern(
         s.floor()..e.ceil(),
         PPN::new(s.floor().val()),
