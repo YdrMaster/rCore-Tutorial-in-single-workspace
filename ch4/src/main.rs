@@ -15,10 +15,11 @@ use crate::{
     impls::{Sv39Manager, SyscallContext},
     process::Process,
 };
-use alloc::vec::Vec;
+use alloc::{alloc::alloc, vec::Vec};
 use console::log;
+use core::alloc::Layout;
 use impls::Console;
-use kernel_context::foreign::ForeignPortal;
+use kernel_context::{foreign::ForeignPortal, LocalContext};
 use kernel_vm::{
     page_table::{MmuMeta, Sv39, VAddr, VmFlags, PPN, VPN},
     AddressSpace,
@@ -31,7 +32,7 @@ use xmas_elf::ElfFile;
 // 应用程序内联进来。
 core::arch::global_asm!(include_str!(env!("APP_ASM")));
 // 定义内核入口。
-linker::boot0!(rust_main; stack = 6 * 4096);
+linker::boot0!(rust_main; stack = 2 * 4096);
 // 物理内存容量 = 24 MiB。
 const MEMORY: usize = 24 << 20;
 // 进程列表。
@@ -68,11 +69,27 @@ extern "C" fn rust_main() -> ! {
             unsafe { PROCESSES.push(process) };
         }
     }
+    // 建立调度线程，目的是划分异常域。调度线程上发生内核异常时会回到这个控制流处理
+    let stack = unsafe {
+        alloc(Layout::from_size_align_unchecked(
+            4 << Sv39::PAGE_BITS,
+            1 << Sv39::PAGE_BITS,
+        ))
+    };
+    // 建立调度线程，目的是划分异常域。调度线程上发生内核异常时会回到这个控制流处理
+    let mut scheduling = LocalContext::thread(schedule as _, false);
+    *scheduling.sp_mut() = stack as usize + (4 << Sv39::PAGE_BITS);
+    *scheduling.a_mut(0) = &mut ks as *mut _ as _;
+    unsafe { scheduling.execute() };
+    panic!("trap from scheduling thread: {:?}", scause::read().cause());
+}
+
+extern "C" fn schedule(ks: &mut AddressSpace<Sv39, Sv39Manager>) -> ! {
     // 异界传送门
     // 可以直接放在栈上
     let mut portal = ForeignPortal::new();
     // 传送门映射到所有地址空间
-    map_portal(&mut ks, &portal);
+    map_portal(ks, &portal);
     unsafe {
         PROCESSES
             .iter_mut()
