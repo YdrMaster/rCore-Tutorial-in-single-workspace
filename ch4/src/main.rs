@@ -32,7 +32,7 @@ use xmas_elf::ElfFile;
 // 应用程序内联进来。
 core::arch::global_asm!(include_str!(env!("APP_ASM")));
 // 定义内核入口。
-linker::boot0!(rust_main; stack = 2 * 4096);
+linker::boot0!(rust_main; stack = 6 * 4096);
 // 物理内存容量 = 24 MiB。
 const MEMORY: usize = 24 << 20;
 // 进程列表。
@@ -69,36 +69,41 @@ extern "C" fn rust_main() -> ! {
             unsafe { PROCESSES.push(process) };
         }
     }
-    // 建立调度线程，目的是划分异常域。调度线程上发生内核异常时会回到这个控制流处理
-    let stack = unsafe {
-        alloc(Layout::from_size_align_unchecked(
-            4 << Sv39::PAGE_BITS,
-            1 << Sv39::PAGE_BITS,
-        ))
-    };
-    // 建立调度线程，目的是划分异常域。调度线程上发生内核异常时会回到这个控制流处理
-    let mut scheduling = LocalContext::thread(schedule as _, false);
-    *scheduling.sp_mut() = stack as usize + (4 << Sv39::PAGE_BITS);
-    *scheduling.a_mut(0) = &mut ks as *mut _ as _;
-    unsafe { scheduling.execute() };
-    panic!("trap from scheduling thread: {:?}", scause::read().cause());
-}
-
-extern "C" fn schedule(ks: &mut AddressSpace<Sv39, Sv39Manager>) -> ! {
     // 异界传送门
     // 可以直接放在栈上
     let mut portal = ForeignPortal::new();
     // 传送门映射到所有地址空间
-    map_portal(ks, &portal);
+    map_portal(&mut ks, &portal);
     unsafe {
         PROCESSES
             .iter_mut()
             .for_each(|proc| map_portal(&mut proc.address_space, &portal))
     };
+    // 建立调度栈
+    const PAGE: Layout =
+        unsafe { Layout::from_size_align_unchecked(2 << Sv39::PAGE_BITS, 1 << Sv39::PAGE_BITS) };
+    let pages = 2;
+    let stack = unsafe { alloc(PAGE) };
+    ks.map_extern(
+        VPN::new((1 << 26) - pages)..VPN::new(1 << 26),
+        PPN::new(stack as usize >> Sv39::PAGE_BITS),
+        VmFlags::build_from_str("_WRV"),
+    );
+    // 建立调度线程，目的是划分异常域。调度线程上发生内核异常时会回到这个控制流处理
+    let mut scheduling = LocalContext::thread(schedule as _, false);
+    *scheduling.sp_mut() = 1 << 38;
+    *scheduling.a_mut(0) = &mut portal as *mut _ as _;
+
+    unsafe { scheduling.execute() };
+    log::error!("stval = {:#x}", stval::read());
+    panic!("trap from scheduling thread: {:?}", scause::read().cause());
+}
+
+extern "C" fn schedule(portal: &mut ForeignPortal) -> ! {
     const PROTAL_TRANSIT: usize = VPN::<Sv39>::MAX.base().val();
     while !unsafe { PROCESSES.is_empty() } {
         let ctx = unsafe { &mut PROCESSES[0].context };
-        unsafe { ctx.execute(&mut portal, PROTAL_TRANSIT) };
+        unsafe { ctx.execute(portal, PROTAL_TRANSIT) };
         match scause::read().cause() {
             scause::Trap::Exception(scause::Exception::UserEnvCall) => {
                 use syscall::{SyscallId as Id, SyscallResult as Ret};
@@ -123,7 +128,11 @@ extern "C" fn schedule(ks: &mut AddressSpace<Sv39, Sv39Manager>) -> ! {
                 }
             }
             e => {
-                log::error!("unsupported trap: {e:?}");
+                log::error!(
+                    "unsupported trap: {e:?}, stval = {:#x}, sepc = {:#x}",
+                    stval::read(),
+                    ctx.context.pc()
+                );
                 unsafe { PROCESSES.remove(0) };
             }
         }
@@ -135,7 +144,7 @@ extern "C" fn schedule(ks: &mut AddressSpace<Sv39, Sv39Manager>) -> ! {
 /// Rust 异常处理函数，以异常方式关机。
 #[panic_handler]
 fn panic(info: &core::panic::PanicInfo) -> ! {
-    println!("{info}");
+    log::error!("{info}");
     system_reset(Shutdown, SystemFailure);
     loop {}
 }
@@ -148,8 +157,7 @@ fn kernel_space(layout: linker::KernelLayout, memory: usize) -> AddressSpace<Sv3
         let flags = match region.title {
             Text => "X_RV",
             Rodata => "__RV",
-            Data => "_WRV",
-            Boot => "_WRV",
+            Data | Boot => "_WRV",
         };
         let s = VAddr::<Sv39>::new(region.range.start);
         let e = VAddr::<Sv39>::new(region.range.end);
