@@ -53,9 +53,10 @@ extern "C" fn rust_main() -> ! {
     syscall::init_scheduling(&SyscallContext);
     syscall::init_clock(&SyscallContext);
     // 初始化内核堆
-    kernel_alloc::init!(pages = 4096);
+    const HEAP: usize = 4096 * 4096;
+    unsafe { kernel_alloc::init(core::slice::from_raw_parts_mut(layout.end() as _, HEAP)) };
     // 建立内核地址空间
-    unsafe { KERNEL_SPACE.call_once(|| kernel_space(layout)) };
+    unsafe { KERNEL_SPACE.call_once(|| kernel_space(layout, HEAP)) };
     // 异界传送门
     // 可以直接放在栈上
     init_processor();
@@ -133,7 +134,7 @@ pub const MMIO: &[(usize, usize)] = &[
     (0x1000_1000, 0x00_1000), // Virtio Block in virt machine
 ];
 
-fn kernel_space(layout: linker::KernelLayout) -> AddressSpace<Sv39, Sv39Manager> {
+fn kernel_space(layout: linker::KernelLayout, heap: usize) -> AddressSpace<Sv39, Sv39Manager> {
     let mut space = AddressSpace::<Sv39, Sv39Manager>::new();
     for region in layout.iter() {
         log::info!("{region}");
@@ -152,6 +153,18 @@ fn kernel_space(layout: linker::KernelLayout) -> AddressSpace<Sv39, Sv39Manager>
             VmFlags::build_from_str(flags),
         )
     }
+    log::info!(
+        "(heap) ---> {:#10x}..{:#10x}",
+        layout.end(),
+        layout.end() + heap
+    );
+    let s = VAddr::<Sv39>::new(layout.end());
+    let e = VAddr::<Sv39>::new(layout.end() + heap);
+    space.map_extern(
+        s.floor()..e.ceil(),
+        PPN::new(s.floor().val()),
+        VmFlags::build_from_str("_WRV"),
+    );
     println!();
 
     // MMIO

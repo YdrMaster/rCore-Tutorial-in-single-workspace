@@ -140,6 +140,12 @@ impl KernelLayout {
         }
     }
 
+    /// 内核结尾地址。
+    #[inline]
+    pub fn end(&self) -> usize {
+        self.end
+    }
+
     /// 清零 .bss 段。
     #[inline]
     pub unsafe fn zero_bss(&self) {
@@ -147,6 +153,7 @@ impl KernelLayout {
     }
 
     /// 内核区段迭代器。
+    #[inline]
     pub fn iter(&self) -> KernelRegionIterator {
         KernelRegionIterator {
             layout: self,

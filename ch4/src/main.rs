@@ -49,9 +49,10 @@ extern "C" fn rust_main() -> ! {
     syscall::init_scheduling(&SyscallContext);
     syscall::init_clock(&SyscallContext);
     // 初始化内核堆
-    kernel_alloc::init!(pages = 512);
+    const HEAP: usize = 512 * 4096;
+    unsafe { kernel_alloc::init(core::slice::from_raw_parts_mut(layout.end() as _, HEAP)) };
     // 建立内核地址空间
-    let mut ks = kernel_space(layout);
+    let mut ks = kernel_space(layout, HEAP);
     // 加载应用程序
     for (i, elf) in linker::AppMeta::locate().iter().enumerate() {
         let base = elf.as_ptr() as usize;
@@ -115,7 +116,7 @@ fn panic(info: &core::panic::PanicInfo) -> ! {
     loop {}
 }
 
-fn kernel_space(layout: linker::KernelLayout) -> AddressSpace<Sv39, Sv39Manager> {
+fn kernel_space(layout: linker::KernelLayout, heap: usize) -> AddressSpace<Sv39, Sv39Manager> {
     let mut space = AddressSpace::<Sv39, Sv39Manager>::new();
     for region in layout.iter() {
         log::info!("{region}");
@@ -134,6 +135,18 @@ fn kernel_space(layout: linker::KernelLayout) -> AddressSpace<Sv39, Sv39Manager>
             VmFlags::build_from_str(flags),
         )
     }
+    log::info!(
+        "(heap) ---> {:#10x}..{:#10x}",
+        layout.end(),
+        layout.end() + heap
+    );
+    let s = VAddr::<Sv39>::new(layout.end());
+    let e = VAddr::<Sv39>::new(layout.end() + heap);
+    space.map_extern(
+        s.floor()..e.ceil(),
+        PPN::new(s.floor().val()),
+        VmFlags::build_from_str("_WRV"),
+    );
     println!();
     unsafe { satp::set(satp::Mode::Sv39, 0, space.root_ppn().val()) };
     space
