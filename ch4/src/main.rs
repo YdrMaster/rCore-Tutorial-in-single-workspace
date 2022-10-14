@@ -36,7 +36,7 @@ linker::boot0!(rust_main; stack = 6 * 4096);
 // 物理内存容量 = 24 MiB。
 const MEMORY: usize = 24 << 20;
 // 传送门所在虚页。
-const PROTAL_TRANSIT: VPN<Sv39> = VPN::<Sv39>::MAX;
+const PROTAL_TRANSIT: VPN<Sv39> = VPN::new(1 << 26);
 // 进程列表。
 static mut PROCESSES: Vec<Process> = Vec::new();
 
@@ -82,6 +82,7 @@ extern "C" fn rust_main() -> ! {
         PPN::new(stack as usize >> Sv39::PAGE_BITS),
         VmFlags::build_from_str("_WRV"),
     );
+    println!("{ks:?}");
     // 建立调度线程，目的是划分异常域。调度线程上发生内核异常时会回到这个控制流处理
     let mut scheduling = LocalContext::thread(schedule as _, false);
     *scheduling.sp_mut() = 1 << 38;

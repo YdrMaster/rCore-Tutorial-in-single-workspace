@@ -75,7 +75,6 @@ impl Process {
         );
 
         log::info!("process entry = {:#x}", entry);
-        log::debug!("{address_space:?}");
 
         let mut context = LocalContext::user(entry);
         let satp = (8 << 60) | address_space.root_ppn().val();
