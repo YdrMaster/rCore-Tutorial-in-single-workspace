@@ -35,6 +35,8 @@ core::arch::global_asm!(include_str!(env!("APP_ASM")));
 linker::boot0!(rust_main; stack = 6 * 4096);
 // 物理内存容量 = 24 MiB。
 const MEMORY: usize = 24 << 20;
+// 传送门所在虚页。
+const PROTAL_TRANSIT: VPN<Sv39> = VPN::<Sv39>::MAX;
 // 进程列表。
 static mut PROCESSES: Vec<Process> = Vec::new();
 
@@ -46,11 +48,6 @@ extern "C" fn rust_main() -> ! {
     console::init_console(&Console);
     console::set_log_level(option_env!("LOG"));
     console::test_log();
-    // 初始化 syscall
-    syscall::init_io(&SyscallContext);
-    syscall::init_process(&SyscallContext);
-    syscall::init_scheduling(&SyscallContext);
-    syscall::init_clock(&SyscallContext);
     // 初始化内核堆
     kernel_alloc::init(layout.start() as _);
     unsafe {
@@ -59,26 +56,22 @@ extern "C" fn rust_main() -> ! {
             MEMORY - layout.len(),
         ))
     };
-    // 建立内核地址空间
-    let mut ks = kernel_space(layout, MEMORY);
+    // 建立异界传送门
+    let mut portal = ForeignPortal::new();
     // 加载应用程序
     for (i, elf) in linker::AppMeta::locate().iter().enumerate() {
         let base = elf.as_ptr() as usize;
         log::info!("detect app[{i}]: {base:#x}..{:#x}", base + elf.len());
-        if let Some(process) = Process::new(ElfFile::new(elf).unwrap()) {
+        if let Some(mut process) = Process::new(ElfFile::new(elf).unwrap()) {
+            // 映射异界传送门
+            map_portal(&mut process.address_space, &portal);
             unsafe { PROCESSES.push(process) };
         }
     }
-    // 异界传送门
-    // 可以直接放在栈上
-    let mut portal = ForeignPortal::new();
-    // 传送门映射到所有地址空间
+    // 建立内核地址空间
+    let mut ks = kernel_space(layout, MEMORY);
+    // 映射异界传送门
     map_portal(&mut ks, &portal);
-    unsafe {
-        PROCESSES
-            .iter_mut()
-            .for_each(|proc| map_portal(&mut proc.address_space, &portal))
-    };
     // 建立调度栈
     const PAGE: Layout =
         unsafe { Layout::from_size_align_unchecked(2 << Sv39::PAGE_BITS, 1 << Sv39::PAGE_BITS) };
@@ -93,17 +86,20 @@ extern "C" fn rust_main() -> ! {
     let mut scheduling = LocalContext::thread(schedule as _, false);
     *scheduling.sp_mut() = 1 << 38;
     *scheduling.a_mut(0) = &mut portal as *mut _ as _;
-
     unsafe { scheduling.execute() };
     log::error!("stval = {:#x}", stval::read());
     panic!("trap from scheduling thread: {:?}", scause::read().cause());
 }
 
 extern "C" fn schedule(portal: &mut ForeignPortal) -> ! {
-    const PROTAL_TRANSIT: usize = VPN::<Sv39>::MAX.base().val();
+    // 初始化 syscall
+    syscall::init_io(&SyscallContext);
+    syscall::init_process(&SyscallContext);
+    syscall::init_scheduling(&SyscallContext);
+    syscall::init_clock(&SyscallContext);
     while !unsafe { PROCESSES.is_empty() } {
         let ctx = unsafe { &mut PROCESSES[0].context };
-        unsafe { ctx.execute(portal, PROTAL_TRANSIT) };
+        unsafe { ctx.execute(portal, PROTAL_TRANSIT.base().val()) };
         match scause::read().cause() {
             scause::Trap::Exception(scause::Exception::UserEnvCall) => {
                 use syscall::{SyscallId as Id, SyscallResult as Ret};
@@ -186,9 +182,8 @@ fn kernel_space(layout: linker::KernelLayout, memory: usize) -> AddressSpace<Sv3
 
 #[inline]
 fn map_portal(space: &mut AddressSpace<Sv39, Sv39Manager>, portal: &ForeignPortal) {
-    const PORTAL: VPN<Sv39> = VPN::MAX; // 虚地址最后一页给传送门
     space.map_extern(
-        PORTAL..PORTAL + 1,
+        PROTAL_TRANSIT..PROTAL_TRANSIT + 1,
         PPN::new(portal as *const _ as usize >> Sv39::PAGE_BITS),
         VmFlags::build_from_str("XWRV"),
     );
