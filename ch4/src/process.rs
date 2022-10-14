@@ -1,6 +1,7 @@
 ﻿use crate::Sv39Manager;
+use alloc::alloc::alloc_zeroed;
 use console::log;
-use core::str::FromStr;
+use core::{alloc::Layout, str::FromStr};
 use kernel_context::{foreign::ForeignContext, LocalContext};
 use kernel_vm::{
     page_table::{MmuMeta, Sv39, VAddr, VmFlags, PPN, VPN},
@@ -61,10 +62,15 @@ impl Process {
                 VmFlags::from_str(unsafe { core::str::from_utf8_unchecked(&flags) }).unwrap(),
             );
         }
-        let stack = kernel_alloc::alloc_pages(2);
+        let stack = unsafe {
+            alloc_zeroed(Layout::from_size_align_unchecked(
+                2 << Sv39::PAGE_BITS,
+                1 << Sv39::PAGE_BITS,
+            ))
+        };
         address_space.map_extern(
             VPN::new((1 << 26) - 2)..VPN::new(1 << 26),
-            PPN::new(stack.as_ptr() as usize >> Sv39::PAGE_BITS),
+            PPN::new(stack as usize >> Sv39::PAGE_BITS),
             VmFlags::build_from_str("U_WRV"),
         );
 

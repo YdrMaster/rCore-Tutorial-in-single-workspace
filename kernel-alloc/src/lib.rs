@@ -3,10 +3,9 @@
 #![no_std]
 #![deny(warnings, missing_docs)]
 
-#[macro_use]
 extern crate alloc;
 
-use alloc::alloc::{alloc_zeroed, dealloc, handle_alloc_error};
+use alloc::alloc::handle_alloc_error;
 use core::{
     alloc::{GlobalAlloc, Layout},
     ptr::NonNull,
@@ -29,62 +28,26 @@ macro_rules! init {
         }
 
         static mut SPACE: [Page; $n] = [Page::ZERO; $n];
-        unsafe { $crate::_init(&mut SPACE, true) };
+        unsafe { $crate::_init(&mut SPACE) };
     }};
 }
 
 /// 初始化全局分配器和内核堆分配器。
 #[doc(hidden)]
-pub unsafe fn _init<T>(region: &'static mut [T], test: bool) {
-    PAGE_BITS = core::mem::size_of::<T>().trailing_zeros() as usize;
-
+pub unsafe fn _init<T>(region: &'static mut [T]) {
     let range = region.as_mut_ptr_range();
     log::info!("MEMORY = {range:?}");
     let ptr = NonNull::new(range.start).unwrap();
     HEAP.init(PTR_BITS, ptr);
-    HEAP.transfer(ptr, region.len() << PAGE_BITS);
-
-    // 测试堆分配回收
-    if test {
-        let mut vec = vec![0; 1234];
-        for (i, val) in vec.iter_mut().enumerate() {
-            *val = i;
-        }
-        for (i, val) in vec.into_iter().enumerate() {
-            assert_eq!(i, val);
-        }
-        log::debug!("memory management test pass");
-    }
+    HEAP.transfer(ptr, region.len() * core::mem::size_of::<T>());
 }
 
 const PTR_BITS: usize = core::mem::size_of::<usize>().trailing_zeros() as _;
-
-/// 页地址位数。
-static mut PAGE_BITS: usize = 0;
 
 /// 堆分配器。
 ///
 /// 6 + 21 + 3 = 30 -> 1 GiB
 static mut HEAP: BuddyAllocator<21, UsizeBuddy, LinkedListBuddy> = BuddyAllocator::new();
-
-/// 整页分配。
-#[inline]
-pub fn alloc_pages(count: usize) -> &'static mut [u8] {
-    unsafe {
-        let size = count << PAGE_BITS;
-        let layout = Layout::from_size_align_unchecked(size, 1 << PAGE_BITS);
-        core::slice::from_raw_parts_mut(alloc_zeroed(layout), size)
-    }
-}
-
-/// 整页回收。
-#[inline]
-pub fn dealloc_pages<T>(ptr: NonNull<T>, count: usize) {
-    unsafe {
-        let layout = Layout::from_size_align_unchecked(count << PAGE_BITS, 1 << PAGE_BITS);
-        dealloc(ptr.as_ptr().cast(), layout)
-    }
-}
 
 struct Global;
 

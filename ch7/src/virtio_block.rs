@@ -1,6 +1,9 @@
 use crate::KERNEL_SPACE;
-use alloc::sync::Arc;
-use core::ptr::NonNull;
+use alloc::{
+    alloc::{alloc_zeroed, dealloc},
+    sync::Arc,
+};
+use core::{alloc::Layout, ptr::NonNull};
 use easy_fs::BlockDevice;
 use kernel_vm::page_table::{MmuMeta, Sv39, VAddr, VmFlags};
 use spin::{Lazy, Mutex};
@@ -40,14 +43,22 @@ pub struct VirtioHal;
 impl Hal for VirtioHal {
     fn dma_alloc(pages: usize) -> usize {
         // warn!("dma_alloc");
-        kernel_alloc::alloc_pages(pages).as_ptr() as _
+        unsafe {
+            alloc_zeroed(Layout::from_size_align_unchecked(
+                pages << Sv39::PAGE_BITS,
+                1 << Sv39::PAGE_BITS,
+            )) as _
+        }
     }
 
     fn dma_dealloc(paddr: usize, pages: usize) -> i32 {
         // warn!("dma_dealloc");
-        let aligned = (paddr >> Sv39::PAGE_BITS) << Sv39::PAGE_BITS;
-        let ptr = NonNull::new(aligned as *mut u8).unwrap();
-        kernel_alloc::dealloc_pages(ptr, pages);
+        unsafe {
+            dealloc(
+                paddr as _,
+                Layout::from_size_align_unchecked(pages << Sv39::PAGE_BITS, 1 << Sv39::PAGE_BITS),
+            )
+        }
         0
     }
 

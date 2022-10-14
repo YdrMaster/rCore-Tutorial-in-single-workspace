@@ -202,9 +202,9 @@ mod impls {
         process::TaskId,
         PROCESSOR,
     };
-    use alloc::{string::String, vec::Vec};
+    use alloc::{alloc::alloc_zeroed, string::String, vec::Vec};
     use console::log;
-    use core::ptr::NonNull;
+    use core::{alloc::Layout, ptr::NonNull};
     use easy_fs::UserBuffer;
     use easy_fs::{FSManager, OpenFlags};
     use kernel_vm::{
@@ -221,14 +221,23 @@ mod impls {
 
     impl Sv39Manager {
         const OWNED: VmFlags<Sv39> = unsafe { VmFlags::from_raw(1 << 8) };
+
+        #[inline]
+        fn page_alloc<T>(count: usize) -> *mut T {
+            unsafe {
+                alloc_zeroed(Layout::from_size_align_unchecked(
+                    count << Sv39::PAGE_BITS,
+                    1 << Sv39::PAGE_BITS,
+                ))
+            }
+            .cast()
+        }
     }
 
     impl PageManager<Sv39> for Sv39Manager {
         #[inline]
         fn new_root() -> Self {
-            Self(unsafe {
-                NonNull::new_unchecked(kernel_alloc::alloc_pages(1).as_mut_ptr().cast())
-            })
+            Self(NonNull::new(Self::page_alloc(1)).unwrap())
         }
 
         #[inline]
@@ -259,7 +268,7 @@ mod impls {
         #[inline]
         fn allocate(&mut self, len: usize, flags: &mut VmFlags<Sv39>) -> NonNull<u8> {
             *flags |= Self::OWNED;
-            unsafe { NonNull::new_unchecked(kernel_alloc::alloc_pages(len).as_mut_ptr().cast()) }
+            NonNull::new(Self::page_alloc(len)).unwrap()
         }
 
         fn deallocate(&mut self, _pte: Pte<Sv39>, _len: usize) -> usize {
