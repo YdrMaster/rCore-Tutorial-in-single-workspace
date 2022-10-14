@@ -55,8 +55,9 @@ extern "C" fn rust_main() -> ! {
     syscall::init_scheduling(&SyscallContext);
     syscall::init_clock(&SyscallContext);
     // 初始化内核堆
+    kernel_alloc::init(layout.start() as _);
     unsafe {
-        kernel_alloc::init(core::slice::from_raw_parts_mut(
+        kernel_alloc::transfer(core::slice::from_raw_parts_mut(
             layout.end() as _,
             MEMORY - layout.len(),
         ))
