@@ -5,6 +5,7 @@
 #![deny(warnings, missing_docs)]
 
 /// 不同地址空间的上下文控制。
+#[cfg(feature = "foreign")]
 pub mod foreign;
 
 /// 线程上下文。

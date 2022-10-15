@@ -256,6 +256,9 @@ dependencies = [
 [[package]]
 name = "kernel-context"
 version = "0.1.0"
+dependencies = [
+ "spin 0.9.4",
+]
 
 [[package]]
 name = "kernel-vm"

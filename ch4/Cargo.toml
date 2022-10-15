@@ -11,7 +11,7 @@ riscv = "0.9"
 
 linker = { path = "../linker" }
 console = { path = "../console" }
-kernel-context = { path = "../kernel-context" }
+kernel-context = { path = "../kernel-context", features = ["foreign"] }
 kernel-alloc = { path = "../kernel-alloc" }
 kernel-vm = { path = "../kernel-vm" }
 syscall = { path = "../syscall", features = ["kernel"] }
