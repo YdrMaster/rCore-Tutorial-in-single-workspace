@@ -435,18 +435,28 @@ mod impls {
         fn exec(&self, _caller: Caller, path: usize, count: usize) -> isize {
             const READABLE: VmFlags<Sv39> = VmFlags::build_from_str("RV");
             let current = unsafe { PROCESSOR.current().unwrap() };
-            if let Some(ptr) = current.address_space.translate(VAddr::new(path), READABLE) {
-                let name = unsafe {
+            current
+                .address_space
+                .translate(VAddr::new(path), READABLE)
+                .map(|ptr| unsafe {
                     core::str::from_utf8_unchecked(core::slice::from_raw_parts(ptr.as_ptr(), count))
-                };
-                current.exec(
-                    ElfFile::new(read_all(FS.open(name, OpenFlags::RDONLY).unwrap()).as_slice())
-                        .unwrap(),
-                );
-                0
-            } else {
-                -1
-            }
+                })
+                .and_then(|name| FS.open(name, OpenFlags::RDONLY))
+                .map_or_else(
+                    || {
+                        log::error!("unknown app, select one in the list: ");
+                        FS.readdir("")
+                            .unwrap()
+                            .into_iter()
+                            .for_each(|app| println!("{app}"));
+                        println!();
+                        -1
+                    },
+                    |fd| {
+                        current.exec(ElfFile::new(&read_all(fd)).unwrap());
+                        0
+                    },
+                )
         }
 
         // 简化的 wait 系统调用，pid == -1，则需要等待所有子进程结束，若当前进程有子进程，则返回 -1，否则返回 0

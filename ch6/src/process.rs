@@ -1,9 +1,10 @@
 ﻿use crate::{map_portal, Sv39Manager};
-use alloc::alloc::alloc_zeroed;
-use alloc::vec::Vec;
-use core::alloc::Layout;
-use core::str::FromStr;
-use core::sync::atomic::{AtomicUsize, Ordering};
+use alloc::{alloc::alloc_zeroed, vec::Vec};
+use core::{
+    alloc::Layout,
+    str::FromStr,
+    sync::atomic::{AtomicUsize, Ordering},
+};
 use easy_fs::FileHandle;
 use kernel_context::{
     foreign::{ForeignContext, ForeignPortal},
@@ -49,7 +50,7 @@ pub struct Process {
     pub context: ForeignContext,
     pub address_space: AddressSpace<Sv39, Sv39Manager>,
 
-    // 文件描述符表
+    /// 文件描述符表
     pub fd_table: Vec<Option<Mutex<FileHandle>>>,
 }
 

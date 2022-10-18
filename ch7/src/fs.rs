@@ -1,11 +1,14 @@
+use crate::virtio_block::BLOCK_DEVICE;
 use alloc::{string::String, sync::Arc, vec::Vec};
 use easy_fs::{EasyFileSystem, FSManager, FileHandle, Inode, OpenFlags};
 use spin::Lazy;
 
-use crate::virtio_block::BLOCK_DEVICE;
+pub static FS: Lazy<FileSystem> = Lazy::new(|| FileSystem {
+    root: EasyFileSystem::root_inode(&EasyFileSystem::open(BLOCK_DEVICE.clone())),
+});
 
 pub struct FileSystem {
-    root: Arc<Inode>,
+    root: Inode,
 }
 
 impl FSManager for FileSystem {
@@ -48,17 +51,6 @@ impl FSManager for FileSystem {
         unimplemented!()
     }
 }
-
-impl FileSystem {
-    fn new() -> Self {
-        let efs = EasyFileSystem::open(BLOCK_DEVICE.clone());
-        Self {
-            root: Arc::new(EasyFileSystem::root_inode(&efs)),
-        }
-    }
-}
-
-pub static FS: Lazy<Arc<FileSystem>> = Lazy::new(|| Arc::new(FileSystem::new()));
 
 pub fn read_all(fd: Arc<FileHandle>) -> Vec<u8> {
     let mut offset = 0usize;

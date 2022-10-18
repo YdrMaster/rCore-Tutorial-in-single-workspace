@@ -11,7 +11,15 @@ use virtio_drivers::{Hal, VirtIOBlk, VirtIOHeader};
 
 const VIRTIO0: usize = 0x10001000;
 
-pub struct VirtIOBlock(Mutex<VirtIOBlk<'static, VirtioHal>>);
+pub static BLOCK_DEVICE: Lazy<Arc<dyn BlockDevice>> = Lazy::new(|| {
+    Arc::new(unsafe {
+        VirtIOBlock(Mutex::new(
+            VirtIOBlk::new(&mut *(VIRTIO0 as *mut VirtIOHeader)).unwrap(),
+        ))
+    })
+});
+
+struct VirtIOBlock(Mutex<VirtIOBlk<'static, VirtioHal>>);
 
 impl BlockDevice for VirtIOBlock {
     fn read_block(&self, block_id: usize, buf: &mut [u8]) {
@@ -28,17 +36,7 @@ impl BlockDevice for VirtIOBlock {
     }
 }
 
-impl VirtIOBlock {
-    pub fn new() -> Self {
-        unsafe {
-            Self(Mutex::new(
-                VirtIOBlk::<VirtioHal>::new(&mut *(VIRTIO0 as *mut VirtIOHeader)).unwrap(),
-            ))
-        }
-    }
-}
-
-pub struct VirtioHal;
+struct VirtioHal;
 
 impl Hal for VirtioHal {
     fn dma_alloc(pages: usize) -> usize {
@@ -72,13 +70,10 @@ impl Hal for VirtioHal {
         const VALID: VmFlags<Sv39> = VmFlags::build_from_str("__V");
         let ptr: NonNull<u8> = unsafe {
             KERNEL_SPACE
-                .get()
-                .unwrap()
+                .assume_init_ref()
                 .translate(VAddr::new(vaddr), VALID)
                 .unwrap()
         };
         ptr.as_ptr() as usize
     }
 }
-
-pub static BLOCK_DEVICE: Lazy<Arc<dyn BlockDevice>> = Lazy::new(|| Arc::new(VirtIOBlock::new()));
