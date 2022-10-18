@@ -37,6 +37,7 @@ linker::boot0!(rust_main; stack = 16 * 4096);
 const MEMORY: usize = 16 << 20;
 // 传送门所在虚页。
 const PROTAL_TRANSIT: VPN<Sv39> = VPN::MAX;
+// 内核地址空间。
 static mut KERNEL_SPACE: MaybeUninit<AddressSpace<Sv39, Sv39Manager>> = MaybeUninit::uninit();
 /// 加载用户进程。
 static APPS: Lazy<BTreeMap<&'static str, &'static [u8]>> = Lazy::new(|| {
@@ -158,13 +159,9 @@ fn kernel_space(layout: linker::KernelLayout, memory: usize, portal: usize) {
             VmFlags::build_from_str(flags),
         )
     }
-    log::info!(
-        "(heap) ---> {:#10x}..{:#10x}",
-        layout.end(),
-        layout.start() + memory
-    );
     let s = VAddr::<Sv39>::new(layout.end());
     let e = VAddr::<Sv39>::new(layout.start() + memory);
+    log::info!("(heap) ---> {:#10x}..{:#10x}", s.val(), e.val());
     space.map_extern(
         s.floor()..e.ceil(),
         PPN::new(s.floor().val()),

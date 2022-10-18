@@ -1,11 +1,14 @@
-﻿use crate::Sv39Manager;
+﻿use crate::{map_portal, Sv39Manager};
 use alloc::alloc::alloc_zeroed;
 use alloc::vec::Vec;
 use core::alloc::Layout;
 use core::str::FromStr;
 use core::sync::atomic::{AtomicUsize, Ordering};
 use easy_fs::FileHandle;
-use kernel_context::{foreign::ForeignContext, foreign::ForeignPortal, LocalContext};
+use kernel_context::{
+    foreign::{ForeignContext, ForeignPortal},
+    LocalContext,
+};
 use kernel_vm::{
     page_table::{MmuMeta, Sv39, VAddr, VmFlags, PPN, VPN},
     AddressSpace,
@@ -53,9 +56,7 @@ pub struct Process {
 impl Process {
     pub fn exec(&mut self, elf: ElfFile) {
         let proc = Process::from_elf(elf).unwrap();
-        let tramp = self.address_space.tramp;
         self.address_space = proc.address_space;
-        self.address_space.map_portal(tramp);
         self.context = proc.context;
     }
 
@@ -66,6 +67,7 @@ impl Process {
         let parent_addr_space = &self.address_space;
         let mut address_space: AddressSpace<Sv39, Sv39Manager> = AddressSpace::new();
         parent_addr_space.cloneself(&mut address_space);
+        map_portal(&address_space);
         // 复制父进程上下文
         let context = self.context.context.clone();
         let satp = (8 << 60) | address_space.root_ppn().val();
@@ -133,6 +135,7 @@ impl Process {
                 VmFlags::from_str(unsafe { core::str::from_utf8_unchecked(&flags) }).unwrap(),
             );
         }
+        // 映射用户栈
         let stack = unsafe {
             alloc_zeroed(Layout::from_size_align_unchecked(
                 2 << Sv39::PAGE_BITS,
@@ -144,6 +147,8 @@ impl Process {
             PPN::new(stack as usize >> Sv39::PAGE_BITS),
             VmFlags::build_from_str("U_WRV"),
         );
+        // 映射异界传送门
+        map_portal(&address_space);
 
         let mut context = LocalContext::user(entry);
         let satp = (8 << 60) | address_space.root_ppn().val();
@@ -163,7 +168,7 @@ impl Process {
         })
     }
 
-    pub fn execute(&mut self, portal: &mut ForeignPortal, portal_transit: usize) {
-        unsafe { self.context.execute(portal, portal_transit) };
+    pub fn execute(&mut self, portal: &mut impl ForeignPortal) {
+        unsafe { self.context.execute(portal, 0) };
     }
 }
