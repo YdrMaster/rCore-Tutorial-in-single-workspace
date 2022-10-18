@@ -12,16 +12,17 @@ extern crate console;
 
 extern crate alloc;
 
-use alloc::collections::BTreeMap;
+use alloc::{alloc::alloc, collections::BTreeMap};
 use console::log;
-use core::ffi::CStr;
+use core::{alloc::Layout, ffi::CStr, mem::MaybeUninit};
 use impls::{Console, Sv39Manager, SyscallContext};
+use kernel_context::foreign::MultislotPortal;
 use kernel_vm::{
-    page_table::{MmuMeta, Sv39, VAddr, VmFlags, PPN, VPN},
+    page_table::{MmuMeta, Sv39, VAddr, VmFlags, VmMeta, PPN, VPN},
     AddressSpace,
 };
 use process::Process;
-use processor::{init_processor, PROCESSOR};
+use processor::{ProcManager, PROCESSOR};
 use riscv::register::*;
 use sbi_rt::*;
 use spin::Lazy;
@@ -34,6 +35,9 @@ core::arch::global_asm!(include_str!(env!("APP_ASM")));
 linker::boot0!(rust_main; stack = 16 * 4096);
 // 物理内存容量 = 16 MiB。
 const MEMORY: usize = 16 << 20;
+// 传送门所在虚页。
+const PROTAL_TRANSIT: VPN<Sv39> = VPN::MAX;
+static mut KERNEL_SPACE: MaybeUninit<AddressSpace<Sv39, Sv39Manager>> = MaybeUninit::uninit();
 /// 加载用户进程。
 static APPS: Lazy<BTreeMap<&'static str, &'static [u8]>> = Lazy::new(|| {
     extern "C" {
@@ -59,11 +63,6 @@ extern "C" fn rust_main() -> ! {
     console::init_console(&Console);
     console::set_log_level(option_env!("LOG"));
     console::test_log();
-    // 初始化 syscall
-    syscall::init_io(&SyscallContext);
-    syscall::init_process(&SyscallContext);
-    syscall::init_scheduling(&SyscallContext);
-    syscall::init_clock(&SyscallContext);
     // 初始化内核堆
     kernel_alloc::init(layout.start() as _);
     unsafe {
@@ -72,29 +71,31 @@ extern "C" fn rust_main() -> ! {
             MEMORY - layout.len(),
         ))
     };
+    // 建立异界传送门
+    let portal_size = MultislotPortal::calculate_size(1);
+    let portal_layout = Layout::from_size_align(portal_size, 1 << Sv39::PAGE_BITS).unwrap();
+    let portal_ptr = unsafe { alloc(portal_layout) };
+    assert!(portal_layout.size() < 1 << Sv39::PAGE_BITS);
     // 建立内核地址空间
-    let mut ks = kernel_space(layout, MEMORY);
-    let tramp = (
-        PPN::<Sv39>::new(unsafe { &PROCESSOR.portal } as *const _ as usize >> Sv39::PAGE_BITS),
-        VmFlags::build_from_str("XWRV"),
-    );
-    // 传送门映射到所有地址空间
-    init_processor();
-    ks.map_portal(tramp);
-
-    println!("/**** APPS ****");
-    APPS.keys().for_each(|app| println!("{app}"));
-    println!("**************/");
-    // 加载应用程序
+    kernel_space(layout, MEMORY, portal_ptr as _);
+    // 初始化异界传送门
+    let portal = unsafe { MultislotPortal::init_transit(PROTAL_TRANSIT.base().val(), 1) };
+    // 初始化 syscall
+    syscall::init_io(&SyscallContext);
+    syscall::init_process(&SyscallContext);
+    syscall::init_scheduling(&SyscallContext);
+    syscall::init_clock(&SyscallContext);
+    // 加载初始进程
     let initproc_data = APPS.get("initproc").unwrap();
-    if let Some(mut process) = Process::from_elf(ElfFile::new(initproc_data).unwrap()) {
-        process.address_space.map_portal(tramp);
-        unsafe { PROCESSOR.add(process.pid, process) };
+    if let Some(process) = Process::from_elf(ElfFile::new(initproc_data).unwrap()) {
+        unsafe {
+            PROCESSOR.set_manager(ProcManager::new());
+            PROCESSOR.add(process.pid, process);
+        }
     }
-    const PROTAL_TRANSIT: usize = VPN::<Sv39>::MAX.base().val();
     loop {
         if let Some(task) = unsafe { PROCESSOR.find_next() } {
-            task.execute(unsafe { &mut PROCESSOR.portal }, PROTAL_TRANSIT);
+            task.execute(portal);
             match scause::read().cause() {
                 scause::Trap::Exception(scause::Exception::UserEnvCall) => {
                     use syscall::{SyscallId as Id, SyscallResult as Ret};
@@ -139,16 +140,15 @@ fn panic(info: &core::panic::PanicInfo) -> ! {
     loop {}
 }
 
-fn kernel_space(layout: linker::KernelLayout, memory: usize) -> AddressSpace<Sv39, Sv39Manager> {
-    let mut space = AddressSpace::<Sv39, Sv39Manager>::new();
+fn kernel_space(layout: linker::KernelLayout, memory: usize, portal: usize) {
+    let mut space = AddressSpace::new();
     for region in layout.iter() {
         log::info!("{region}");
         use linker::KernelRegionTitle::*;
         let flags = match region.title {
             Text => "X_RV",
             Rodata => "__RV",
-            Data => "_WRV",
-            Boot => "_WRV",
+            Data | Boot => "_WRV",
         };
         let s = VAddr::<Sv39>::new(region.range.start);
         let e = VAddr::<Sv39>::new(region.range.end);
@@ -170,9 +170,20 @@ fn kernel_space(layout: linker::KernelLayout, memory: usize) -> AddressSpace<Sv3
         PPN::new(s.floor().val()),
         VmFlags::build_from_str("_WRV"),
     );
+    space.map_extern(
+        PROTAL_TRANSIT..PROTAL_TRANSIT + 1,
+        PPN::new(portal >> Sv39::PAGE_BITS),
+        VmFlags::build_from_str("__G_XWRV"),
+    );
     println!();
     unsafe { satp::set(satp::Mode::Sv39, 0, space.root_ppn().val()) };
-    space
+    unsafe { KERNEL_SPACE = MaybeUninit::new(space) };
+}
+
+/// 映射异界传送门。
+fn map_portal(space: &AddressSpace<Sv39, Sv39Manager>) {
+    let portal_idx = PROTAL_TRANSIT.index_in(Sv39::MAX_LEVEL);
+    space.root()[portal_idx] = unsafe { KERNEL_SPACE.assume_init_ref() }.root()[portal_idx];
 }
 
 /// 各种接口库的实现。
@@ -367,10 +378,18 @@ mod impls {
                 })
                 .and_then(|name| APPS.get(name))
                 .and_then(|input| ElfFile::new(input).ok())
-                .map_or(-1, |data| {
-                    current.exec(data);
-                    0
-                })
+                .map_or_else(
+                    || {
+                        log::error!("unknown app, select one in the list: ");
+                        APPS.keys().for_each(|app| println!("{app}"));
+                        println!();
+                        -1
+                    },
+                    |data| {
+                        current.exec(data);
+                        0
+                    },
+                )
         }
 
         // 简化的 wait 系统调用，pid == -1，则需要等待所有子进程结束，若当前进程有子进程，则返回 -1，否则返回 0

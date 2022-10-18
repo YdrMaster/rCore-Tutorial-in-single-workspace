@@ -525,9 +525,6 @@ dependencies = [
 [[package]]
 name = "task-manage"
 version = "0.1.0"
-dependencies = [
- "kernel-context",
-]
 
 [[package]]
 name = "termcolor"

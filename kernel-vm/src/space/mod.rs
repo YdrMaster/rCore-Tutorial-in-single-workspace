@@ -15,8 +15,6 @@ pub struct AddressSpace<Meta: VmMeta, M: PageManager<Meta>> {
     /// 虚拟地址块
     pub areas: Vec<Range<VPN<Meta>>>,
     page_manager: M,
-    /// 异界传送门的属性
-    pub tramp: (PPN<Meta>, VmFlags<Meta>),
 }
 
 impl<Meta: VmMeta, M: PageManager<Meta>> AddressSpace<Meta, M> {
@@ -26,7 +24,6 @@ impl<Meta: VmMeta, M: PageManager<Meta>> AddressSpace<Meta, M> {
         Self {
             areas: Vec::new(),
             page_manager: M::new_root(),
-            tramp: (PPN::INVALID, VmFlags::ZERO),
         }
     }
 
@@ -40,15 +37,6 @@ impl<Meta: VmMeta, M: PageManager<Meta>> AddressSpace<Meta, M> {
     #[inline]
     pub fn root(&self) -> PageTable<Meta> {
         unsafe { PageTable::from_root(self.page_manager.root_ptr()) }
-    }
-
-    /// 向地址空间增加异界传送门映射关系。
-    pub fn map_portal(&mut self, tramp: (PPN<Meta>, VmFlags<Meta>)) {
-        self.tramp = tramp;
-        let vpn = VPN::MAX;
-        let mut root = self.root();
-        let mut mapper = Mapper::new(self, tramp.0..tramp.0 + 1, tramp.1);
-        root.walk_mut(Pos::new(vpn, 0), &mut mapper);
     }
 
     /// 向地址空间增加映射关系。
@@ -141,8 +129,6 @@ impl<Meta: VmMeta, M: PageManager<Meta>> AddressSpace<Meta, M> {
             }
             new_addrspace.map_extern(vpn_range, ppn, flags);
         }
-        let tramp = self.tramp;
-        new_addrspace.map_portal(tramp);
     }
 }
 

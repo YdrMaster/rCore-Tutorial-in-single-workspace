@@ -1,12 +1,8 @@
-use core::marker::PhantomData;
-
 use super::manager::Manage;
-use kernel_context::foreign::ForeignPortal;
+use core::marker::PhantomData;
 
 /// Processor 数据结构
 pub struct Processor<T, I: Copy + Ord, M: Manage<T, I>> {
-    /// 异界传送门
-    pub portal: ForeignPortal,
     // 进程对象管理和调度
     manager: Option<M>,
     // 当前正在运行的进程 ID
@@ -18,7 +14,6 @@ impl<T, I: Copy + Ord, M: Manage<T, I>> Processor<T, I, M> {
     /// 新建 Processor
     pub const fn new() -> Self {
         Self {
-            portal: ForeignPortal::EMPTY,
             manager: None,
             current: None,
             phantom_data: PhantomData::<T>,
@@ -36,10 +31,6 @@ impl<T, I: Copy + Ord, M: Manage<T, I>> Processor<T, I, M> {
         } else {
             None
         }
-    }
-    /// 设置异界传送门
-    pub fn set_portal(&mut self, portal: ForeignPortal) {
-        self.portal = portal;
     }
     /// 设置 manager
     pub fn set_manager(&mut self, manager: M) {

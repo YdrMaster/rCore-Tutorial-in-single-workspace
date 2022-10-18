@@ -1,16 +1,8 @@
 use crate::process::{Process, TaskId};
 use alloc::collections::{BTreeMap, VecDeque};
-use kernel_context::foreign::ForeignPortal;
 use task_manage::{Manage, Processor};
 
 pub static mut PROCESSOR: Processor<Process, TaskId, ProcManager> = Processor::new();
-
-pub fn init_processor() {
-    unsafe {
-        PROCESSOR.set_manager(ProcManager::new());
-        PROCESSOR.set_portal(ForeignPortal::new());
-    }
-}
 
 /// 任务管理器
 /// `tasks` 中保存所有的任务实体

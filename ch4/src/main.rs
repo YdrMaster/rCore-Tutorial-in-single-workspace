@@ -60,9 +60,9 @@ extern "C" fn rust_main() -> ! {
     let portal_size = MultislotPortal::calculate_size(1);
     let portal_layout = Layout::from_size_align(portal_size, 1 << Sv39::PAGE_BITS).unwrap();
     let portal_ptr = unsafe { alloc(portal_layout) };
+    assert!(portal_layout.size() < 1 << Sv39::PAGE_BITS);
     // 建立内核地址空间
     let mut ks = kernel_space(layout, MEMORY, portal_ptr as _);
-    assert!(portal_layout.size() < 1 << Sv39::PAGE_BITS);
     let portal_idx = PROTAL_TRANSIT.index_in(Sv39::MAX_LEVEL);
     // 加载应用程序
     for (i, elf) in linker::AppMeta::locate().iter().enumerate() {
