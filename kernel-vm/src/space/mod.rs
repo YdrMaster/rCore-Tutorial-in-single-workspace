@@ -5,7 +5,7 @@ extern crate alloc;
 
 use crate::PageManager;
 use alloc::vec::Vec;
-use core::{fmt, marker::PhantomData, ops::Range, ptr::NonNull};
+use core::{fmt, ops::Range, ptr::NonNull};
 use mapper::Mapper;
 use page_table::{PageTable, PageTableFormatter, Pos, VAddr, VmFlags, VmMeta, PPN, VPN};
 use visitor::Visitor;
@@ -15,7 +15,6 @@ pub struct AddressSpace<Meta: VmMeta, M: PageManager<Meta>> {
     /// 虚拟地址块
     pub areas: Vec<Range<VPN<Meta>>>,
     page_manager: M,
-    phantom_data: PhantomData<Meta>,
     /// 异界传送门的属性
     pub tramp: (PPN<Meta>, VmFlags<Meta>),
 }
@@ -27,7 +26,6 @@ impl<Meta: VmMeta, M: PageManager<Meta>> AddressSpace<Meta, M> {
         Self {
             areas: Vec::new(),
             page_manager: M::new_root(),
-            phantom_data: PhantomData,
             tramp: (PPN::INVALID, VmFlags::ZERO),
         }
     }

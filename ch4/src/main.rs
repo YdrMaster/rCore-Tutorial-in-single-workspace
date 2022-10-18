@@ -21,7 +21,7 @@ use core::alloc::Layout;
 use impls::Console;
 use kernel_context::{foreign::MultislotPortal, LocalContext};
 use kernel_vm::{
-    page_table::{MmuMeta, Sv39, VAddr, VmFlags, PPN, VPN},
+    page_table::{MmuMeta, Sv39, VAddr, VmFlags, VmMeta, PPN, VPN},
     AddressSpace,
 };
 use riscv::register::*;
@@ -36,7 +36,7 @@ linker::boot0!(rust_main; stack = 6 * 4096);
 // 物理内存容量 = 24 MiB。
 const MEMORY: usize = 24 << 20;
 // 传送门所在虚页。
-const PROTAL_TRANSIT: VPN<Sv39> = VPN::new(1 << 26);
+const PROTAL_TRANSIT: VPN<Sv39> = VPN::MAX;
 // 进程列表。
 static mut PROCESSES: Vec<Process> = Vec::new();
 
@@ -61,17 +61,16 @@ extern "C" fn rust_main() -> ! {
     let portal_layout = Layout::from_size_align(portal_size, 1 << Sv39::PAGE_BITS).unwrap();
     let portal_ptr = unsafe { alloc(portal_layout) };
     // 建立内核地址空间
-    let mut ks = kernel_space(layout, MEMORY);
-    // 映射异界传送门
-    map_portal(&mut ks, portal_ptr as _);
+    let mut ks = kernel_space(layout, MEMORY, portal_ptr as _);
     assert!(portal_layout.size() < 1 << Sv39::PAGE_BITS);
+    let portal_idx = PROTAL_TRANSIT.index_in(Sv39::MAX_LEVEL);
     // 加载应用程序
     for (i, elf) in linker::AppMeta::locate().iter().enumerate() {
         let base = elf.as_ptr() as usize;
         log::info!("detect app[{i}]: {base:#x}..{:#x}", base + elf.len());
-        if let Some(mut process) = Process::new(ElfFile::new(elf).unwrap()) {
+        if let Some(process) = Process::new(ElfFile::new(elf).unwrap()) {
             // 映射异界传送门
-            map_portal(&mut process.address_space, portal_ptr as _);
+            process.address_space.root()[portal_idx] = ks.root()[portal_idx];
             unsafe { PROCESSES.push(process) };
         }
     }
@@ -150,7 +149,11 @@ fn panic(info: &core::panic::PanicInfo) -> ! {
     loop {}
 }
 
-fn kernel_space(layout: linker::KernelLayout, memory: usize) -> AddressSpace<Sv39, Sv39Manager> {
+fn kernel_space(
+    layout: linker::KernelLayout,
+    memory: usize,
+    portal: usize,
+) -> AddressSpace<Sv39, Sv39Manager> {
     let mut space = AddressSpace::<Sv39, Sv39Manager>::new();
     for region in layout.iter() {
         log::info!("{region}");
@@ -180,18 +183,14 @@ fn kernel_space(layout: linker::KernelLayout, memory: usize) -> AddressSpace<Sv3
         PPN::new(s.floor().val()),
         VmFlags::build_from_str("_WRV"),
     );
+    space.map_extern(
+        PROTAL_TRANSIT..PROTAL_TRANSIT + 1,
+        PPN::new(portal >> Sv39::PAGE_BITS),
+        VmFlags::build_from_str("__G_XWRV"),
+    );
     println!();
     unsafe { satp::set(satp::Mode::Sv39, 0, space.root_ppn().val()) };
     space
-}
-
-#[inline]
-fn map_portal(space: &mut AddressSpace<Sv39, Sv39Manager>, address: usize) {
-    space.map_extern(
-        PROTAL_TRANSIT..PROTAL_TRANSIT + 1,
-        PPN::new(address >> Sv39::PAGE_BITS),
-        VmFlags::build_from_str("XWRV"),
-    );
 }
 
 /// 各种接口库的实现。
