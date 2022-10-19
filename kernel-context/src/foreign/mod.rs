@@ -11,7 +11,7 @@ use spin::Lazy;
 #[repr(C)]
 pub struct PortalCache {
     a0: usize,       //    (a0) 目标控制流 a0
-    ra: usize,       // 1*8(a0) 目标控制流 ra      （寄存，不用初始化）
+    a1: usize,       // 1*8(a0) 目标控制流 a1      （寄存，不用初始化）
     satp: usize,     // 2*8(a0) 目标控制流 satp
     sstatus: usize,  // 3*8(a0) 目标控制流 sstatus
     sepc: usize,     // 4*8(a0) 目标控制流 sepc
@@ -193,32 +193,32 @@ unsafe extern "C" fn foreign_execute(ctx: *mut PortalCache) {
             .option nopic
         ",
         // 保存 ra，ra 会用来寄存
-        "   sd    ra, 1*8(a0)",
+        "   sd    a1, 1*8(a0)",
         // 交换地址空间
-        "   ld    ra, 2*8(a0)
-            csrrw ra, satp, ra
+        "   ld    a1, 2*8(a0)
+            csrrw a1, satp, a1
             sfence.vma
-            sd    ra, 2*8(a0)
+            sd    a1, 2*8(a0)
         ",
         // 加载 sstatus
-        "   ld    ra, 3*8(a0)
-            csrw      sstatus, ra
+        "   ld    a1, 3*8(a0)
+            csrw      sstatus, a1
         ",
         // 加载 sepc
-        "   ld    ra, 4*8(a0)
-            csrw      sepc, ra
+        "   ld    a1, 4*8(a0)
+            csrw      sepc, a1
         ",
         // 交换陷入入口
-        "   la    ra, 1f
-            csrrw ra, stvec, ra
-            sd    ra, 5*8(a0)
+        "   la    a1, 1f
+            csrrw a1, stvec, a1
+            sd    a1, 5*8(a0)
         ",
         // 交换 sscratch
-        "   csrrw ra, sscratch, a0
-            sd    ra, 6*8(a0)
+        "   csrrw a1, sscratch, a0
+            sd    a1, 6*8(a0)
         ",
         // 加载通用寄存器
-        "   ld    ra, 1*8(a0)
+        "   ld    a1, 1*8(a0)
             ld    a0,    (a0)
         ",
         // 出发！
@@ -228,20 +228,20 @@ unsafe extern "C" fn foreign_execute(ctx: *mut PortalCache) {
         // 加载 a0
         "1: csrrw a0, sscratch, a0",
         // 保存 ra，ra 会用来寄存
-        "   sd    ra, 1*8(a0)",
+        "   sd    a1, 1*8(a0)",
         // 交换 sscratch 并保存 a0
-        "   ld    ra, 6*8(a0)
-            csrrw ra, sscratch, ra
-            sd    ra,    (a0)
+        "   ld    a1, 6*8(a0)
+            csrrw a1, sscratch, a1
+            sd    a1,    (a0)
         ",
         // 恢复地址空间
-        "   ld    ra, 2*8(a0)
-            csrrw ra, satp, ra
+        "   ld    a1, 2*8(a0)
+            csrrw a1, satp, a1
             sfence.vma
-            sd    ra, 2*8(a0)
+            sd    a1, 2*8(a0)
         ",
         // 恢复通用寄存器
-        "   ld    ra, 1*8(a0)",
+        "   ld    a1, 1*8(a0)",
         // 恢复陷入入口
         "   ld    a0, 5*8(a0)
             csrw      stvec, a0
