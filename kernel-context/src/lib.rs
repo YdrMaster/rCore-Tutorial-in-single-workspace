@@ -1,7 +1,7 @@
 //! 内核上下文控制。
 
 #![no_std]
-#![feature(naked_functions, asm_sym, asm_const)]
+#![feature(naked_functions, asm_const)]
 #![deny(warnings, missing_docs)]
 
 /// 不同地址空间的上下文控制。
