@@ -103,7 +103,7 @@ extern "C" fn schedule() -> ! {
     syscall::init_clock(&SyscallContext);
     while !unsafe { PROCESSES.is_empty() } {
         let ctx = unsafe { &mut PROCESSES[0].context };
-        unsafe { ctx.execute(portal, 0) };
+        unsafe { ctx.execute(portal, ()) };
         match scause::read().cause() {
             scause::Trap::Exception(scause::Exception::UserEnvCall) => {
                 use syscall::{SyscallId as Id, SyscallResult as Ret};

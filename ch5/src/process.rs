@@ -4,10 +4,7 @@ use alloc::vec::Vec;
 use core::alloc::Layout;
 use core::str::FromStr;
 use core::sync::atomic::{AtomicUsize, Ordering};
-use kernel_context::{
-    foreign::{ForeignContext, ForeignPortal},
-    LocalContext,
-};
+use kernel_context::{foreign::ForeignContext, LocalContext};
 use kernel_vm::{
     page_table::{MmuMeta, Sv39, VAddr, VmFlags, PPN, VPN},
     AddressSpace,
@@ -145,9 +142,5 @@ impl Process {
             context: ForeignContext { context, satp },
             address_space,
         })
-    }
-
-    pub fn execute(&mut self, portal: &mut impl ForeignPortal) {
-        unsafe { self.context.execute(portal, 0) };
     }
 }

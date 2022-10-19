@@ -43,7 +43,7 @@ pub trait ForeignPortal {
     /// 映射到公共地址空间的代码入口。
     unsafe fn transit_entry(&self) -> usize;
     /// 映射到公共地址空间的 `key` 号传送门缓存。
-    unsafe fn transit_cache(&mut self, key: usize) -> &mut PortalCache;
+    unsafe fn transit_cache(&mut self, key: impl SlotKey) -> &mut PortalCache;
 }
 
 /// 整体式异界传送门。
@@ -70,8 +70,8 @@ impl<T: MonoForeignPortal> ForeignPortal for T {
     }
 
     #[inline]
-    unsafe fn transit_cache(&mut self, key: usize) -> &mut PortalCache {
-        &mut *((self.transit_address() + self.cache_offset(key)) as *mut _)
+    unsafe fn transit_cache(&mut self, key: impl SlotKey) -> &mut PortalCache {
+        &mut *((self.transit_address() + self.cache_offset(key.index())) as *mut _)
     }
 }
 
@@ -87,7 +87,7 @@ pub struct ForeignContext {
 
 impl ForeignContext {
     /// 执行异界线程。
-    pub unsafe fn execute(&mut self, portal: &mut impl ForeignPortal, cache_key: usize) -> usize {
+    pub unsafe fn execute(&mut self, portal: &mut impl ForeignPortal, key: impl SlotKey) -> usize {
         use core::mem::replace;
         // 异界传送门需要特权态执行
         let supervisor = replace(&mut self.context.supervisor, true);
@@ -95,7 +95,7 @@ impl ForeignContext {
         let interrupt = replace(&mut self.context.interrupt, false);
         // 找到公共空间上的缓存
         let entry = portal.transit_entry();
-        let cache = portal.transit_cache(cache_key);
+        let cache = portal.transit_cache(key);
         // 重置传送门上下文
         cache.init(
             self.satp,
@@ -114,6 +114,38 @@ impl ForeignContext {
         // 从传送门读取上下文
         *self.context.a_mut(0) = cache.a0;
         sstatus
+    }
+}
+
+/// 插槽选项。
+pub trait SlotKey {
+    /// 转化为插槽序号。
+    fn index(self) -> usize;
+}
+
+impl SlotKey for () {
+    #[inline]
+    fn index(self) -> usize {
+        0
+    }
+}
+
+impl SlotKey for usize {
+    #[inline]
+    fn index(self) -> usize {
+        self
+    }
+}
+
+/// 从 `tp` 寄存器读取一个序号。
+pub struct TpReg;
+
+impl SlotKey for TpReg {
+    #[inline]
+    fn index(self) -> usize {
+        let ans: usize;
+        unsafe { core::arch::asm!("mv {}, tp", out(reg) ans) };
+        ans
     }
 }
 

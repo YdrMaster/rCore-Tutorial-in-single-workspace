@@ -89,7 +89,7 @@ extern "C" fn rust_main() -> ! {
     }
     loop {
         if let Some(task) = unsafe { PROCESSOR.find_next() } {
-            task.execute(portal);
+            unsafe { task.context.execute(portal, ()) };
             match scause::read().cause() {
                 scause::Trap::Exception(scause::Exception::UserEnvCall) => {
                     use syscall::{SyscallId as Id, SyscallResult as Ret};

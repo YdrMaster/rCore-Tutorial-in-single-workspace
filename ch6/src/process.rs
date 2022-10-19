@@ -6,10 +6,7 @@ use core::{
     sync::atomic::{AtomicUsize, Ordering},
 };
 use easy_fs::FileHandle;
-use kernel_context::{
-    foreign::{ForeignContext, ForeignPortal},
-    LocalContext,
-};
+use kernel_context::{foreign::ForeignContext, LocalContext};
 use kernel_vm::{
     page_table::{MmuMeta, Sv39, VAddr, VmFlags, PPN, VPN},
     AddressSpace,
@@ -167,9 +164,5 @@ impl Process {
                 Some(Mutex::new(FileHandle::empty(false, true))),
             ],
         })
-    }
-
-    pub fn execute(&mut self, portal: &mut impl ForeignPortal) {
-        unsafe { self.context.execute(portal, 0) };
     }
 }
