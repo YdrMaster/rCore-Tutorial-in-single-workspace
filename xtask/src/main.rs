@@ -49,19 +49,19 @@ fn main() {
 
 #[derive(Args, Default)]
 struct BuildArgs {
-    /// Character.
+    /// chapter number
     #[clap(short, long)]
     ch: u8,
-    /// Lab?
+    /// lab or not
     #[clap(long)]
     lab: bool,
     /// features
     #[clap(short, long)]
     features: Option<String>,
-    /// features
+    /// log level
     #[clap(long)]
     log: Option<String>,
-    /// Build in debug mode.
+    /// build in release mode
     #[clap(long)]
     release: bool,
 }
