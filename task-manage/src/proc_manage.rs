@@ -6,9 +6,11 @@ use super::id::ProcId;
 use super::ProcRelation;
 use core::marker::PhantomData;
 
-/// Processor 数据结构，只管理进程以及进程之间的父子关系
+
+/// ProcManager 数据结构，只管理进程以及进程之间的父子关系
 /// P 表示进程
-pub struct Processor<P, MP: Manage<P, ProcId> + Schedule<ProcId>> {
+#[cfg(feature = "proc")]
+pub struct ProcManager<P, MP: Manage<P, ProcId> + Schedule<ProcId>> {
     // 进程之间父子关系
     relation: BTreeMap<ProcId, ProcRelation>,
     // 进程对象管理和调度
@@ -18,8 +20,8 @@ pub struct Processor<P, MP: Manage<P, ProcId> + Schedule<ProcId>> {
     phantom_data: PhantomData<P>,
 }
 
-impl<P, MP: Manage<P, ProcId> + Schedule<ProcId>> Processor<P, MP> {
-    /// 新建 Processor
+impl<P, MP: Manage<P, ProcId> + Schedule<ProcId>> ProcManager<P, MP> {
+    /// 新建 ProcManager
     pub const fn new() -> Self {
         Self {
             relation: BTreeMap::new(),
@@ -65,11 +67,11 @@ impl<P, MP: Manage<P, ProcId> + Schedule<ProcId>> Processor<P, MP> {
         // 进程结束时维护父子关系，进程删除后，所有的子进程交给 0 号进程来维护
         let current_relation = self.relation.remove(&id).unwrap();
         if let Some(parent_relation) = self.relation.get_mut(&current_relation.parent) {
-            parent_relation.del_children(id);
+            parent_relation.del_child(id);
         }
         if let Some(root_relation) = self.relation.get_mut(&ProcId::from_usize(0)) {
             for i in &current_relation.children {
-                root_relation.add_children(*i);
+                root_relation.add_child(*i);
             }
         }
         self.current = None;
@@ -79,7 +81,7 @@ impl<P, MP: Manage<P, ProcId> + Schedule<ProcId>> Processor<P, MP> {
         self.manager.as_mut().unwrap().insert(id, task);
         self.manager.as_mut().unwrap().add(id);
         if let Some(parent_relation) = self.relation.get_mut(&parent) {
-            parent_relation.add_children(id);
+            parent_relation.add_child(id);
         }
         self.relation.insert(id, ProcRelation::new(parent));
     }

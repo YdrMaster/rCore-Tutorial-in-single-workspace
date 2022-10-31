@@ -20,7 +20,7 @@ use crate::{
     fs::{read_all, FS},
     impls::{Sv39Manager, SyscallContext},
     process::Process,
-    processor::ProcManager,
+    processor::{ProcManager, ThreadManager},
 };
 use alloc::alloc::alloc;
 use core::{alloc::Layout, mem::MaybeUninit};
@@ -82,10 +82,13 @@ extern "C" fn rust_main() -> ! {
     syscall::init_clock(&SyscallContext);
     syscall::init_signal(&SyscallContext);
     let initproc = read_all(FS.open("initproc", OpenFlags::RDONLY).unwrap());
-    if let Some(process) = Process::from_elf(ElfFile::new(initproc.as_slice()).unwrap()) {
+    if let Some((process, thread)) = Process::from_elf(ElfFile::new(initproc.as_slice()).unwrap()) {
         unsafe {
-            PROCESSOR.set_manager(ProcManager::new());
-            PROCESSOR.add(process.pid, process, ProcId::from_usize(usize::MAX));
+            PROCESSOR.set_proc_manager(ProcManager::new());
+            PROCESSOR.set_manager(ThreadManager::new());
+            let (pid, tid) = (process.pid, thread.tid);
+            PROCESSOR.add_proc(pid, process, ProcId::from_usize(usize::MAX));
+            PROCESSOR.add(tid, thread, pid);
         }
     }
     loop {
@@ -106,7 +109,8 @@ extern "C" fn rust_main() -> ! {
                     //
                     // 最简单粗暴的方法是，在 `scause::Trap` 分类的每一条分支之后都加上信号处理，
                     // 当然这样可能代码上不够优雅。处理信号的具体时机还需要后续再讨论。
-                    match task.signal.handle_signals(ctx) {
+                    let current_proc = unsafe { PROCESSOR.get_current_proc().unwrap() };
+                    match current_proc.signal.handle_signals(ctx) {
                         // 进程应该结束执行
                         SignalResult::ProcessKilled(_exit_code) => {
                             exit_process();
@@ -312,7 +316,7 @@ mod impls {
 
     impl IO for SyscallContext {
         fn write(&self, _caller: Caller, fd: usize, buf: usize, count: usize) -> isize {
-            let current = unsafe { PROCESSOR.current().unwrap() };
+            let current = unsafe { PROCESSOR.get_current_proc().unwrap() };
             if let Some(ptr) = current.address_space.translate(VAddr::new(buf), READABLE) {
                 if fd == STDOUT || fd == STDDEBUG {
                     print!("{}", unsafe {
@@ -343,7 +347,7 @@ mod impls {
         }
 
         fn read(&self, _caller: Caller, fd: usize, buf: usize, count: usize) -> isize {
-            let current = unsafe { PROCESSOR.current().unwrap() };
+            let current = unsafe { PROCESSOR.get_current_proc().unwrap() };
             if let Some(ptr) = current.address_space.translate(VAddr::new(buf), WRITEABLE) {
                 if fd == STDIN {
                     let mut ptr = ptr.as_ptr();
@@ -377,7 +381,7 @@ mod impls {
 
         fn open(&self, _caller: Caller, path: usize, flags: usize) -> isize {
             // FS.open(, flags)
-            let current = unsafe { PROCESSOR.current().unwrap() };
+            let current = unsafe { PROCESSOR.get_current_proc().unwrap() };
             if let Some(ptr) = current.address_space.translate(VAddr::new(path), READABLE) {
                 let mut string = String::new();
                 let mut raw_ptr: *mut u8 = ptr.as_ptr();
@@ -409,7 +413,7 @@ mod impls {
 
         #[inline]
         fn close(&self, _caller: Caller, fd: usize) -> isize {
-            let current = unsafe { PROCESSOR.current().unwrap() };
+            let current = unsafe { PROCESSOR.get_current_proc().unwrap() };
             if fd >= current.fd_table.len() || current.fd_table[fd].is_none() {
                 return -1;
             }
@@ -425,20 +429,20 @@ mod impls {
         }
 
         fn fork(&self, _caller: Caller) -> isize {
-            let current = unsafe { PROCESSOR.current().unwrap() };
-            let mut child_proc = current.fork().unwrap();
-            let pid = child_proc.pid;
-            let context = &mut child_proc.context.context;
-            *context.a_mut(0) = 0 as _;
+            let current_proc = unsafe { PROCESSOR.get_current_proc().unwrap() };
+            let (proc, mut thread) = current_proc.fork().unwrap();
+            let pid = proc.pid;
+            *thread.context.context.a_mut(0) = 0 as _;
             unsafe {
-                PROCESSOR.add(pid, child_proc, current.pid);
+                PROCESSOR.add_proc(pid, proc, current_proc.pid);
+                PROCESSOR.add(thread.tid, thread, pid);
             }
             pid.get_usize() as isize
         }
 
         fn exec(&self, _caller: Caller, path: usize, count: usize) -> isize {
             const READABLE: VmFlags<Sv39> = VmFlags::build_from_str("RV");
-            let current = unsafe { PROCESSOR.current().unwrap() };
+            let current = unsafe { PROCESSOR.get_current_proc().unwrap() };
             current
                 .address_space
                 .translate(VAddr::new(path), READABLE)
@@ -467,7 +471,7 @@ mod impls {
         // pid 为具体的某个值，表示需要等待某个子进程结束，因此只需要在 TASK_MANAGER 中查找是否有任务
         // 简化了进程的状态模型
         fn wait(&self, _caller: Caller, pid: isize, exit_code_ptr: usize) -> isize {
-            let current = unsafe { PROCESSOR.current().unwrap() };
+            let current = unsafe { PROCESSOR.get_current_proc().unwrap() };
             const WRITABLE: VmFlags<Sv39> = VmFlags::build_from_str("W_V");
             if let Some(mut ptr) = current
                 .address_space
@@ -482,7 +486,7 @@ mod impls {
                     return -1;
                 }
             } else {
-                if unsafe { PROCESSOR.get_task(ProcId::from_usize(pid as usize)).is_none() } {
+                if unsafe { PROCESSOR.get_proc(ProcId::from_usize(pid as usize)).is_none() } {
                     return pid;
                 } else {
                     return -1;
@@ -491,7 +495,7 @@ mod impls {
         }
 
         fn getpid(&self, _caller: Caller) -> isize {
-            let current = unsafe { PROCESSOR.current().unwrap() };
+            let current = unsafe { PROCESSOR.get_current_proc().unwrap() };
             current.pid.get_usize() as _
         }
     }
@@ -509,7 +513,7 @@ mod impls {
             const WRITABLE: VmFlags<Sv39> = VmFlags::build_from_str("W_V");
             match clock_id {
                 ClockId::CLOCK_MONOTONIC => {
-                    if let Some(mut ptr) = unsafe { PROCESSOR.current().unwrap() }
+                    if let Some(mut ptr) = unsafe { PROCESSOR.get_current_proc().unwrap() }
                         .address_space
                         .translate(VAddr::new(tp), WRITABLE)
                     {
@@ -531,7 +535,7 @@ mod impls {
 
     impl Signal for SyscallContext {
         fn kill(&self, _caller: Caller, pid: isize, signum: u8) -> isize {
-            if let Some(target_task) = unsafe { PROCESSOR.get_task(ProcId::from_usize(pid as usize)) } {
+            if let Some(target_task) = unsafe { PROCESSOR.get_proc(ProcId::from_usize(pid as usize)) } {
                 if let Ok(signal_no) = SignalNo::try_from(signum) {
                     if signal_no != SignalNo::ERR {
                         target_task.signal.add_signal(signal_no);
@@ -552,7 +556,7 @@ mod impls {
             if signum as usize > signal::MAX_SIG {
                 return -1;
             }
-            let current = unsafe { PROCESSOR.current().unwrap() };
+            let current = unsafe { PROCESSOR.get_current_proc().unwrap() };
             if let Ok(signal_no) = SignalNo::try_from(signum) {
                 if signal_no == SignalNo::ERR {
                     return -1;
@@ -596,14 +600,15 @@ mod impls {
         }
 
         fn sigprocmask(&self, _caller: Caller, mask: usize) -> isize {
-            let current = unsafe { PROCESSOR.current().unwrap() };
+            let current = unsafe { PROCESSOR.get_current_proc().unwrap() };
             current.signal.update_mask(mask) as isize
         }
 
         fn sigreturn(&self, _caller: Caller) -> isize {
-            let current = unsafe { PROCESSOR.current().unwrap() };
+            let current = unsafe { PROCESSOR.get_current_proc().unwrap() };
+            let current_thread = unsafe { PROCESSOR.current().unwrap() };
             // 如成功，则需要修改当前用户程序的 LocalContext
-            if current.signal.sig_return(&mut current.context.context) {
+            if current.signal.sig_return(&mut current_thread.context.context) {
                 0
             } else {
                 -1

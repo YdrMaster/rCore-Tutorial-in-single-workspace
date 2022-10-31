@@ -35,7 +35,7 @@ core::arch::global_asm!(include_str!(env!("APP_ASM")));
 // 定义内核入口。
 linker::boot0!(rust_main; stack = 16 * 4096);
 // 物理内存容量 = 16 MiB。
-const MEMORY: usize = 16 << 20;
+const MEMORY: usize = 32 << 20;
 // 传送门所在虚页。
 const PROTAL_TRANSIT: VPN<Sv39> = VPN::MAX;
 // 内核地址空间。

@@ -10,3 +10,4 @@ authors = ["zflcs <1491657576@qq.com>"]
 
 [features]
 proc = []
+thread = []
