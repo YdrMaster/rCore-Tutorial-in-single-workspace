@@ -1,4 +1,4 @@
-﻿//! 提供 `print!`、`println!` 和 `log::Log`。
+﻿//! 提供可定制实现的 `print!`、`println!` 和 `log::Log`。
 
 #![no_std]
 #![deny(warnings, missing_docs)]
@@ -47,12 +47,12 @@ pub fn set_log_level(env: Option<&str>) {
 pub fn test_log() {
     println!(
         r"
-  ______        __                _         __
- /_  __/__  __ / /_ ____   _____ (_)____ _ / /
-  / /  / / / // __// __ \ / ___// // __ `// /
- / /  / /_/ // /_ / /_/ // /   / // /_/ // /
-/_/   \__,_/ \__/ \____//_/   /_/ \__,_//_/
-==========================================="
+   ______                       __
+  / ____/___  ____  _________  / /__
+ / /   / __ \/ __ \/ ___/ __ \/ / _ \
+/ /___/ /_/ / / / (__  ) /_/ / /  __/
+\____/\____/_/ /_/____/\____/_/\___/
+===================================="
     );
     log::trace!("LOG TEST >> Hello, world!");
     log::debug!("LOG TEST >> Hello, world!");
@@ -102,17 +102,14 @@ impl Write for Logger {
 }
 
 /// 实现 `log::Log` trait，提供分级日志。
-///
-/// > **NOTICE** 强行塞一个如此简单的实现只是为了使用方便。但强行塞一个复杂的实现也是一样。将这个实现留给用户自己实现也是合适的。
 impl log::Log for Logger {
+    #[inline]
     fn enabled(&self, _metadata: &log::Metadata) -> bool {
         true
     }
 
+    #[inline]
     fn log(&self, record: &log::Record) {
-        if !self.enabled(record.metadata()) {
-            return;
-        }
         use log::Level::*;
         let color_code: u8 = match record.level() {
             Error => 31,

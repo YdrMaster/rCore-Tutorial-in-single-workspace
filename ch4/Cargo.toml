@@ -10,7 +10,7 @@ xmas-elf = "0.8.0"
 riscv = "0.9"
 
 linker = { path = "../linker" }
-console = { path = "../console" }
+rcore-console = { path = "../console" }
 kernel-context = { path = "../kernel-context", features = ["foreign"] }
 kernel-alloc = { path = "../kernel-alloc" }
 kernel-vm = { path = "../kernel-vm" }

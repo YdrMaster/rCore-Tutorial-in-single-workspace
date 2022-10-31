@@ -10,7 +10,7 @@ mod processor;
 mod virtio_block;
 
 #[macro_use]
-extern crate console;
+extern crate rcore_console;
 
 #[macro_use]
 extern crate alloc;
@@ -22,7 +22,6 @@ use crate::{
     processor::ProcManager,
 };
 use alloc::alloc::alloc;
-use console::log;
 use core::{alloc::Layout, mem::MaybeUninit};
 use easy_fs::{FSManager, OpenFlags};
 use impls::Console;
@@ -32,6 +31,7 @@ use kernel_vm::{
     AddressSpace,
 };
 use processor::PROCESSOR;
+use rcore_console::log;
 use riscv::register::*;
 use sbi_rt::*;
 use syscall::Caller;
@@ -51,9 +51,9 @@ extern "C" fn rust_main() -> ! {
     // bss 段清零
     unsafe { layout.zero_bss() };
     // 初始化 `console`
-    console::init_console(&Console);
-    console::set_log_level(option_env!("LOG"));
-    console::test_log();
+    rcore_console::init_console(&Console);
+    rcore_console::set_log_level(option_env!("LOG"));
+    rcore_console::test_log();
     // 初始化内核堆
     kernel_alloc::init(layout.start() as _);
     unsafe {
@@ -200,7 +200,6 @@ mod impls {
     };
     use alloc::vec::Vec;
     use alloc::{alloc::alloc_zeroed, string::String};
-    use console::log;
     use core::{alloc::Layout, ptr::NonNull};
     use easy_fs::UserBuffer;
     use easy_fs::{FSManager, OpenFlags};
@@ -208,6 +207,7 @@ mod impls {
         page_table::{MmuMeta, Pte, Sv39, VAddr, VmFlags, PPN, VPN},
         PageManager,
     };
+    use rcore_console::log;
     use spin::Mutex;
     use syscall::*;
     use xmas_elf::ElfFile;
@@ -278,7 +278,7 @@ mod impls {
 
     pub struct Console;
 
-    impl console::Console for Console {
+    impl rcore_console::Console for Console {
         #[inline]
         fn put_char(&self, c: u8) {
             #[allow(deprecated)]

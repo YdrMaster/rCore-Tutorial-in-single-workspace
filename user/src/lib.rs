@@ -8,15 +8,16 @@ mod heap;
 extern crate alloc;
 
 use core::alloc::Layout;
+use rcore_console::log;
 
-pub use console::{print, println};
+pub use rcore_console::{print, println};
 pub use syscall::*;
 
 #[no_mangle]
 #[link_section = ".text.entry"]
 pub extern "C" fn _start() -> ! {
-    console::init_console(&Console);
-    console::set_log_level(option_env!("LOG"));
+    rcore_console::init_console(&Console);
+    rcore_console::set_log_level(option_env!("LOG"));
     heap::init();
     exit(main());
     unreachable!()
@@ -32,9 +33,9 @@ fn main() -> i32 {
 fn panic_handler(panic_info: &core::panic::PanicInfo) -> ! {
     let err = panic_info.message().unwrap();
     if let Some(location) = panic_info.location() {
-        console::log::error!("Panicked at {}:{}, {err}", location.file(), location.line());
+        log::error!("Panicked at {}:{}, {err}", location.file(), location.line());
     } else {
-        console::log::error!("Panicked: {err}");
+        log::error!("Panicked: {err}");
     }
     exit(1);
     unreachable!()
@@ -53,7 +54,7 @@ pub fn getchar() -> u8 {
 
 struct Console;
 
-impl console::Console for Console {
+impl rcore_console::Console for Console {
     #[inline]
     fn put_char(&self, c: u8) {
         syscall::write(STDOUT, &[c]);

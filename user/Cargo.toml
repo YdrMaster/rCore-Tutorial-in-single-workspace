@@ -5,6 +5,6 @@ edition = "2021"
 authors = ["YdrMaster <ydrml@hotmail.com>"]
 
 [dependencies]
-console = { path = "../console" }
+rcore-console = { path = "../console" }
 syscall = { path = "../syscall", features = ["user"] }
 customizable-buddy = "0.0.2"

@@ -1,7 +1,7 @@
 ﻿# 控制台（输出）
 
-这是第一章实验的内容，不知道是不是应该调整位置。
+[![Latest version](https://img.shields.io/crates/v/rcore-console.svg)](https://crates.io/crates/rcore-console)
+[![Documentation](https://docs.rs/rcore-console/badge.svg)](https://docs.rs/rcore-console)
+![license](https://img.shields.io/github/license/YdrMaster/rCore-Tutorial-in-single-workspace)
 
-这里设计的略显繁琐，依赖 `spin::Once` 来支持任意的输出实现，以应对未来从 SBI/legacy/console_putchar 切换到直接驱动串口。
-
-这里直接提供了 `log::Log` 实现以支持 `log::*` 宏和彩色日志。删除也不会影响接口，因此这可以留给学生实现。
+提供可定制实现的 `print!`、`println!` 和 `log::Log`。日志只有基本的彩色功能。

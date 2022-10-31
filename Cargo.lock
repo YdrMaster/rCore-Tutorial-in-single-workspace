@@ -54,7 +54,7 @@ dependencies = [
 name = "ch1-lab"
 version = "0.0.1"
 dependencies = [
- "console",
+ "rcore-console",
  "sbi-rt",
 ]
 
@@ -62,9 +62,9 @@ dependencies = [
 name = "ch2"
 version = "0.0.1"
 dependencies = [
- "console",
  "kernel-context",
  "linker",
+ "rcore-console",
  "riscv",
  "sbi-rt",
  "syscall",
@@ -74,9 +74,9 @@ dependencies = [
 name = "ch3"
 version = "0.0.1"
 dependencies = [
- "console",
  "kernel-context",
  "linker",
+ "rcore-console",
  "riscv",
  "sbi-rt",
  "syscall",
@@ -86,11 +86,11 @@ dependencies = [
 name = "ch4"
 version = "0.0.1"
 dependencies = [
- "console",
  "kernel-alloc",
  "kernel-context",
  "kernel-vm",
  "linker",
+ "rcore-console",
  "riscv",
  "sbi-rt",
  "syscall",
@@ -101,11 +101,11 @@ dependencies = [
 name = "ch5"
 version = "0.0.1"
 dependencies = [
- "console",
  "kernel-alloc",
  "kernel-context",
  "kernel-vm",
  "linker",
+ "rcore-console",
  "riscv",
  "sbi-rt",
  "spin 0.9.4",
@@ -118,12 +118,12 @@ dependencies = [
 name = "ch6"
 version = "0.0.1"
 dependencies = [
- "console",
  "easy-fs",
  "kernel-alloc",
  "kernel-context",
  "kernel-vm",
  "linker",
+ "rcore-console",
  "riscv",
  "sbi-rt",
  "spin 0.9.4",
@@ -137,12 +137,12 @@ dependencies = [
 name = "ch7"
 version = "0.0.1"
 dependencies = [
- "console",
  "easy-fs",
  "kernel-alloc",
  "kernel-context",
  "kernel-vm",
  "linker",
+ "rcore-console",
  "riscv",
  "sbi-rt",
  "signal",
@@ -189,14 +189,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "0d4198f73e42b4936b35b5bb248d81d2b595ecb170da0bac7655c54eedfa8da8"
 dependencies = [
  "os_str_bytes",
-]
-
-[[package]]
-name = "console"
-version = "0.0.1"
-dependencies = [
- "log",
- "spin 0.9.4",
 ]
 
 [[package]]
@@ -270,9 +262,9 @@ dependencies = [
 
 [[package]]
 name = "libc"
-version = "0.2.135"
+version = "0.2.137"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "68783febc7782c6c5cb401fbda4de5a9898be1762314da0bb2c10ced61f18b0c"
+checksum = "fc7fcc620a3bff7cdd7a365be3376c97191aeaccc2a603e600951e452615bf89"
 
 [[package]]
 name = "linker"
@@ -323,9 +315,9 @@ checksum = "300e4bdb6b46b592948e700ea1ef24a4296491f6a0ee722b258040abd15a3714"
 
 [[package]]
 name = "once_cell"
-version = "1.15.0"
+version = "1.16.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e82dad04139b71a90c080c8463fe0dc7902db5192d939bd0950f074d014339e1"
+checksum = "86f0b0d4bf799edbc74508c1e8bf170ff5f41238e5f8225603ca7caaae2b7860"
 
 [[package]]
 name = "os-xtask-utils"
@@ -338,9 +330,9 @@ dependencies = [
 
 [[package]]
 name = "os_str_bytes"
-version = "6.3.0"
+version = "6.3.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9ff7415e9ae3fff1225851df9e0d9e4e5479f947619774677a63572e55e80eff"
+checksum = "3baf96e39c5359d2eb0dd6ccb42c62b91d9678aa68160d261b9e0ccbf9e9dea9"
 
 [[package]]
 name = "page-table"
@@ -399,6 +391,14 @@ name = "r0"
 version = "1.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "bd7a31eed1591dcbc95d92ad7161908e72f4677f8fabf2a32ca49b4237cbf211"
+
+[[package]]
+name = "rcore-console"
+version = "0.0.0"
+dependencies = [
+ "log",
+ "spin 0.9.4",
+]
 
 [[package]]
 name = "riscv"
@@ -554,8 +554,8 @@ checksum = "6ceab39d59e4c9499d4e5a8ee0e2735b891bb7308ac83dfb4e80cad195c9f6f3"
 name = "user_lib"
 version = "0.0.1"
 dependencies = [
- "console",
  "customizable-buddy 0.0.2",
+ "rcore-console",
  "syscall",
 ]
 

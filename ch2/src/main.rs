@@ -4,11 +4,11 @@
 #![deny(warnings)]
 
 #[macro_use]
-extern crate console;
+extern crate rcore_console;
 
-use console::log;
 use impls::{Console, SyscallContext};
 use kernel_context::LocalContext;
+use rcore_console::log;
 use riscv::register::*;
 use sbi_rt::*;
 use syscall::{Caller, SyscallId};
@@ -22,9 +22,9 @@ extern "C" fn rust_main() -> ! {
     // bss 段清零
     unsafe { linker::KernelLayout::locate().zero_bss() };
     // 初始化 `console`
-    console::init_console(&Console);
-    console::set_log_level(option_env!("LOG"));
-    console::test_log();
+    rcore_console::init_console(&Console);
+    rcore_console::set_log_level(option_env!("LOG"));
+    rcore_console::test_log();
     // 初始化 syscall
     syscall::init_io(&SyscallContext);
     syscall::init_process(&SyscallContext);
@@ -103,7 +103,7 @@ mod impls {
 
     pub struct Console;
 
-    impl console::Console for Console {
+    impl rcore_console::Console for Console {
         #[inline]
         fn put_char(&self, c: u8) {
             #[allow(deprecated)]
@@ -126,7 +126,7 @@ mod impls {
                     count as _
                 }
                 _ => {
-                    console::log::error!("unsupported fd: {fd}");
+                    rcore_console::log::error!("unsupported fd: {fd}");
                     -1
                 }
             }

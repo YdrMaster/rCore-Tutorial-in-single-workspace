@@ -9,7 +9,7 @@ sbi-rt = { version = "0.0.2", features = ["legacy"] }
 riscv = "0.9"
 
 linker = { path = "../linker" }
-console = { path = "../console" }
+rcore-console = { path = "../console" }
 kernel-context = { path = "../kernel-context" }
 syscall = { path = "../syscall", features = ["kernel"] }
 

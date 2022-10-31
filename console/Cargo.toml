@@ -1,8 +1,14 @@
 [package]
-name = "console"
-version = "0.0.1"
+name = "rcore-console"
+version = "0.0.0"
 edition = "2021"
 authors = ["YdrMaster <ydrml@hotmail.com>"]
+repository = "https://github.com/YdrMaster/rCore-Tutorial-in-single-workspace/console"
+documentation = "https://docs.rs/rcore-console"
+license = "WTFPL"
+readme = "README.md"
+keywords = ["rcore", "console"]
+categories = ["no-std"]
 
 [dependencies]
 log = "0.4.17"

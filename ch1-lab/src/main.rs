@@ -3,7 +3,7 @@
 #![feature(naked_functions, asm_const)]
 #![deny(warnings)]
 
-use console::*;
+use rcore_console::*;
 use sbi_rt::*;
 
 /// Supervisor 汇编入口。
@@ -34,7 +34,7 @@ unsafe extern "C" fn _start() -> ! {
 struct Console;
 
 /// 为 `Console` 实现 `console::Console` trait。
-impl console::Console for Console {
+impl rcore_console::Console for Console {
     fn put_char(&self, c: u8) {
         #[allow(deprecated)]
         legacy::console_putchar(c as _);

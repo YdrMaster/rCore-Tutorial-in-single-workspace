@@ -8,12 +8,11 @@ mod process;
 mod processor;
 
 #[macro_use]
-extern crate console;
+extern crate rcore_console;
 
 extern crate alloc;
 
 use alloc::{alloc::alloc, collections::BTreeMap};
-use console::log;
 use core::{alloc::Layout, ffi::CStr, mem::MaybeUninit};
 use impls::{Console, Sv39Manager, SyscallContext};
 use kernel_context::foreign::MultislotPortal;
@@ -23,6 +22,7 @@ use kernel_vm::{
 };
 use process::Process;
 use processor::{ProcManager, PROCESSOR};
+use rcore_console::log;
 use riscv::register::*;
 use sbi_rt::*;
 use spin::Lazy;
@@ -61,9 +61,9 @@ extern "C" fn rust_main() -> ! {
     // bss 段清零
     unsafe { layout.zero_bss() };
     // 初始化 `console`
-    console::init_console(&Console);
-    console::set_log_level(option_env!("LOG"));
-    console::test_log();
+    rcore_console::init_console(&Console);
+    rcore_console::set_log_level(option_env!("LOG"));
+    rcore_console::test_log();
     // 初始化内核堆
     kernel_alloc::init(layout.start() as _);
     unsafe {
@@ -187,12 +187,12 @@ fn map_portal(space: &AddressSpace<Sv39, Sv39Manager>) {
 mod impls {
     use crate::{process::TaskId, APPS, PROCESSOR};
     use alloc::alloc::alloc_zeroed;
-    use console::log;
     use core::{alloc::Layout, ptr::NonNull};
     use kernel_vm::{
         page_table::{MmuMeta, Pte, Sv39, VAddr, VmFlags, PPN, VPN},
         PageManager,
     };
+    use rcore_console::log;
     use syscall::*;
     use xmas_elf::ElfFile;
 
@@ -262,7 +262,7 @@ mod impls {
 
     pub struct Console;
 
-    impl console::Console for Console {
+    impl rcore_console::Console for Console {
         #[inline]
         fn put_char(&self, c: u8) {
             #[allow(deprecated)]
@@ -295,7 +295,7 @@ mod impls {
                     }
                 }
                 _ => {
-                    console::log::error!("unsupported fd: {fd}");
+                    log::error!("unsupported fd: {fd}");
                     -1
                 }
             }
