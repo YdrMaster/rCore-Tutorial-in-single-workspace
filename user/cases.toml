@@ -83,3 +83,20 @@ cases = [
     "sig_ctrlc",
     "sig_tests",
 ]
+
+[ch8]
+cases = [
+    "00hello_world",
+    "01store_fault",
+    "02power",
+    "03priv_inst",
+    "04priv_csr",
+    "user_shell",
+    "initproc",
+    "filetest_simple",
+    "cat_filea",
+    "sig_simple",
+    "sig_simple2",
+    "sig_ctrlc",
+    "sig_tests",
+]

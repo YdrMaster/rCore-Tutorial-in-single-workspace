@@ -155,6 +155,27 @@ dependencies = [
 ]
 
 [[package]]
+name = "ch8"
+version = "0.0.1"
+dependencies = [
+ "easy-fs",
+ "kernel-alloc",
+ "kernel-context",
+ "kernel-vm",
+ "linker",
+ "rcore-console",
+ "riscv",
+ "sbi-rt",
+ "signal",
+ "signal-impl",
+ "spin 0.9.4",
+ "syscall",
+ "task-manage",
+ "virtio-drivers",
+ "xmas-elf",
+]
+
+[[package]]
 name = "clap"
 version = "4.0.18"
 source = "registry+https://github.com/rust-lang/crates.io-index"
