@@ -39,6 +39,7 @@ use sbi_rt::*;
 use signal::SignalResult;
 use syscall::Caller;
 use xmas_elf::ElfFile;
+use task_manage::ProcId;
 
 // 定义内核入口。
 linker::boot0!(rust_main; stack = 16 * 4096);
@@ -84,7 +85,7 @@ extern "C" fn rust_main() -> ! {
     if let Some(process) = Process::from_elf(ElfFile::new(initproc.as_slice()).unwrap()) {
         unsafe {
             PROCESSOR.set_manager(ProcManager::new());
-            PROCESSOR.add(process.pid, process);
+            PROCESSOR.add(process.pid, process, ProcId::from_usize(usize::MAX));
         }
     }
     loop {
@@ -214,10 +215,10 @@ mod impls {
     use crate::{
         exit_process,
         fs::{read_all, FS},
-        process::TaskId,
         PROCESSOR,
     };
     use alloc::{alloc::alloc_zeroed, string::String, vec::Vec};
+    use task_manage::ProcId;
     use core::{alloc::Layout, ptr::NonNull};
     use easy_fs::UserBuffer;
     use easy_fs::{FSManager, OpenFlags};
@@ -430,9 +431,9 @@ mod impls {
             let context = &mut child_proc.context.context;
             *context.a_mut(0) = 0 as _;
             unsafe {
-                PROCESSOR.add(pid, child_proc);
+                PROCESSOR.add(pid, child_proc, current.pid);
             }
-            pid.get_val() as isize
+            pid.get_usize() as isize
         }
 
         fn exec(&self, _caller: Caller, path: usize, count: usize) -> isize {
@@ -475,13 +476,13 @@ mod impls {
                 unsafe { *ptr.as_mut() = 333 as i32 };
             }
             if pid == -1 {
-                if current.children.is_empty() {
+                if unsafe { PROCESSOR.can_end(current.pid) } {
                     return 0;
                 } else {
                     return -1;
                 }
             } else {
-                if unsafe { PROCESSOR.get_task(TaskId::from(pid as usize)).is_none() } {
+                if unsafe { PROCESSOR.get_task(ProcId::from_usize(pid as usize)).is_none() } {
                     return pid;
                 } else {
                     return -1;
@@ -491,7 +492,7 @@ mod impls {
 
         fn getpid(&self, _caller: Caller) -> isize {
             let current = unsafe { PROCESSOR.current().unwrap() };
-            current.pid.get_val() as _
+            current.pid.get_usize() as _
         }
     }
 
@@ -530,7 +531,7 @@ mod impls {
 
     impl Signal for SyscallContext {
         fn kill(&self, _caller: Caller, pid: isize, signum: u8) -> isize {
-            if let Some(target_task) = unsafe { PROCESSOR.get_task(TaskId::from(pid as usize)) } {
+            if let Some(target_task) = unsafe { PROCESSOR.get_task(ProcId::from_usize(pid as usize)) } {
                 if let Ok(signal_no) = SignalNo::try_from(signum) {
                     if signal_no != SignalNo::ERR {
                         target_task.signal.add_signal(signal_no);

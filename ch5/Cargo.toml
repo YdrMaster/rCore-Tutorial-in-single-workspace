@@ -16,7 +16,7 @@ kernel-context = { path = "../kernel-context", features = ["foreign"] }
 kernel-alloc = { path = "../kernel-alloc" }
 kernel-vm = { path = "../kernel-vm" }
 syscall = { path = "../syscall", features = ["kernel"] }
-task-manage = { path = "../task-manage" }
+task-manage = { path = "../task-manage", features = ["proc"] }
 
 [build-dependencies]
 linker = { path = "../linker" }

@@ -1,9 +1,7 @@
 use crate::{map_portal, Sv39Manager};
 use alloc::alloc::alloc_zeroed;
-use alloc::vec::Vec;
 use core::alloc::Layout;
 use core::str::FromStr;
-use core::sync::atomic::{AtomicUsize, Ordering};
 use kernel_context::{foreign::ForeignContext, LocalContext};
 use kernel_vm::{
     page_table::{MmuMeta, Sv39, VAddr, VmFlags, PPN, VPN},
@@ -13,34 +11,13 @@ use xmas_elf::{
     header::{self, HeaderPt2, Machine},
     program, ElfFile,
 };
-
-#[derive(Eq, PartialEq, Debug, Clone, Copy, Hash, Ord, PartialOrd)]
-pub struct TaskId(usize);
-
-impl TaskId {
-    pub(crate) fn generate() -> TaskId {
-        // 任务编号计数器，任务编号自增
-        static COUNTER: AtomicUsize = AtomicUsize::new(0);
-        let id = COUNTER.fetch_add(1, Ordering::Relaxed);
-        TaskId(id)
-    }
-
-    pub fn from(v: usize) -> Self {
-        Self(v)
-    }
-
-    pub fn get_val(&self) -> usize {
-        self.0
-    }
-}
+use task_manage::ProcId;
 
 /// 进程。
 pub struct Process {
     /// 不可变
-    pub pid: TaskId,
+    pub pid: ProcId,
     /// 可变
-    pub parent: TaskId,
-    pub children: Vec<TaskId>,
     pub context: ForeignContext,
     pub address_space: AddressSpace<Sv39, Sv39Manager>,
 }
@@ -54,7 +31,7 @@ impl Process {
 
     pub fn fork(&mut self) -> Option<Process> {
         // 子进程 pid
-        let pid = TaskId::generate();
+        let pid = ProcId::new();
         // 复制父进程地址空间
         let parent_addr_space = &self.address_space;
         let mut address_space: AddressSpace<Sv39, Sv39Manager> = AddressSpace::new();
@@ -64,11 +41,8 @@ impl Process {
         let context = self.context.context.clone();
         let satp = (8 << 60) | address_space.root_ppn().val();
         let foreign_ctx = ForeignContext { context, satp };
-        self.children.push(pid);
         Some(Self {
             pid,
-            parent: self.pid,
-            children: Vec::new(),
             context: foreign_ctx,
             address_space,
         })
@@ -136,9 +110,7 @@ impl Process {
         let satp = (8 << 60) | address_space.root_ppn().val();
         *context.sp_mut() = 1 << 38;
         Some(Self {
-            pid: TaskId::generate(),
-            parent: TaskId(usize::MAX),
-            children: Vec::new(),
+            pid: ProcId::new(),
             context: ForeignContext { context, satp },
             address_space,
         })

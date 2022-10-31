@@ -13,6 +13,7 @@ extern crate rcore_console;
 extern crate alloc;
 
 use alloc::{alloc::alloc, collections::BTreeMap};
+use task_manage::ProcId;
 use core::{alloc::Layout, ffi::CStr, mem::MaybeUninit};
 use impls::{Console, Sv39Manager, SyscallContext};
 use kernel_context::foreign::MultislotPortal;
@@ -91,7 +92,7 @@ extern "C" fn rust_main() -> ! {
     if let Some(process) = Process::from_elf(ElfFile::new(initproc_data).unwrap()) {
         unsafe {
             PROCESSOR.set_manager(ProcManager::new());
-            PROCESSOR.add(process.pid, process);
+            PROCESSOR.add(process.pid, process, ProcId::from_usize(usize::MAX));
         }
     }
     loop {
@@ -185,7 +186,8 @@ fn map_portal(space: &AddressSpace<Sv39, Sv39Manager>) {
 
 /// 各种接口库的实现。
 mod impls {
-    use crate::{process::TaskId, APPS, PROCESSOR};
+    use crate::{APPS, PROCESSOR};
+    use task_manage::ProcId;
     use alloc::alloc::alloc_zeroed;
     use core::{alloc::Layout, ptr::NonNull};
     use kernel_vm::{
@@ -332,23 +334,7 @@ mod impls {
 
     impl Process for SyscallContext {
         #[inline]
-        fn exit(&self, _caller: Caller, _status: usize) -> isize {
-            let current = unsafe { PROCESSOR.current().unwrap() };
-            if let Some(parent) = unsafe { PROCESSOR.get_task(current.parent) } {
-                let pair = parent
-                    .children
-                    .iter()
-                    .enumerate()
-                    .find(|(_, &id)| id == current.pid);
-                if let Some((idx, _)) = pair {
-                    parent.children.remove(idx);
-                    // log::debug!("parent remove child {}", parent.children.remove(idx));
-                }
-                for (_, &id) in current.children.iter().enumerate() {
-                    // log::warn!("parent insert child {}", id);
-                    parent.children.push(id);
-                }
-            }
+        fn exit(&self, _caller: Caller, _status: usize) -> isize {            
             0
         }
 
@@ -359,9 +345,9 @@ mod impls {
             let context = &mut child_proc.context.context;
             *context.a_mut(0) = 0 as _;
             unsafe {
-                PROCESSOR.add(pid, child_proc);
+                PROCESSOR.add(pid, child_proc, current.pid);
             }
-            pid.get_val() as isize
+            pid.get_usize() as isize
         }
 
         fn exec(&self, _caller: Caller, path: usize, count: usize) -> isize {
@@ -389,7 +375,8 @@ mod impls {
                 )
         }
 
-        // 简化的 wait 系统调用，pid == -1，则需要等待所有子进程结束，若当前进程有子进程，则返回 -1，否则返回 0
+        // 简化的 wait 系统调用，pid == -1，则等待所有子进程结束，若当前进程有子进程，则返回 -1，否则返回 0
+        // 这里与之前 wait 系统调用的定义不同了，没有僵尸状态了，进程 exit 时会直接删除，
         // pid 为具体的某个值，表示需要等待某个子进程结束，因此只需要在 TASKMANAGER 中查找是否有任务
         // 简化了进程的状态模型
         fn wait(&self, _caller: Caller, pid: isize, exit_code_ptr: usize) -> isize {
@@ -402,13 +389,13 @@ mod impls {
                 unsafe { *ptr.as_mut() = 333 as i32 };
             }
             if pid == -1 {
-                if current.children.is_empty() {
+                if unsafe { PROCESSOR.can_end(current.pid) } {
                     return 0;
                 } else {
                     return -1;
                 }
             } else {
-                if unsafe { PROCESSOR.get_task(TaskId::from(pid as usize)).is_none() } {
+                if unsafe { PROCESSOR.get_task(ProcId::from_usize(pid as usize)).is_none() } {
                     return pid;
                 } else {
                     return -1;
