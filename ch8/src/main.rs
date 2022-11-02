@@ -19,7 +19,7 @@ extern crate alloc;
 use crate::{
     fs::{read_all, FS},
     impls::{Sv39Manager, SyscallContext},
-    process::Process,
+    process::{Process, Thread},
     processor::{ProcManager, ThreadManager},
 };
 use alloc::alloc::alloc;
@@ -81,6 +81,7 @@ extern "C" fn rust_main() -> ! {
     syscall::init_scheduling(&SyscallContext);
     syscall::init_clock(&SyscallContext);
     syscall::init_signal(&SyscallContext);
+    syscall::init_thread(&SyscallContext);
     let initproc = read_all(FS.open("initproc", OpenFlags::RDONLY).unwrap());
     if let Some((process, thread)) = Process::from_elf(ElfFile::new(initproc.as_slice()).unwrap()) {
         unsafe {
@@ -220,6 +221,7 @@ mod impls {
         exit_process,
         fs::{read_all, FS},
         PROCESSOR,
+        Thread,
     };
     use alloc::{alloc::alloc_zeroed, string::String, vec::Vec};
     use task_manage::ProcId;
@@ -227,7 +229,7 @@ mod impls {
     use easy_fs::UserBuffer;
     use easy_fs::{FSManager, OpenFlags};
     use kernel_vm::{
-        page_table::{MmuMeta, Pte, Sv39, VAddr, VmFlags, PPN, VPN},
+        page_table::{MmuMeta, Pte, Sv39, VAddr, VmFlags, PPN, VPN, VmMeta},
         PageManager,
     };
     use rcore_console::log;
@@ -480,16 +482,16 @@ mod impls {
                 unsafe { *ptr.as_mut() = 333 as i32 };
             }
             if pid == -1 {
-                if unsafe { PROCESSOR.can_end(current.pid) } {
+                if unsafe { !PROCESSOR.has_child(current.pid) } {
                     return 0;
                 } else {
-                    return -1;
+                    return -2;
                 }
             } else {
                 if unsafe { PROCESSOR.get_proc(ProcId::from_usize(pid as usize)).is_none() } {
                     return pid;
                 } else {
-                    return -1;
+                    return -2;
                 }
             }
         }
@@ -613,6 +615,66 @@ mod impls {
             } else {
                 -1
             }
+        }
+    }
+
+    impl syscall::Thread for SyscallContext {
+        fn thread_crate(&self, _caller: Caller, entry: usize, arg: usize) -> isize {
+            // 主要的问题是用户栈怎么分配，这里不增加其他的数据结构，直接从规定的栈顶的位置从下搜索是否被映射
+            let current_proc = unsafe { PROCESSOR.get_current_proc().unwrap() };
+            // 第一个线程的用户栈栈底
+            let mut vpn = VPN::<Sv39>::new((1 << 26) - 2);
+            let addrspace = &mut current_proc.address_space;
+            loop {
+                let idx = vpn.index_in(Sv39::MAX_LEVEL);
+                if !addrspace.root()[idx].is_valid() {
+                    break;
+                }
+                vpn = VPN::<Sv39>::new(vpn.val() - 3);
+            }
+            let stack = unsafe {
+                alloc_zeroed(Layout::from_size_align_unchecked(
+                    2 << Sv39::PAGE_BITS,
+                    1 << Sv39::PAGE_BITS,
+                ))
+            };
+            addrspace.map_extern(
+                vpn..vpn + 2,
+                PPN::new(stack as usize >> Sv39::PAGE_BITS),
+                VmFlags::build_from_str("U_WRV"),
+            );
+            let satp = (8 << 60) | addrspace.root_ppn().val();
+            let mut context = kernel_context::LocalContext::user(entry);
+            *context.sp_mut() = (vpn + 2).base().val();
+            *context.a_mut(0) = arg;
+            let thread = Thread::new(satp, context);
+            let tid = thread.tid;
+            unsafe { PROCESSOR.add(tid, thread, current_proc.pid); }
+            tid.get_usize() as _
+        }
+
+        fn gettid(&self, _caller: Caller) -> isize {
+            let current_thread = unsafe { PROCESSOR.current().unwrap() };
+            current_thread.tid.get_usize() as _
+        }
+
+        fn waittid(&self, _caller: Caller, tid: usize) -> isize {
+            let current_thread = unsafe { PROCESSOR.current().unwrap() };
+            let current_proc = unsafe { PROCESSOR.get_current_proc().unwrap() };
+            // 线程不能自己等待自己
+            if tid == current_thread.tid.get_usize() {
+                return -1;
+            }
+            // 在当前的进程中查找 tid 对应的线程
+            let wait_thread = unsafe { PROCESSOR.get_thread(current_proc.pid).unwrap()
+                .iter()
+                .find(|id| id.get_usize() == tid ) };
+            // 等待的线程还没结束
+            if let Some(_wait_thread) = wait_thread {
+                return -2;
+            }
+            // 等待的线程已经结束或者不存在
+            return -1;
         }
     }
 }

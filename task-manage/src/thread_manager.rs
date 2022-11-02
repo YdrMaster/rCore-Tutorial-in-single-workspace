@@ -84,6 +84,9 @@ impl<P, T, MT: Manage<T, ThreadId> + Schedule<ThreadId>, MP: Manage<P, ProcId>> 
         if let Some(current_relation) = self.relation.get_mut(&pid) {
             current_relation.del_thread(id);
         }
+        if self.thread_count(pid) == 0 {
+            self.del_proc(pid);
+        }
         self.current = None;
     }
     /// 添加线程
@@ -135,8 +138,8 @@ impl<P, T, MT: Manage<T, ThreadId> + Schedule<ThreadId>, MP: Manage<P, ProcId>> 
         self.current = None;
     }
     /// 某个进程的子进程是否全部执行结束，如果全部执行结束，则表示这个进程也可以结束
-    pub fn can_end(&self, id: ProcId) -> bool {
-        self.relation.get(&id).unwrap().children.is_empty()
+    pub fn has_child(&self, id: ProcId) -> bool {
+        !self.relation.get(&id).unwrap().children.is_empty()
     }
     /// 某个进程的线程数量
     pub fn thread_count(&self, id: ProcId) -> usize {

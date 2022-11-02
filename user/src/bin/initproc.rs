@@ -3,7 +3,7 @@
 
 extern crate user_lib;
 
-use user_lib::{exec, fork, println, sched_yield, wait};
+use user_lib::{exec, fork, sched_yield, wait};
 
 #[no_mangle]
 fn main() -> i32 {
@@ -14,13 +14,17 @@ fn main() -> i32 {
         loop {
             let mut exit_code: i32 = 0;
             let pid = wait(&mut exit_code);
-            println!("pid is {}", pid);
             if pid == -1 {
                 sched_yield();
                 continue;
-            } else {
-                break;
             }
+            
+            // println!(
+            //     "[initproc] Released a zombie process, pid={}, exit_code={}",
+            //     pid,
+            //     exit_code,
+            // );
+            
         }
     }
     0

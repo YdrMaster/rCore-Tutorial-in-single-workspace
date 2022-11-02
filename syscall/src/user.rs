@@ -67,23 +67,22 @@ pub fn exec(path: &str) -> isize {
 
 pub fn wait(exit_code_ptr: *mut i32) -> isize {
     loop {
-        let pid = unsafe { syscall2(SyscallId::WAIT4, usize::MAX, exit_code_ptr as usize) };
-        if pid == -1 {
-            sched_yield();
-            continue;
-        } else {
-            return pid;
+        match unsafe { syscall2(SyscallId::WAIT4, usize::MAX, exit_code_ptr as usize) } {
+            -2 => {
+                sched_yield();
+            }
+            exit_pid => return exit_pid,
         }
     }
 }
 
 pub fn waitpid(pid: isize, exit_code_ptr: *mut i32) -> isize {
     loop {
-        let pid = unsafe { syscall2(SyscallId::WAIT4, pid as usize, exit_code_ptr as usize) };
-        if pid == -1 {
-            sched_yield();
-        } else {
-            return pid;
+        match unsafe { syscall2(SyscallId::WAIT4, pid as usize, exit_code_ptr as usize) } {
+            -2 =>  {
+                sched_yield();
+            }
+            exit_pid => return exit_pid,
         }
     }
 }
@@ -122,6 +121,29 @@ pub fn sigprocmask(mask: usize) -> isize {
 pub fn sigreturn() -> isize {
     unsafe { syscall0(SyscallId::RT_SIGRETURN) }
 }
+
+#[inline]
+pub fn thread_create(entry: usize, arg: usize) -> isize {
+    unsafe { syscall2(SyscallId::THREAD_CREATE, entry, arg) }
+}
+
+#[inline]
+pub fn gettid() -> isize {
+    unsafe { syscall0(SyscallId::GETTID) }
+}
+
+#[inline]
+pub fn waittid(tid: usize) -> isize {
+    loop {
+        match unsafe { syscall1(SyscallId::WAITID, tid) } {
+            -2 =>  {
+                sched_yield();
+            }
+            exit_code => return exit_code,
+        }
+    }
+}
+
 
 /// 这个模块包含调用系统调用的最小封装，用户可以直接使用这些函数调用自定义的系统调用。
 pub mod native {

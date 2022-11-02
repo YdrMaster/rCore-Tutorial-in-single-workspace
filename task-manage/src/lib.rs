@@ -28,7 +28,7 @@ use relation::ProcRelation;
 use relation::ProcThreadRel;
 
 #[cfg(feature = "proc")]
-pub use proc_manage::ProcManager;
+pub use proc_manage::PManager;
 
 #[cfg(feature = "thread")]
 pub use thread_manager::PThreadManager;

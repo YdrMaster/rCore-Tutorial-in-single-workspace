@@ -10,9 +10,9 @@ use core::marker::PhantomData;
 /// ProcManager 数据结构，只管理进程以及进程之间的父子关系
 /// P 表示进程
 #[cfg(feature = "proc")]
-pub struct ProcManager<P, MP: Manage<P, ProcId> + Schedule<ProcId>> {
+pub struct PManager<P, MP: Manage<P, ProcId> + Schedule<ProcId>> {
     // 进程之间父子关系
-    relation: BTreeMap<ProcId, ProcRelation>,
+    rel_map: BTreeMap<ProcId, ProcRelation>,
     // 进程对象管理和调度
     manager: Option<MP>,
     // 当前正在运行的进程 ID
@@ -20,17 +20,17 @@ pub struct ProcManager<P, MP: Manage<P, ProcId> + Schedule<ProcId>> {
     phantom_data: PhantomData<P>,
 }
 
-impl<P, MP: Manage<P, ProcId> + Schedule<ProcId>> ProcManager<P, MP> {
-    /// 新建 ProcManager
+impl<P, MP: Manage<P, ProcId> + Schedule<ProcId>> PManager<P, MP> {
+    /// 新建 PManager
     pub const fn new() -> Self {
         Self {
-            relation: BTreeMap::new(),
+            rel_map: BTreeMap::new(),
             manager: None,
             current: None,
             phantom_data: PhantomData::<P>,
         }
     }
-    /// 找到下一个进程
+    /// 找到下一个进程 
     pub fn find_next(&mut self) -> Option<&mut P> {
         if let Some(id) = self.manager.as_mut().unwrap().fetch() {
             if let Some(task) = self.manager.as_mut().unwrap().get_mut(id) {
@@ -47,43 +47,38 @@ impl<P, MP: Manage<P, ProcId> + Schedule<ProcId>> ProcManager<P, MP> {
     pub fn set_manager(&mut self, manager: MP) {
         self.manager = Some(manager);
     }
-    /// 当前进程进入队首，立即被调度，TODO
-    pub fn make_current_continue(&mut self) {
-        let id = self.current.unwrap();
-        self.manager.as_mut().unwrap().add(id);
-        self.current = None;
-        todo!("not complete");
-    }
     /// 阻塞当前进程
     pub fn make_current_suspend(&mut self) {
         let id = self.current.unwrap();
         self.manager.as_mut().unwrap().add(id);
         self.current = None;
     }
-    /// 结束当前进程
-    pub fn make_current_exited(&mut self) {
+    /// 结束当前进程，只会删除进程的内容，以及与当前进程相关的关系
+    pub fn make_current_exited(&mut self, exit_code: isize) {
         let id = self.current.unwrap();
         self.manager.as_mut().unwrap().delete(id);
-        // 进程结束时维护父子关系，进程删除后，所有的子进程交给 0 号进程来维护
-        let current_relation = self.relation.remove(&id).unwrap();
-        if let Some(parent_relation) = self.relation.get_mut(&current_relation.parent) {
-            parent_relation.del_child(id);
+        let current_rel = self.rel_map.remove(&id).unwrap();
+        let parent_pid = current_rel.parent;
+        let children = current_rel.children;
+        // 从父进程中删除当前进程
+        if let Some(parent_rel) = self.rel_map.get_mut(&parent_pid) {
+            parent_rel.del_child(id, exit_code);
         }
-        if let Some(root_relation) = self.relation.get_mut(&ProcId::from_usize(0)) {
-            for i in &current_relation.children {
-                root_relation.add_child(*i);
-            }
+        // 把当前进程的所有子进程转移到 0 号进程
+        for i in children {
+            self.rel_map.get_mut(&i).unwrap().parent = ProcId::from_usize(0);
+            self.rel_map.get_mut(&ProcId::from_usize(0)).unwrap().add_child(i);
         }
         self.current = None;
     }
-    /// 添加进程
+    /// 添加进程，需要指明创建的进程的父进程 Id
     pub fn add(&mut self, id: ProcId, task: P, parent: ProcId) {
         self.manager.as_mut().unwrap().insert(id, task);
         self.manager.as_mut().unwrap().add(id);
-        if let Some(parent_relation) = self.relation.get_mut(&parent) {
+        if let Some(parent_relation) = self.rel_map.get_mut(&parent) {
             parent_relation.add_child(id);
         }
-        self.relation.insert(id, ProcRelation::new(parent));
+        self.rel_map.insert(id, ProcRelation::new(parent));
     }
     /// 当前进程
     pub fn current(&mut self) -> Option<&mut P> {
@@ -95,8 +90,16 @@ impl<P, MP: Manage<P, ProcId> + Schedule<ProcId>> ProcManager<P, MP> {
     pub fn get_task(&mut self, id: ProcId) -> Option<&mut P> {
         self.manager.as_mut().unwrap().get_mut(id)
     }
-    /// 某个进程的子进程是否全部执行结束，如果全部执行结束，则表示这个进程也可以结束
-    pub fn can_end(&self, id: ProcId) -> bool {
-        self.relation.get(&id).unwrap().children.is_empty()
+    /// wait 系统调用，返回结束的子进程 id 和 exit_code，正在运行的子进程不返回 None，返回 (-2, -1)
+    pub fn wait(&mut self, child_pid: ProcId) -> Option<(ProcId, isize)> {
+        let id = self.current.unwrap();
+        let current_rel = self.rel_map.get_mut(&id).unwrap();
+        if child_pid.get_usize() == usize::MAX {
+            current_rel.wait_any_child()
+        } else {
+            current_rel.wait_child(child_pid)
+        }
     }
 }
+
+

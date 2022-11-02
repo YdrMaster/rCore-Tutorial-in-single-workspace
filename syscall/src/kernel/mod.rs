@@ -96,12 +96,25 @@ pub trait Signal: Sync {
     }
 }
 
+pub trait Thread: Sync {
+    fn thread_crate(&self, caller: Caller, entry: usize, arg: usize) -> isize {
+        unimplemented!()
+    }
+    fn waittid(&self, caller: Caller, tid: usize) -> isize {
+        unimplemented!()
+    }
+    fn gettid(&self, caller: Caller) -> isize {
+        unimplemented!()
+    }
+}
+
 static PROCESS: Container<dyn Process> = Container::new();
 static IO: Container<dyn IO> = Container::new();
 static MEMORY: Container<dyn Memory> = Container::new();
 static SCHEDULING: Container<dyn Scheduling> = Container::new();
 static CLOCK: Container<dyn Clock> = Container::new();
 static SIGNAL: Container<dyn Signal> = Container::new();
+static THREAD: Container<dyn Thread> = Container::new();
 
 #[inline]
 pub fn init_process(process: &'static dyn Process) {
@@ -131,6 +144,11 @@ pub fn init_clock(clock: &'static dyn Clock) {
 #[inline]
 pub fn init_signal(signal: &'static dyn Signal) {
     SIGNAL.init(signal);
+}
+
+#[inline]
+pub fn init_thread(thread: &'static dyn Thread) {
+    THREAD.init(thread);
 }
 
 pub enum SyscallResult {
@@ -165,6 +183,9 @@ pub fn handle(caller: Caller, id: SyscallId, args: [usize; 6]) -> SyscallResult 
         }),
         Id::RT_SIGPROCMASK => SIGNAL.call(id, |signal| signal.sigprocmask(caller, args[0])),
         Id::RT_SIGRETURN => SIGNAL.call(id, |signal| signal.sigreturn(caller)),
+        Id::WAITID => THREAD.call(id, |thread| thread.waittid(caller, args[0])),
+        Id::GETTID => THREAD.call(id, |thread| thread.gettid(caller)),
+        Id::THREAD_CREATE => THREAD.call(id, |thread| thread.thread_crate(caller, args[0], args[1])),
         _ => SyscallResult::Unsupported(id),
     }
 }
