@@ -21,5 +21,6 @@ members = [
     "signal-defs",
     "signal",
     "signal-impl",
+    "sync",
 ]
 default-members = ["xtask"]

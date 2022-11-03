@@ -116,4 +116,9 @@ cases = [
     "sig_ctrlc",
     "sig_tests",
     "threads",
+    "threads_arg",
+    "mpsc_sem",
+    "sync_sem",
+    "race_adder_mutex_blocking",
+    "test_condvar",
 ]

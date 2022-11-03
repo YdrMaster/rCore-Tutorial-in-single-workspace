@@ -21,6 +21,7 @@ task-manage = { path = "../task-manage", features = ["thread"]  }
 easy-fs = { path = "../easy-fs" }
 signal = { path = "../signal" }
 signal-impl = { path = "../signal-impl" }
+sync = { path = "../sync" }
 
 [build-dependencies]
 linker = { path = "../linker" }

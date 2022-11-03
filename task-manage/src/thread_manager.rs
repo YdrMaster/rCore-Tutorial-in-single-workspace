@@ -10,12 +10,11 @@ use super::ProcThreadRel;
 use core::marker::PhantomData;
 
 #[cfg(feature = "thread")]
-
 /// PThreadManager 数据结构，只管理进程以及进程之间的父子关系
 /// P 表示进程, T 表示线程
 pub struct PThreadManager<P, T, MT: Manage<T, ThreadId> + Schedule<ThreadId>, MP: Manage<P, ProcId>> {
     // 进程之间父子关系
-    relation: BTreeMap<ProcId, ProcThreadRel>,
+    rel_map: BTreeMap<ProcId, ProcThreadRel>,
     // 进程管理
     proc_manager: Option<MP>,
     // 线程所属的进程之间的映射关系
@@ -32,7 +31,7 @@ impl<P, T, MT: Manage<T, ThreadId> + Schedule<ThreadId>, MP: Manage<P, ProcId>> 
     /// 新建 PThreadManager
     pub const fn new() -> Self {
         Self {
-            relation: BTreeMap::new(),
+            rel_map: BTreeMap::new(),
             proc_manager: None,
             tid2pid: BTreeMap::new(),
             manager: None,
@@ -62,40 +61,50 @@ impl<P, T, MT: Manage<T, ThreadId> + Schedule<ThreadId>, MP: Manage<P, ProcId>> 
     pub fn set_proc_manager(&mut self, proc_manager: MP) {
         self.proc_manager = Some(proc_manager);
     }
-    /// 当前进程进入队首，立即被调度，TODO
-    pub fn make_current_continue(&mut self) {
-        let id = self.current.unwrap();
-        self.manager.as_mut().unwrap().add(id);
-        self.current = None;
-        todo!("not complete");
-    }
-    /// 阻塞当前进程
+    /// 当前线程重新入队
     pub fn make_current_suspend(&mut self) {
-        let id = self.current.unwrap();
-        self.manager.as_mut().unwrap().add(id);
-        self.current = None;
+        if let Some(id) = self.current {
+            self.manager.as_mut().unwrap().add(id);
+            self.current = None;
+        }
     }
-    /// 结束当前进程
-    pub fn make_current_exited(&mut self) {
-        let id = self.current.unwrap();
-        self.manager.as_mut().unwrap().delete(id);
-        // 进程结束时维护父子关系，进程删除后，所有的子进程交给 0 号进程来维护
-        let pid = self.tid2pid.remove(&id).unwrap();
-        if let Some(current_relation) = self.relation.get_mut(&pid) {
-            current_relation.del_thread(id);
+    /// 结束当前线程
+    pub fn make_current_exited(&mut self, exit_code: isize) {
+        if let Some(id) = self.current {
+            self.manager.as_mut().unwrap().delete(id);
+            // 线程结束时维护与父进程之间的关系
+            let pid = self.tid2pid.remove(&id).unwrap();
+            let mut flag = false;
+            if let Some(current_rel) = self.rel_map.get_mut(&pid) {
+                current_rel.del_thread(id, exit_code);
+                // 如果线程数量为 0，则需要把当前线程所属的进程给删除掉（所有等待的线程都已经结束）
+                if current_rel.threads.is_empty() {
+                    flag = true;
+                }
+            }
+            if flag {
+                self.del_proc(pid, exit_code);
+            }
+            self.current = None;
         }
-        if self.thread_count(pid) == 0 {
-            self.del_proc(pid);
+    }
+    /// 让当前线程阻塞
+    pub fn make_current_blocked(&mut self) {
+        if let Some(_) = self.current {
+            self.current = None;
         }
-        self.current = None;
+    }
+    /// 某个线程重新入队
+    pub fn re_enque(&mut self, id: ThreadId) {
+        self.manager.as_mut().unwrap().add(id);
     }
     /// 添加线程
     pub fn add(&mut self, id: ThreadId, task: T, pid: ProcId) {
         self.manager.as_mut().unwrap().insert(id, task);
         self.manager.as_mut().unwrap().add(id);
         // 增加线程与进程之间的从属关系
-        if let Some(parent_relation) = self.relation.get_mut(&pid) {
-            parent_relation.add_thread(id);
+        if let Some(parent_rel) = self.rel_map.get_mut(&pid) {
+            parent_rel.add_thread(id);
             self.tid2pid.insert(id, pid);
         }
     }
@@ -112,47 +121,66 @@ impl<P, T, MT: Manage<T, ThreadId> + Schedule<ThreadId>, MP: Manage<P, ProcId>> 
     /// 添加进程
     pub fn add_proc(&mut self, id: ProcId, proc: P, parent: ProcId) {
         self.proc_manager.as_mut().unwrap().insert(id, proc);
-        if let Some(parent_relation) = self.relation.get_mut(&parent) {
-            parent_relation.add_child(id);
+        if let Some(parent_rel) = self.rel_map.get_mut(&parent) {
+            parent_rel.add_child(id);
         }
-        self.relation.insert(id, ProcThreadRel::new(parent));
+        self.rel_map.insert(id, ProcThreadRel::new(parent));
     }
     /// 查询进程
     pub fn get_proc(&mut self, id: ProcId) -> Option<&mut P> {
         self.proc_manager.as_mut().unwrap().get_mut(id)
     }
     /// 结束当前进程
-    pub fn del_proc(&mut self, id: ProcId) {
+    pub fn del_proc(&mut self, id: ProcId, exit_code: isize) {
+        // 删除进程实体
         self.proc_manager.as_mut().unwrap().delete(id);
         // 进程结束时维护父子关系，进程删除后，所有的子进程交给 0 号进程来维护
-        assert!(self.relation.get_mut(&id).unwrap().threads.is_empty());
-        let current_relation = self.relation.remove(&id).unwrap();
-        if let Some(parent_relation) = self.relation.get_mut(&current_relation.parent) {
-            parent_relation.del_child(id);
+        let current_rel = self.rel_map.remove(&id).unwrap();
+        let parent_pid = current_rel.parent;
+        let children = current_rel.children;
+        // 从父进程中删除当前进程
+        if let Some(parent_rel) = self.rel_map.get_mut(&parent_pid) {
+            parent_rel.del_child(id, exit_code);
         }
-        if let Some(root_relation) = self.relation.get_mut(&ProcId::from_usize(0)) {
-            for i in &current_relation.children {
-                root_relation.add_child(*i);
-            }
+        // 把当前进程的所有子进程转移到 0 号进程
+        for i in children {
+            self.rel_map.get_mut(&i).unwrap().parent = ProcId::from_usize(0);
+            self.rel_map.get_mut(&ProcId::from_usize(0)).unwrap().add_child(i);
         }
-        self.current = None;
     }
-    /// 某个进程的子进程是否全部执行结束，如果全部执行结束，则表示这个进程也可以结束
-    pub fn has_child(&self, id: ProcId) -> bool {
-        !self.relation.get(&id).unwrap().children.is_empty()
+    /// wait 系统调用，返回结束的子进程 id 和 exit_code，正在运行的子进程不返回 None，返回 (-2, -1)
+    pub fn wait(&mut self, child_pid: ProcId) -> Option<(ProcId, isize)> {
+        let id = self.current.unwrap();
+        let pid = self.tid2pid.get(&id).unwrap();
+        let current_rel = self.rel_map.get_mut(pid).unwrap();
+        if child_pid.get_usize() == usize::MAX {
+            current_rel.wait_any_child()
+        } else {
+            current_rel.wait_child(child_pid)
+        }
+    }
+    /// wait_tid 系统调用
+    pub fn waittid(&mut self, thread_tid: ThreadId) -> Option<isize> {
+        let id = self.current.unwrap();
+        let pid = self.tid2pid.get(&id).unwrap();
+        let current_rel = self.rel_map.get_mut(pid).unwrap();
+        current_rel.wait_thread(thread_tid)
     }
     /// 某个进程的线程数量
     pub fn thread_count(&self, id: ProcId) -> usize {
-        self.relation.get(&id).unwrap().threads.len()
+        self.rel_map.get(&id).unwrap().threads.len()
     }
     /// 查询进程的线程
     pub fn get_thread(&mut self, id: ProcId) -> Option<&Vec<ThreadId>> {
-        self.relation.get_mut(&id).map(|p| &p.threads)
+        self.rel_map.get_mut(&id).map(|p| &p.threads)
     }
     /// 获取当前线程所属的进程
     pub fn get_current_proc(&mut self) -> Option<&mut P> {
-        let id = self.current.unwrap();
-        let pid = self.tid2pid.get(&id).unwrap();
-        self.proc_manager.as_mut().unwrap().get_mut(*pid)
+        if let Some(id) = self.current {
+            let pid = self.tid2pid.get(&id).unwrap();
+            self.proc_manager.as_mut().unwrap().get_mut(*pid)
+        } else {
+            None
+        }
     }
 }

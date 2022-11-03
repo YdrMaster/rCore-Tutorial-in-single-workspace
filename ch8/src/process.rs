@@ -18,6 +18,8 @@ use xmas_elf::{
     header::{self, HeaderPt2, Machine},
     program, ElfFile,
 };
+use sync::{Semaphore, Mutex as MutexTrait, Condvar};
+use alloc::sync::Arc;
 
 /// 线程
 pub struct Thread {
@@ -47,6 +49,11 @@ pub struct Process {
     pub fd_table: Vec<Option<Mutex<FileHandle>>>,
     /// 信号模块
     pub signal: Box<dyn Signal>,
+    /// 分配的锁以及信号量
+    pub semaphore_list: Vec<Option<Arc<Semaphore>>>,
+    pub mutex_list: Vec<Option<Arc<dyn MutexTrait>>>,
+    pub condvar_list: Vec<Option<Arc<Condvar>>>,
+
 }
 
 impl Process {
@@ -87,6 +94,9 @@ impl Process {
             address_space,
             fd_table: new_fd_table,
             signal: self.signal.from_fork(),
+            semaphore_list: Vec::new(),
+            mutex_list: Vec::new(),
+            condvar_list: Vec::new(),
         }, thread))
     }
 
@@ -162,6 +172,9 @@ impl Process {
                 Some(Mutex::new(FileHandle::empty(false, true))),
             ],
             signal: Box::new(SignalImpl::new()),
+            semaphore_list: Vec::new(),
+            mutex_list: Vec::new(),
+            condvar_list: Vec::new(),
         }, thread))
     }
 }

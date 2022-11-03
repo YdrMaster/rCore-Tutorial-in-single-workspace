@@ -97,13 +97,43 @@ pub trait Signal: Sync {
 }
 
 pub trait Thread: Sync {
-    fn thread_crate(&self, caller: Caller, entry: usize, arg: usize) -> isize {
+    fn thread_create(&self, caller: Caller, entry: usize, arg: usize) -> isize {
         unimplemented!()
     }
     fn waittid(&self, caller: Caller, tid: usize) -> isize {
         unimplemented!()
     }
     fn gettid(&self, caller: Caller) -> isize {
+        unimplemented!()
+    }
+}
+
+pub trait SyncMutex: Sync {
+    fn semaphore_create(&self, caller: Caller, res_count: usize) -> isize {
+        unimplemented!()
+    }
+    fn semaphore_up(&self, caller: Caller, sem_id: usize) -> isize {
+        unimplemented!()
+    }
+    fn semaphore_down(&self, caller: Caller, sem_id: usize) -> isize {
+        unimplemented!()
+    }
+    fn mutex_create(&self, caller: Caller, blocking: bool) -> isize {
+        unimplemented!()
+    }
+    fn mutex_lock(&self, caller: Caller, mutex_id: usize) -> isize {
+        unimplemented!()
+    }
+    fn mutex_unlock(&self, caller: Caller, mutex_id: usize) -> isize {
+        unimplemented!()
+    }
+    fn condvar_create(&self, caller: Caller, arg: usize) -> isize {
+        unimplemented!()
+    }
+    fn condvar_signal(&self, caller: Caller, condvar_id: usize) -> isize {
+        unimplemented!()
+    }
+    fn condvar_wait(&self, caller: Caller, condvar_id: usize, mutex_id: usize) -> isize {
         unimplemented!()
     }
 }
@@ -115,6 +145,7 @@ static SCHEDULING: Container<dyn Scheduling> = Container::new();
 static CLOCK: Container<dyn Clock> = Container::new();
 static SIGNAL: Container<dyn Signal> = Container::new();
 static THREAD: Container<dyn Thread> = Container::new();
+static SYNC_MUTEX: Container<dyn SyncMutex> = Container::new();
 
 #[inline]
 pub fn init_process(process: &'static dyn Process) {
@@ -151,6 +182,11 @@ pub fn init_thread(thread: &'static dyn Thread) {
     THREAD.init(thread);
 }
 
+#[inline]
+pub fn init_sync_mutex(sync_mutex: &'static dyn SyncMutex) {
+    SYNC_MUTEX.init(sync_mutex);
+}
+
 pub enum SyscallResult {
     Done(isize),
     Unsupported(SyscallId),
@@ -185,7 +221,16 @@ pub fn handle(caller: Caller, id: SyscallId, args: [usize; 6]) -> SyscallResult 
         Id::RT_SIGRETURN => SIGNAL.call(id, |signal| signal.sigreturn(caller)),
         Id::WAITID => THREAD.call(id, |thread| thread.waittid(caller, args[0])),
         Id::GETTID => THREAD.call(id, |thread| thread.gettid(caller)),
-        Id::THREAD_CREATE => THREAD.call(id, |thread| thread.thread_crate(caller, args[0], args[1])),
+        Id::THREAD_CREATE => THREAD.call(id, |thread| thread.thread_create(caller, args[0], args[1])),
+        Id::SEMAPHORE_CREATE => SYNC_MUTEX.call(id, |sync_mutex| sync_mutex.semaphore_create(caller, args[0])),
+        Id::SEMAPHORE_UP => SYNC_MUTEX.call(id, |sync_mutex| sync_mutex.semaphore_up(caller, args[0])),
+        Id::SEMAPHORE_DOWN => SYNC_MUTEX.call(id, |sync_mutex| sync_mutex.semaphore_down(caller, args[0])),
+        Id::MUTEX_CREATE => SYNC_MUTEX.call(id, |sync_mutex| sync_mutex.mutex_create(caller, args[0] != 0)),
+        Id::MUTEX_LOCK => SYNC_MUTEX.call(id, |sync_mutex| sync_mutex.mutex_lock(caller, args[0])),
+        Id::MUTEX_UNLOCK => SYNC_MUTEX.call(id, |sync_mutex| sync_mutex.mutex_unlock(caller, args[0])),
+        Id::CONDVAR_CREATE => SYNC_MUTEX.call(id, |sync_mutex| sync_mutex.condvar_create(caller, args[0])),
+        Id::CONDVAR_SIGNAL => SYNC_MUTEX.call(id, |sync_mutex| sync_mutex.condvar_signal(caller, args[0])),
+        Id::CONDVAR_WAIT => SYNC_MUTEX.call(id, |sync_mutex| sync_mutex.condvar_wait(caller, args[0], args[1])),
         _ => SyscallResult::Unsupported(id),
     }
 }

@@ -169,6 +169,7 @@ dependencies = [
  "signal",
  "signal-impl",
  "spin 0.9.4",
+ "sync",
  "syscall",
  "task-manage",
  "virtio-drivers",
@@ -532,6 +533,15 @@ dependencies = [
  "proc-macro2",
  "quote",
  "unicode-ident",
+]
+
+[[package]]
+name = "sync"
+version = "0.1.0"
+dependencies = [
+ "riscv",
+ "spin 0.9.4",
+ "task-manage",
 ]
 
 [[package]]
