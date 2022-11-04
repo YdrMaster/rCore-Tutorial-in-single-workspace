@@ -1,7 +1,7 @@
 # 任务管理
 
-[![Latest version](https://img.shields.io/crates/v/rcore-console.svg)](https://crates.io/crates/rcore-console)
-[![Documentation](https://docs.rs/rcore-console/badge.svg)](https://docs.rs/rcore-console)
+[![Latest version](https://img.shields.io/crates/v/rcore-task-manage.svg)](https://crates.io/crates/rcore-task-manage)
+[![Documentation](https://docs.rs/rcore-task-manage/badge.svg)](https://docs.rs/rcore-task-manage)
 ![license](https://img.shields.io/github/license/YdrMaster/rCore-Tutorial-in-single-workspace)
 
 #### 事先申明：对于 `feature` 的使用不太熟悉，所以代码不是很优雅
