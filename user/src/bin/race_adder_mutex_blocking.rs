@@ -6,7 +6,7 @@ extern crate user_lib;
 extern crate alloc;
 
 use alloc::vec::Vec;
-use user_lib::{exit, clock_gettime, thread_create, waittid, ClockId, TimeSpec};
+use user_lib::{clock_gettime, exit, thread_create, waittid, ClockId, TimeSpec};
 use user_lib::{mutex_create, mutex_lock, mutex_unlock};
 
 static mut A: usize = 0;
@@ -43,8 +43,9 @@ pub fn main() -> i32 {
         time_cost.push(waittid(*tid));
     }
     clock_gettime(ClockId::CLOCK_MONOTONIC, &mut end_time as *mut _ as _);
-    let total_time = 
-        end_time.tv_sec * 1000 + end_time.tv_nsec / 1_000_000 - start_time.tv_sec * 1000 - start_time.tv_nsec / 1_000_000;
+    let total_time = end_time.tv_sec * 1000 + end_time.tv_nsec / 1_000_000
+        - start_time.tv_sec * 1000
+        - start_time.tv_nsec / 1_000_000;
     println!("time cost is {}ms", total_time);
     assert_eq!(unsafe { A }, PER_THREAD * THREAD_COUNT);
     0

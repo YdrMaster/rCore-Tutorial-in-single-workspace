@@ -221,16 +221,34 @@ pub fn handle(caller: Caller, id: SyscallId, args: [usize; 6]) -> SyscallResult 
         Id::RT_SIGRETURN => SIGNAL.call(id, |signal| signal.sigreturn(caller)),
         Id::WAITID => THREAD.call(id, |thread| thread.waittid(caller, args[0])),
         Id::GETTID => THREAD.call(id, |thread| thread.gettid(caller)),
-        Id::THREAD_CREATE => THREAD.call(id, |thread| thread.thread_create(caller, args[0], args[1])),
-        Id::SEMAPHORE_CREATE => SYNC_MUTEX.call(id, |sync_mutex| sync_mutex.semaphore_create(caller, args[0])),
-        Id::SEMAPHORE_UP => SYNC_MUTEX.call(id, |sync_mutex| sync_mutex.semaphore_up(caller, args[0])),
-        Id::SEMAPHORE_DOWN => SYNC_MUTEX.call(id, |sync_mutex| sync_mutex.semaphore_down(caller, args[0])),
-        Id::MUTEX_CREATE => SYNC_MUTEX.call(id, |sync_mutex| sync_mutex.mutex_create(caller, args[0] != 0)),
+        Id::THREAD_CREATE => {
+            THREAD.call(id, |thread| thread.thread_create(caller, args[0], args[1]))
+        }
+        Id::SEMAPHORE_CREATE => SYNC_MUTEX.call(id, |sync_mutex| {
+            sync_mutex.semaphore_create(caller, args[0])
+        }),
+        Id::SEMAPHORE_UP => {
+            SYNC_MUTEX.call(id, |sync_mutex| sync_mutex.semaphore_up(caller, args[0]))
+        }
+        Id::SEMAPHORE_DOWN => {
+            SYNC_MUTEX.call(id, |sync_mutex| sync_mutex.semaphore_down(caller, args[0]))
+        }
+        Id::MUTEX_CREATE => SYNC_MUTEX.call(id, |sync_mutex| {
+            sync_mutex.mutex_create(caller, args[0] != 0)
+        }),
         Id::MUTEX_LOCK => SYNC_MUTEX.call(id, |sync_mutex| sync_mutex.mutex_lock(caller, args[0])),
-        Id::MUTEX_UNLOCK => SYNC_MUTEX.call(id, |sync_mutex| sync_mutex.mutex_unlock(caller, args[0])),
-        Id::CONDVAR_CREATE => SYNC_MUTEX.call(id, |sync_mutex| sync_mutex.condvar_create(caller, args[0])),
-        Id::CONDVAR_SIGNAL => SYNC_MUTEX.call(id, |sync_mutex| sync_mutex.condvar_signal(caller, args[0])),
-        Id::CONDVAR_WAIT => SYNC_MUTEX.call(id, |sync_mutex| sync_mutex.condvar_wait(caller, args[0], args[1])),
+        Id::MUTEX_UNLOCK => {
+            SYNC_MUTEX.call(id, |sync_mutex| sync_mutex.mutex_unlock(caller, args[0]))
+        }
+        Id::CONDVAR_CREATE => {
+            SYNC_MUTEX.call(id, |sync_mutex| sync_mutex.condvar_create(caller, args[0]))
+        }
+        Id::CONDVAR_SIGNAL => {
+            SYNC_MUTEX.call(id, |sync_mutex| sync_mutex.condvar_signal(caller, args[0]))
+        }
+        Id::CONDVAR_WAIT => SYNC_MUTEX.call(id, |sync_mutex| {
+            sync_mutex.condvar_wait(caller, args[0], args[1])
+        }),
         _ => SyscallResult::Unsupported(id),
     }
 }

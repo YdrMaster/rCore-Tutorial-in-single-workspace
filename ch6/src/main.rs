@@ -32,11 +32,11 @@ use kernel_vm::{
 };
 use processor::PROCESSOR;
 use rcore_console::log;
+use rcore_task_manage::ProcId;
 use riscv::register::*;
 use sbi_rt::*;
 use syscall::Caller;
 use xmas_elf::ElfFile;
-use rcore_task_manage::ProcId;
 
 // 定义内核入口。
 linker::boot0!(rust_main; stack = 32 * 4096);
@@ -200,7 +200,6 @@ mod impls {
     };
     use alloc::vec::Vec;
     use alloc::{alloc::alloc_zeroed, string::String};
-    use rcore_task_manage::ProcId;
     use core::{alloc::Layout, ptr::NonNull};
     use easy_fs::UserBuffer;
     use easy_fs::{FSManager, OpenFlags};
@@ -209,6 +208,7 @@ mod impls {
         PageManager,
     };
     use rcore_console::log;
+    use rcore_task_manage::ProcId;
     use spin::Mutex;
     use syscall::*;
     use xmas_elf::ElfFile;
@@ -401,7 +401,7 @@ mod impls {
 
     impl Process for SyscallContext {
         #[inline]
-        fn exit(&self, _caller: Caller, exit_code: usize) -> isize {            
+        fn exit(&self, _caller: Caller, exit_code: usize) -> isize {
             exit_code as isize
         }
 
@@ -447,7 +447,9 @@ mod impls {
         fn wait(&self, _caller: Caller, pid: isize, exit_code_ptr: usize) -> isize {
             let current = unsafe { PROCESSOR.current().unwrap() };
             const WRITABLE: VmFlags<Sv39> = VmFlags::build_from_str("W_V");
-            if let Some((dead_pid, exit_code)) =  unsafe { PROCESSOR.wait(ProcId::from_usize(pid as usize)) } {
+            if let Some((dead_pid, exit_code)) =
+                unsafe { PROCESSOR.wait(ProcId::from_usize(pid as usize)) }
+            {
                 if let Some(mut ptr) = current
                     .address_space
                     .translate(VAddr::new(exit_code_ptr), WRITABLE)

@@ -4,7 +4,7 @@ use rcore_task_manage::ThreadId;
 
 /// Mutex trait
 pub trait Mutex: Sync + Send {
-    /// tid 表示的线程试图获取锁，并返回结果 
+    /// tid 表示的线程试图获取锁，并返回结果
     fn lock(&self, tid: ThreadId) -> bool;
     /// 当前线程释放锁，并唤醒某个阻塞在这个锁上的线程
     fn unlock(&self) -> Option<ThreadId>;
@@ -45,7 +45,7 @@ impl Mutex for MutexBlocking {
             false
         } else {
             mutex_inner.locked = true;
-            true 
+            true
         }
     }
     // 释放锁，释放之后会唤醒一个被阻塞的进程，要求重新进入调度队列

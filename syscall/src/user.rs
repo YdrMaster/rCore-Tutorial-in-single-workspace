@@ -79,7 +79,7 @@ pub fn wait(exit_code_ptr: *mut i32) -> isize {
 pub fn waitpid(pid: isize, exit_code_ptr: *mut i32) -> isize {
     loop {
         match unsafe { syscall2(SyscallId::WAIT4, pid as usize, exit_code_ptr as usize) } {
-            -2 =>  {
+            -2 => {
                 sched_yield();
             }
             exit_pid => return exit_pid,
@@ -136,7 +136,7 @@ pub fn gettid() -> isize {
 pub fn waittid(tid: usize) -> isize {
     loop {
         match unsafe { syscall1(SyscallId::WAITID, tid) } {
-            -2 =>  {
+            -2 => {
                 sched_yield();
             }
             exit_code => return exit_code,
@@ -188,7 +188,6 @@ pub fn condvar_signal(condvar_id: usize) -> isize {
 pub fn condvar_wait(condvar_id: usize, mutex_id: usize) -> isize {
     unsafe { syscall2(SyscallId::CONDVAR_WAIT, condvar_id, mutex_id) }
 }
-
 
 /// 这个模块包含调用系统调用的最小封装，用户可以直接使用这些函数调用自定义的系统调用。
 pub mod native {

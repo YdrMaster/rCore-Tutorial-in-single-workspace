@@ -1,6 +1,6 @@
 use crate::process::Process;
 use alloc::collections::{BTreeMap, VecDeque};
-use rcore_task_manage::{Manage, PManager, Schedule, ProcId};
+use rcore_task_manage::{Manage, PManager, ProcId, Schedule};
 
 pub static mut PROCESSOR: PManager<Process, ProcManager> = PManager::new();
 

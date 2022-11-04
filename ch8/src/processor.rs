@@ -1,8 +1,9 @@
 use crate::process::{Process, Thread};
 use alloc::collections::{BTreeMap, VecDeque};
-use rcore_task_manage::{Manage, PThreadManager, Schedule, ProcId, ThreadId};
+use rcore_task_manage::{Manage, PThreadManager, ProcId, Schedule, ThreadId};
 
-pub static mut PROCESSOR: PThreadManager<Process, Thread, ThreadManager, ProcManager> = PThreadManager::new();
+pub static mut PROCESSOR: PThreadManager<Process, Thread, ThreadManager, ProcManager> =
+    PThreadManager::new();
 
 /// 任务管理器
 /// `tasks` 中保存所有的任务实体

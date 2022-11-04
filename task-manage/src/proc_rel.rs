@@ -1,5 +1,5 @@
-use alloc::vec::Vec;
 use super::id::ProcId;
+use alloc::vec::Vec;
 
 /// 进程之间的关系，通过进程的 Id 来查询这个关系
 #[cfg(feature = "proc")]
@@ -16,8 +16,8 @@ pub struct ProcRel {
 impl ProcRel {
     /// new/fork 创建进程时使用
     pub fn new(parent_pid: ProcId) -> Self {
-        Self { 
-            parent: parent_pid, 
+        Self {
+            parent: parent_pid,
             children: Vec::new(),
             dead_children: Vec::new(),
         }
@@ -28,7 +28,8 @@ impl ProcRel {
     }
     /// 子进程结束，子进程 Id 被移入到 dead_children 队列中，等待 wait 系统调用来处理
     pub fn del_child(&mut self, child_pid: ProcId, exit_code: isize) {
-        let pair = self.children
+        let pair = self
+            .children
             .iter()
             .enumerate()
             .find(|(_, &id)| id == child_pid);
@@ -51,7 +52,8 @@ impl ProcRel {
     }
     /// 等待特定的子进程
     pub fn wait_child(&mut self, child_pid: ProcId) -> Option<(ProcId, isize)> {
-        let pair = self.dead_children
+        let pair = self
+            .dead_children
             .iter()
             .enumerate()
             .find(|(_, &(id, _))| id == child_pid);
@@ -59,7 +61,8 @@ impl ProcRel {
             // 等待的子进程确已结束
             Some(self.dead_children.remove(idx))
         } else {
-            let pair = self.children
+            let pair = self
+                .children
                 .iter()
                 .enumerate()
                 .find(|(_, &id)| id == child_pid);

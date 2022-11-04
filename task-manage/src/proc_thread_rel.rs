@@ -20,9 +20,9 @@ pub struct ProcThreadRel {
 
 impl ProcThreadRel {
     /// new/fork 创建进程时使用
-    pub fn new(parent_pid: ProcId, ) -> Self {
-        Self { 
-            parent: parent_pid, 
+    pub fn new(parent_pid: ProcId) -> Self {
+        Self {
+            parent: parent_pid,
             children: Vec::new(),
             dead_children: Vec::new(),
             threads: Vec::new(),
@@ -35,7 +35,8 @@ impl ProcThreadRel {
     }
     /// 子进程结束，子进程 Id 被移入到 dead_children 队列中，等待 wait 系统调用来处理
     pub fn del_child(&mut self, child_pid: ProcId, exit_code: isize) {
-        let pair = self.children
+        let pair = self
+            .children
             .iter()
             .enumerate()
             .find(|(_, &id)| id == child_pid);
@@ -58,7 +59,8 @@ impl ProcThreadRel {
     }
     /// 等待特定的子进程
     pub fn wait_child(&mut self, child_pid: ProcId) -> Option<(ProcId, isize)> {
-        let pair = self.dead_children
+        let pair = self
+            .dead_children
             .iter()
             .enumerate()
             .find(|(_, &(id, _))| id == child_pid);
@@ -66,7 +68,8 @@ impl ProcThreadRel {
             // 等待的子进程确已结束
             Some(self.dead_children.remove(idx))
         } else {
-            let pair = self.children
+            let pair = self
+                .children
                 .iter()
                 .enumerate()
                 .find(|(_, &id)| id == child_pid);
@@ -85,10 +88,7 @@ impl ProcThreadRel {
     }
     /// 删除线程
     pub fn del_thread(&mut self, tid: ThreadId, exit_code: isize) {
-        let pair = self.threads
-            .iter()
-            .enumerate()
-            .find(|(_, &id)| id == tid);
+        let pair = self.threads.iter().enumerate().find(|(_, &id)| id == tid);
         if let Some((idx, _)) = pair {
             let dead_thread = self.threads.remove(idx);
             self.dead_threads.push((dead_thread, exit_code));
@@ -96,7 +96,8 @@ impl ProcThreadRel {
     }
     /// 等待特定的线程结束
     pub fn wait_thread(&mut self, thread_tid: ThreadId) -> Option<isize> {
-        let pair = self.dead_threads
+        let pair = self
+            .dead_threads
             .iter()
             .enumerate()
             .find(|(_, &(id, _))| id == thread_tid);
@@ -104,7 +105,8 @@ impl ProcThreadRel {
             // 等待的子进程确已结束
             Some(self.dead_threads.remove(idx).1)
         } else {
-            let pair = self.threads
+            let pair = self
+                .threads
                 .iter()
                 .enumerate()
                 .find(|(_, &id)| id == thread_tid);

@@ -4,7 +4,7 @@
 #[macro_use]
 extern crate user_lib;
 
-use user_lib::{exit, fork, getpid, sleep, wait, sched_yield};
+use user_lib::{exit, fork, getpid, sched_yield, sleep, wait};
 
 const DEPTH: usize = 4;
 

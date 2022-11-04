@@ -1,25 +1,22 @@
 use crate::{map_portal, Sv39Manager, PROCESSOR};
+use alloc::sync::Arc;
 use alloc::{alloc::alloc_zeroed, boxed::Box, vec::Vec};
-use rcore_task_manage::{ProcId, ThreadId};
-use core::{
-    alloc::Layout,
-    str::FromStr,
-};
+use core::{alloc::Layout, str::FromStr};
 use easy_fs::FileHandle;
 use kernel_context::{foreign::ForeignContext, LocalContext};
 use kernel_vm::{
     page_table::{MmuMeta, Sv39, VAddr, VmFlags, PPN, VPN},
     AddressSpace,
 };
+use rcore_task_manage::{ProcId, ThreadId};
 use signal::Signal;
 use signal_impl::SignalImpl;
 use spin::Mutex;
+use sync::{Condvar, Mutex as MutexTrait, Semaphore};
 use xmas_elf::{
     header::{self, HeaderPt2, Machine},
     program, ElfFile,
 };
-use sync::{Semaphore, Mutex as MutexTrait, Condvar};
-use alloc::sync::Arc;
 
 /// 线程
 pub struct Thread {
@@ -31,13 +28,12 @@ pub struct Thread {
 
 impl Thread {
     pub fn new(satp: usize, context: LocalContext) -> Self {
-        Self { 
+        Self {
             tid: ThreadId::new(),
-            context: ForeignContext { context, satp } 
+            context: ForeignContext { context, satp },
         }
     }
 }
-
 
 /// 进程。
 pub struct Process {
@@ -53,7 +49,6 @@ pub struct Process {
     pub semaphore_list: Vec<Option<Arc<Semaphore>>>,
     pub mutex_list: Vec<Option<Arc<dyn MutexTrait>>>,
     pub condvar_list: Vec<Option<Arc<Condvar>>>,
-
 }
 
 impl Process {
@@ -77,7 +72,14 @@ impl Process {
         map_portal(&address_space);
         // 线程
         let pthreads = unsafe { PROCESSOR.get_thread(self.pid).unwrap() };
-        let context = unsafe { PROCESSOR.get_task(pthreads[0]).unwrap().context.context.clone() };
+        let context = unsafe {
+            PROCESSOR
+                .get_task(pthreads[0])
+                .unwrap()
+                .context
+                .context
+                .clone()
+        };
         let satp = (8 << 60) | address_space.root_ppn().val();
         let thread = Thread::new(satp, context);
         // 复制父进程文件符描述表
@@ -89,15 +91,18 @@ impl Process {
                 new_fd_table.push(None);
             }
         }
-        Some((Self {
-            pid,
-            address_space,
-            fd_table: new_fd_table,
-            signal: self.signal.from_fork(),
-            semaphore_list: Vec::new(),
-            mutex_list: Vec::new(),
-            condvar_list: Vec::new(),
-        }, thread))
+        Some((
+            Self {
+                pid,
+                address_space,
+                fd_table: new_fd_table,
+                signal: self.signal.from_fork(),
+                semaphore_list: Vec::new(),
+                mutex_list: Vec::new(),
+                condvar_list: Vec::new(),
+            },
+            thread,
+        ))
     }
 
     pub fn from_elf(elf: ElfFile) -> Option<(Self, Thread)> {
@@ -162,19 +167,22 @@ impl Process {
         *context.sp_mut() = 1 << 38;
         let thread = Thread::new(satp, context);
 
-        Some((Self {
-            pid: ProcId::new(),
-            address_space,
-            fd_table: vec![
-                // Stdin
-                Some(Mutex::new(FileHandle::empty(true, false))),
-                // Stdout
-                Some(Mutex::new(FileHandle::empty(false, true))),
-            ],
-            signal: Box::new(SignalImpl::new()),
-            semaphore_list: Vec::new(),
-            mutex_list: Vec::new(),
-            condvar_list: Vec::new(),
-        }, thread))
+        Some((
+            Self {
+                pid: ProcId::new(),
+                address_space,
+                fd_table: vec![
+                    // Stdin
+                    Some(Mutex::new(FileHandle::empty(true, false))),
+                    // Stdout
+                    Some(Mutex::new(FileHandle::empty(false, true))),
+                ],
+                signal: Box::new(SignalImpl::new()),
+                semaphore_list: Vec::new(),
+                mutex_list: Vec::new(),
+                condvar_list: Vec::new(),
+            },
+            thread,
+        ))
     }
 }

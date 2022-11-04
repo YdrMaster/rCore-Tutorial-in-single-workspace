@@ -13,7 +13,6 @@ extern crate rcore_console;
 extern crate alloc;
 
 use alloc::{alloc::alloc, collections::BTreeMap};
-use rcore_task_manage::ProcId;
 use core::{alloc::Layout, ffi::CStr, mem::MaybeUninit};
 use impls::{Console, Sv39Manager, SyscallContext};
 use kernel_context::foreign::MultislotPortal;
@@ -24,6 +23,7 @@ use kernel_vm::{
 use process::Process;
 use processor::{ProcManager, PROCESSOR};
 use rcore_console::log;
+use rcore_task_manage::ProcId;
 use riscv::register::*;
 use sbi_rt::*;
 use spin::Lazy;
@@ -187,7 +187,6 @@ fn map_portal(space: &AddressSpace<Sv39, Sv39Manager>) {
 /// 各种接口库的实现。
 mod impls {
     use crate::{APPS, PROCESSOR};
-    use rcore_task_manage::ProcId;
     use alloc::alloc::alloc_zeroed;
     use core::{alloc::Layout, ptr::NonNull};
     use kernel_vm::{
@@ -195,6 +194,7 @@ mod impls {
         PageManager,
     };
     use rcore_console::log;
+    use rcore_task_manage::ProcId;
     use syscall::*;
     use xmas_elf::ElfFile;
 
@@ -334,7 +334,7 @@ mod impls {
 
     impl Process for SyscallContext {
         #[inline]
-        fn exit(&self, _caller: Caller, exit_code: usize) -> isize {            
+        fn exit(&self, _caller: Caller, exit_code: usize) -> isize {
             exit_code as isize
         }
 
@@ -378,7 +378,9 @@ mod impls {
         fn wait(&self, _caller: Caller, pid: isize, exit_code_ptr: usize) -> isize {
             let current = unsafe { PROCESSOR.current().unwrap() };
             const WRITABLE: VmFlags<Sv39> = VmFlags::build_from_str("W_V");
-            if let Some((dead_pid, exit_code)) =  unsafe { PROCESSOR.wait(ProcId::from_usize(pid as usize)) } {
+            if let Some((dead_pid, exit_code)) =
+                unsafe { PROCESSOR.wait(ProcId::from_usize(pid as usize)) }
+            {
                 if let Some(mut ptr) = current
                     .address_space
                     .translate(VAddr::new(exit_code_ptr), WRITABLE)

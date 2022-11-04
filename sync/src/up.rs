@@ -1,7 +1,7 @@
 use core::cell::{RefCell, RefMut, UnsafeCell};
 use core::ops::{Deref, DerefMut};
-use spin::Lazy;
 use riscv::register::sstatus;
+use spin::Lazy;
 
 /*
 /// Wrap a static data structure inside it so that we are
@@ -57,9 +57,8 @@ pub struct IntrMaskingInfo {
     sie_before_masking: bool,
 }
 
-pub static INTR_MASKING_INFO: Lazy<UPSafeCellRaw<IntrMaskingInfo>> = Lazy::new(|| unsafe { 
-    UPSafeCellRaw::new(IntrMaskingInfo::new())
-});
+pub static INTR_MASKING_INFO: Lazy<UPSafeCellRaw<IntrMaskingInfo>> =
+    Lazy::new(|| unsafe { UPSafeCellRaw::new(IntrMaskingInfo::new()) });
 
 impl IntrMaskingInfo {
     pub fn new() -> Self {

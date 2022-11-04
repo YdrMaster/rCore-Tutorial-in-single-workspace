@@ -4,7 +4,7 @@
 #[macro_use]
 extern crate user_lib;
 
-use user_lib::{exit, fork, clock_gettime, getpid, sleep, wait, ClockId, TimeSpec};
+use user_lib::{clock_gettime, exit, fork, getpid, sleep, wait, ClockId, TimeSpec};
 
 static NUM: usize = 30;
 
@@ -16,7 +16,7 @@ pub fn main() -> i32 {
             let mut time: TimeSpec = TimeSpec::ZERO;
             clock_gettime(ClockId::CLOCK_MONOTONIC, &mut time as *mut _ as _);
             let current_time = (time.tv_sec * 1000) + (time.tv_nsec / 1000000);
-            let sleep_length = 
+            let sleep_length =
                 (current_time as i32 as isize) * (current_time as i32 as isize) % 1000 + 1000;
             println!("pid {} sleep for {} ms", getpid(), sleep_length);
             sleep(sleep_length as usize);

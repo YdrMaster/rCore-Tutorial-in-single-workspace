@@ -32,12 +32,12 @@ use kernel_vm::{
 };
 pub use processor::PROCESSOR;
 use rcore_console::log;
+use rcore_task_manage::ProcId;
 use riscv::register::*;
 use sbi_rt::*;
 use signal::SignalResult;
 use syscall::Caller;
 use xmas_elf::ElfFile;
-use rcore_task_manage::ProcId;
 
 // 定义内核入口。
 linker::boot0!(rust_main; stack = 32 * 4096);
@@ -106,9 +106,9 @@ extern "C" fn rust_main() -> ! {
                     // 当然这样可能代码上不够优雅。处理信号的具体时机还需要后续再讨论。
                     match task.signal.handle_signals(ctx) {
                         // 进程应该结束执行
-                        SignalResult::ProcessKilled(exit_code) => {
-                            unsafe { PROCESSOR.make_current_exited(exit_code as _) }
-                        }
+                        SignalResult::ProcessKilled(exit_code) => unsafe {
+                            PROCESSOR.make_current_exited(exit_code as _)
+                        },
                         _ => match syscall_ret {
                             Ret::Done(ret) => match id {
                                 Id::EXIT => unsafe { PROCESSOR.make_current_exited(ret) },
@@ -214,7 +214,6 @@ mod impls {
         PROCESSOR,
     };
     use alloc::{alloc::alloc_zeroed, string::String, vec::Vec};
-    use rcore_task_manage::ProcId;
     use core::{alloc::Layout, ptr::NonNull};
     use easy_fs::UserBuffer;
     use easy_fs::{FSManager, OpenFlags};
@@ -223,6 +222,7 @@ mod impls {
         PageManager,
     };
     use rcore_console::log;
+    use rcore_task_manage::ProcId;
     use signal::SignalNo;
     use spin::Mutex;
     use syscall::*;
@@ -416,7 +416,7 @@ mod impls {
 
     impl Process for SyscallContext {
         #[inline]
-        fn exit(&self, _caller: Caller, exit_code: usize) -> isize {            
+        fn exit(&self, _caller: Caller, exit_code: usize) -> isize {
             exit_code as isize
         }
 
@@ -462,7 +462,9 @@ mod impls {
         fn wait(&self, _caller: Caller, pid: isize, exit_code_ptr: usize) -> isize {
             let current = unsafe { PROCESSOR.current().unwrap() };
             const WRITABLE: VmFlags<Sv39> = VmFlags::build_from_str("W_V");
-            if let Some((dead_pid, exit_code)) =  unsafe { PROCESSOR.wait(ProcId::from_usize(pid as usize)) } {
+            if let Some((dead_pid, exit_code)) =
+                unsafe { PROCESSOR.wait(ProcId::from_usize(pid as usize)) }
+            {
                 if let Some(mut ptr) = current
                     .address_space
                     .translate(VAddr::new(exit_code_ptr), WRITABLE)
@@ -517,7 +519,9 @@ mod impls {
 
     impl Signal for SyscallContext {
         fn kill(&self, _caller: Caller, pid: isize, signum: u8) -> isize {
-            if let Some(target_task) = unsafe { PROCESSOR.get_task(ProcId::from_usize(pid as usize)) } {
+            if let Some(target_task) =
+                unsafe { PROCESSOR.get_task(ProcId::from_usize(pid as usize)) }
+            {
                 if let Ok(signal_no) = SignalNo::try_from(signum) {
                     if signal_no != SignalNo::ERR {
                         target_task.signal.add_signal(signal_no);

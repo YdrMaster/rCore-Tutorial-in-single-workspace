@@ -1,11 +1,10 @@
 use alloc::collections::BTreeMap;
 
+use super::id::ProcId;
 use super::manager::Manage;
 use super::scheduler::Schedule;
-use super::id::ProcId;
 use super::ProcRel;
 use core::marker::PhantomData;
-
 
 /// ProcManager 数据结构，只管理进程以及进程之间的父子关系
 /// P 表示进程
@@ -31,7 +30,7 @@ impl<P, MP: Manage<P, ProcId> + Schedule<ProcId>> PManager<P, MP> {
             phantom_data: PhantomData::<P>,
         }
     }
-    /// 找到下一个进程 
+    /// 找到下一个进程
     pub fn find_next(&mut self) -> Option<&mut P> {
         if let Some(id) = self.manager.as_mut().unwrap().fetch() {
             if let Some(task) = self.manager.as_mut().unwrap().get_mut(id) {
@@ -68,7 +67,10 @@ impl<P, MP: Manage<P, ProcId> + Schedule<ProcId>> PManager<P, MP> {
         // 把当前进程的所有子进程转移到 0 号进程
         for i in children {
             self.rel_map.get_mut(&i).unwrap().parent = ProcId::from_usize(0);
-            self.rel_map.get_mut(&ProcId::from_usize(0)).unwrap().add_child(i);
+            self.rel_map
+                .get_mut(&ProcId::from_usize(0))
+                .unwrap()
+                .add_child(i);
         }
         self.current = None;
     }
@@ -102,5 +104,3 @@ impl<P, MP: Manage<P, ProcId> + Schedule<ProcId>> PManager<P, MP> {
         }
     }
 }
-
-

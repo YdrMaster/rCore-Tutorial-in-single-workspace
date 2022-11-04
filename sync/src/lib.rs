@@ -3,15 +3,14 @@
 #![no_std]
 #![deny(warnings, missing_docs)]
 
-mod up;
+mod condvar;
 mod mutex;
 mod semaphore;
-mod condvar;
+mod up;
 
 extern crate alloc;
 
-pub use up::{UPIntrFreeCell, UPIntrRefMut};
+pub use condvar::Condvar;
 pub use mutex::{Mutex, MutexBlocking};
 pub use semaphore::Semaphore;
-pub use condvar::Condvar;
-
+pub use up::{UPIntrFreeCell, UPIntrRefMut};

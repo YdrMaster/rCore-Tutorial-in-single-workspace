@@ -3,9 +3,9 @@ use alloc::vec::Vec;
 
 use crate::ThreadId;
 
+use super::id::ProcId;
 use super::manager::Manage;
 use super::scheduler::Schedule;
-use super::id::ProcId;
 use super::ProcThreadRel;
 use core::marker::PhantomData;
 
@@ -13,7 +13,8 @@ use core::marker::PhantomData;
 #[doc(cfg(feature = "thread"))]
 /// PThreadManager 数据结构，只管理进程以及进程之间的父子关系
 /// P 表示进程, T 表示线程
-pub struct PThreadManager<P, T, MT: Manage<T, ThreadId> + Schedule<ThreadId>, MP: Manage<P, ProcId>> {
+pub struct PThreadManager<P, T, MT: Manage<T, ThreadId> + Schedule<ThreadId>, MP: Manage<P, ProcId>>
+{
     // 进程之间父子关系
     rel_map: BTreeMap<ProcId, ProcThreadRel>,
     // 进程管理
@@ -28,7 +29,9 @@ pub struct PThreadManager<P, T, MT: Manage<T, ThreadId> + Schedule<ThreadId>, MP
     phantom_p: PhantomData<P>,
 }
 
-impl<P, T, MT: Manage<T, ThreadId> + Schedule<ThreadId>, MP: Manage<P, ProcId>> PThreadManager<P, T, MT, MP> {
+impl<P, T, MT: Manage<T, ThreadId> + Schedule<ThreadId>, MP: Manage<P, ProcId>>
+    PThreadManager<P, T, MT, MP>
+{
     /// 新建 PThreadManager
     pub const fn new() -> Self {
         Self {
@@ -146,7 +149,10 @@ impl<P, T, MT: Manage<T, ThreadId> + Schedule<ThreadId>, MP: Manage<P, ProcId>> 
         // 把当前进程的所有子进程转移到 0 号进程
         for i in children {
             self.rel_map.get_mut(&i).unwrap().parent = ProcId::from_usize(0);
-            self.rel_map.get_mut(&ProcId::from_usize(0)).unwrap().add_child(i);
+            self.rel_map
+                .get_mut(&ProcId::from_usize(0))
+                .unwrap()
+                .add_child(i);
         }
     }
     /// wait 系统调用，返回结束的子进程 id 和 exit_code，正在运行的子进程不返回 None，返回 (-2, -1)

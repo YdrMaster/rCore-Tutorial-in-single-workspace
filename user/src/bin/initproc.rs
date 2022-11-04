@@ -18,13 +18,12 @@ fn main() -> i32 {
                 sched_yield();
                 continue;
             }
-            
+
             // println!(
             //     "[initproc] Released a zombie process, pid={}, exit_code={}",
             //     pid,
             //     exit_code,
             // );
-            
         }
     }
     0

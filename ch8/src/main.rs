@@ -32,12 +32,12 @@ use kernel_vm::{
 };
 pub use processor::PROCESSOR;
 use rcore_console::log;
+use rcore_task_manage::ProcId;
 use riscv::register::*;
 use sbi_rt::*;
 use signal::SignalResult;
 use syscall::Caller;
 use xmas_elf::ElfFile;
-use rcore_task_manage::ProcId;
 
 // 定义内核入口。
 linker::boot0!(rust_main; stack = 32 * 4096);
@@ -112,9 +112,9 @@ extern "C" fn rust_main() -> ! {
                     let current_proc = unsafe { PROCESSOR.get_current_proc().unwrap() };
                     match current_proc.signal.handle_signals(ctx) {
                         // 进程应该结束执行
-                        SignalResult::ProcessKilled(exit_code) => {
-                            unsafe { PROCESSOR.make_current_exited(exit_code as _) }
-                        }
+                        SignalResult::ProcessKilled(exit_code) => unsafe {
+                            PROCESSOR.make_current_exited(exit_code as _)
+                        },
                         _ => match syscall_ret {
                             Ret::Done(ret) => match id {
                                 Id::EXIT => unsafe { PROCESSOR.make_current_exited(ret) },
@@ -224,25 +224,24 @@ fn map_portal(space: &AddressSpace<Sv39, Sv39Manager>) {
 mod impls {
     use crate::{
         fs::{read_all, FS},
-        PROCESSOR,
-        Thread,
+        Thread, PROCESSOR,
     };
+    use alloc::sync::Arc;
     use alloc::{alloc::alloc_zeroed, string::String, vec::Vec};
-    use rcore_task_manage::{ProcId, ThreadId};
     use core::{alloc::Layout, ptr::NonNull};
     use easy_fs::UserBuffer;
     use easy_fs::{FSManager, OpenFlags};
     use kernel_vm::{
-        page_table::{MmuMeta, Pte, Sv39, VAddr, VmFlags, PPN, VPN, VmMeta},
+        page_table::{MmuMeta, Pte, Sv39, VAddr, VmFlags, VmMeta, PPN, VPN},
         PageManager,
     };
     use rcore_console::log;
+    use rcore_task_manage::{ProcId, ThreadId};
     use signal::SignalNo;
     use spin::Mutex;
+    use sync::{Condvar, Mutex as MutexTrait, MutexBlocking, Semaphore};
     use syscall::*;
     use xmas_elf::ElfFile;
-    use sync::{Semaphore, Mutex as MutexTrait, MutexBlocking, Condvar};
-    use alloc::sync::Arc;
 
     #[repr(transparent)]
     pub struct Sv39Manager(NonNull<Pte<Sv39>>);
@@ -432,7 +431,7 @@ mod impls {
 
     impl Process for SyscallContext {
         #[inline]
-        fn exit(&self, _caller: Caller, exit_code: usize) -> isize {            
+        fn exit(&self, _caller: Caller, exit_code: usize) -> isize {
             exit_code as isize
         }
 
@@ -478,7 +477,9 @@ mod impls {
         fn wait(&self, _caller: Caller, pid: isize, exit_code_ptr: usize) -> isize {
             let current = unsafe { PROCESSOR.get_current_proc().unwrap() };
             const WRITABLE: VmFlags<Sv39> = VmFlags::build_from_str("W_V");
-            if let Some((dead_pid, exit_code)) =  unsafe { PROCESSOR.wait(ProcId::from_usize(pid as usize)) } {
+            if let Some((dead_pid, exit_code)) =
+                unsafe { PROCESSOR.wait(ProcId::from_usize(pid as usize)) }
+            {
                 if let Some(mut ptr) = current
                     .address_space
                     .translate(VAddr::new(exit_code_ptr), WRITABLE)
@@ -533,7 +534,9 @@ mod impls {
 
     impl Signal for SyscallContext {
         fn kill(&self, _caller: Caller, pid: isize, signum: u8) -> isize {
-            if let Some(target_task) = unsafe { PROCESSOR.get_proc(ProcId::from_usize(pid as usize)) } {
+            if let Some(target_task) =
+                unsafe { PROCESSOR.get_proc(ProcId::from_usize(pid as usize)) }
+            {
                 if let Ok(signal_no) = SignalNo::try_from(signum) {
                     if signal_no != SignalNo::ERR {
                         target_task.signal.add_signal(signal_no);
@@ -606,7 +609,10 @@ mod impls {
             let current = unsafe { PROCESSOR.get_current_proc().unwrap() };
             let current_thread = unsafe { PROCESSOR.current().unwrap() };
             // 如成功，则需要修改当前用户程序的 LocalContext
-            if current.signal.sig_return(&mut current_thread.context.context) {
+            if current
+                .signal
+                .sig_return(&mut current_thread.context.context)
+            {
                 0
             } else {
                 -1
@@ -645,7 +651,9 @@ mod impls {
             *context.a_mut(0) = arg;
             let thread = Thread::new(satp, context);
             let tid = thread.tid;
-            unsafe { PROCESSOR.add(tid, thread, current_proc.pid); }
+            unsafe {
+                PROCESSOR.add(tid, thread, current_proc.pid);
+            }
             tid.get_usize() as _
         }
 
@@ -695,7 +703,9 @@ mod impls {
             let sem = Arc::clone(current_proc.semaphore_list[sem_id].as_ref().unwrap());
             if let Some(tid) = sem.up() {
                 // 释放锁之后，唤醒某个阻塞在此信号量上的线程
-                unsafe { PROCESSOR.re_enque(tid); }
+                unsafe {
+                    PROCESSOR.re_enque(tid);
+                }
             }
             0
         }
@@ -716,7 +726,7 @@ mod impls {
             let new_mutex: Option<Arc<dyn MutexTrait>> = if blocking {
                 Some(Arc::new(MutexBlocking::new()))
             } else {
-                // 本来应该是自旋锁，但是目前还不支持，所以先返回 None 
+                // 本来应该是自旋锁，但是目前还不支持，所以先返回 None
                 None
             };
             let current_proc = unsafe { PROCESSOR.get_current_proc().unwrap() };
@@ -740,7 +750,9 @@ mod impls {
             let mutex = Arc::clone(current_proc.mutex_list[mutex_id].as_ref().unwrap());
             if let Some(tid) = mutex.unlock() {
                 // 释放锁之后，唤醒某个阻塞在此信号量上的线程
-                unsafe { PROCESSOR.re_enque(tid); }
+                unsafe {
+                    PROCESSOR.re_enque(tid);
+                }
             }
             0
         }
@@ -772,7 +784,7 @@ mod impls {
                 current_proc
                     .condvar_list
                     .push(Some(Arc::new(Condvar::new())));
-                    current_proc.condvar_list.len() - 1
+                current_proc.condvar_list.len() - 1
             };
             id as isize
         }
@@ -782,7 +794,9 @@ mod impls {
             let condvar = Arc::clone(current_proc.condvar_list[condvar_id].as_ref().unwrap());
             if let Some(tid) = condvar.signal() {
                 // 释放锁之后，唤醒某个阻塞在此信号量上的线程
-                unsafe { PROCESSOR.re_enque(tid); }
+                unsafe {
+                    PROCESSOR.re_enque(tid);
+                }
             }
             0
         }
