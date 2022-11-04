@@ -17,6 +17,7 @@ members = [
     "kernel-context",
     "kernel-alloc",
     "kernel-vm",
+    "task-manage",
     "easy-fs",
     "signal-defs",
     "signal",

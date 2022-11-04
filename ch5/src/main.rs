@@ -13,7 +13,7 @@ extern crate rcore_console;
 extern crate alloc;
 
 use alloc::{alloc::alloc, collections::BTreeMap};
-use task_manage::ProcId;
+use rcore_task_manage::ProcId;
 use core::{alloc::Layout, ffi::CStr, mem::MaybeUninit};
 use impls::{Console, Sv39Manager, SyscallContext};
 use kernel_context::foreign::MultislotPortal;
@@ -35,7 +35,7 @@ core::arch::global_asm!(include_str!(env!("APP_ASM")));
 // 定义内核入口。
 linker::boot0!(rust_main; stack = 32 * 4096);
 // 物理内存容量 = 32 MiB。
-const MEMORY: usize = 64 << 20;
+const MEMORY: usize = 48 << 20;
 // 传送门所在虚页。
 const PROTAL_TRANSIT: VPN<Sv39> = VPN::MAX;
 // 内核地址空间。
@@ -187,7 +187,7 @@ fn map_portal(space: &AddressSpace<Sv39, Sv39Manager>) {
 /// 各种接口库的实现。
 mod impls {
     use crate::{APPS, PROCESSOR};
-    use task_manage::ProcId;
+    use rcore_task_manage::ProcId;
     use alloc::alloc::alloc_zeroed;
     use core::{alloc::Layout, ptr::NonNull};
     use kernel_vm::{

@@ -1,6 +1,6 @@
 use super::UPIntrFreeCell;
 use alloc::collections::VecDeque;
-use task_manage::ThreadId;
+use rcore_task_manage::ThreadId;
 
 /// Mutex trait
 pub trait Mutex: Sync + Send {

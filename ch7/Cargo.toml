@@ -17,7 +17,7 @@ kernel-context = { path = "../kernel-context", features = ["foreign"] }
 kernel-alloc = { path = "../kernel-alloc" }
 kernel-vm = { path = "../kernel-vm" }
 syscall = { path = "../syscall", features = ["kernel"] }
-task-manage = { path = "../task-manage", features = ["proc"]  }
+rcore-task-manage = { path = "../task-manage", features = ["proc"]  }
 easy-fs = { path = "../easy-fs" }
 signal = { path = "../signal" }
 signal-impl = { path = "../signal-impl" }

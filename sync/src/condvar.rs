@@ -1,6 +1,6 @@
 use super::{Mutex, UPIntrFreeCell};
 use alloc::{collections::VecDeque, sync::Arc};
-use task_manage::ThreadId;
+use rcore_task_manage::ThreadId;
 
 /// Condvar
 pub struct Condvar {

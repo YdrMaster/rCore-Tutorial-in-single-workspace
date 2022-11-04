@@ -1,6 +1,6 @@
 use crate::{map_portal, Sv39Manager, PROCESSOR};
 use alloc::{alloc::alloc_zeroed, boxed::Box, vec::Vec};
-use task_manage::{ProcId, ThreadId};
+use rcore_task_manage::{ProcId, ThreadId};
 use core::{
     alloc::Layout,
     str::FromStr,

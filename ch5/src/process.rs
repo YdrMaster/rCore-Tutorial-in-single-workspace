@@ -11,7 +11,7 @@ use xmas_elf::{
     header::{self, HeaderPt2, Machine},
     program, ElfFile,
 };
-use task_manage::ProcId;
+use rcore_task_manage::ProcId;
 
 /// 进程。
 pub struct Process {

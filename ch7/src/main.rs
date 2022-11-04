@@ -37,7 +37,7 @@ use sbi_rt::*;
 use signal::SignalResult;
 use syscall::Caller;
 use xmas_elf::ElfFile;
-use task_manage::ProcId;
+use rcore_task_manage::ProcId;
 
 // 定义内核入口。
 linker::boot0!(rust_main; stack = 32 * 4096);
@@ -214,7 +214,7 @@ mod impls {
         PROCESSOR,
     };
     use alloc::{alloc::alloc_zeroed, string::String, vec::Vec};
-    use task_manage::ProcId;
+    use rcore_task_manage::ProcId;
     use core::{alloc::Layout, ptr::NonNull};
     use easy_fs::UserBuffer;
     use easy_fs::{FSManager, OpenFlags};

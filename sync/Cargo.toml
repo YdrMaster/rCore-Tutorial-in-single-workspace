@@ -9,4 +9,4 @@ authors = ["zflcs <1491657576@qq.com>"]
 [dependencies]
 riscv = "0.9"
 spin = "0.9.4"
-task-manage = { path = "../task-manage", features = ["thread"] }
+rcore-task-manage = { path = "../task-manage", features = ["thread"] }

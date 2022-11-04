@@ -106,11 +106,11 @@ dependencies = [
  "kernel-vm",
  "linker",
  "rcore-console",
+ "rcore-task-manage",
  "riscv",
  "sbi-rt",
  "spin 0.9.4",
  "syscall",
- "task-manage",
  "xmas-elf",
 ]
 
@@ -124,11 +124,11 @@ dependencies = [
  "kernel-vm",
  "linker",
  "rcore-console",
+ "rcore-task-manage",
  "riscv",
  "sbi-rt",
  "spin 0.9.4",
  "syscall",
- "task-manage",
  "virtio-drivers",
  "xmas-elf",
 ]
@@ -143,13 +143,13 @@ dependencies = [
  "kernel-vm",
  "linker",
  "rcore-console",
+ "rcore-task-manage",
  "riscv",
  "sbi-rt",
  "signal",
  "signal-impl",
  "spin 0.9.4",
  "syscall",
- "task-manage",
  "virtio-drivers",
  "xmas-elf",
 ]
@@ -164,6 +164,7 @@ dependencies = [
  "kernel-vm",
  "linker",
  "rcore-console",
+ "rcore-task-manage",
  "riscv",
  "sbi-rt",
  "signal",
@@ -171,7 +172,6 @@ dependencies = [
  "spin 0.9.4",
  "sync",
  "syscall",
- "task-manage",
  "virtio-drivers",
  "xmas-elf",
 ]
@@ -423,6 +423,10 @@ dependencies = [
 ]
 
 [[package]]
+name = "rcore-task-manage"
+version = "0.0.0"
+
+[[package]]
 name = "riscv"
 version = "0.9.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -539,9 +543,9 @@ dependencies = [
 name = "sync"
 version = "0.1.0"
 dependencies = [
+ "rcore-task-manage",
  "riscv",
  "spin 0.9.4",
- "task-manage",
 ]
 
 [[package]]
@@ -552,10 +556,6 @@ dependencies = [
  "signal-defs",
  "spin 0.9.4",
 ]
-
-[[package]]
-name = "task-manage"
-version = "0.1.0"
 
 [[package]]
 name = "termcolor"
