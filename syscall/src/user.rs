@@ -67,23 +67,22 @@ pub fn exec(path: &str) -> isize {
 
 pub fn wait(exit_code_ptr: *mut i32) -> isize {
     loop {
-        let pid = unsafe { syscall2(SyscallId::WAIT4, usize::MAX, exit_code_ptr as usize) };
-        if pid == -1 {
-            sched_yield();
-            continue;
-        } else {
-            return pid;
+        match unsafe { syscall2(SyscallId::WAIT4, usize::MAX, exit_code_ptr as usize) } {
+            -2 => {
+                sched_yield();
+            }
+            exit_pid => return exit_pid,
         }
     }
 }
 
 pub fn waitpid(pid: isize, exit_code_ptr: *mut i32) -> isize {
     loop {
-        let pid = unsafe { syscall2(SyscallId::WAIT4, pid as usize, exit_code_ptr as usize) };
-        if pid == -1 {
-            sched_yield();
-        } else {
-            return pid;
+        match unsafe { syscall2(SyscallId::WAIT4, pid as usize, exit_code_ptr as usize) } {
+            -2 => {
+                sched_yield();
+            }
+            exit_pid => return exit_pid,
         }
     }
 }
@@ -121,6 +120,73 @@ pub fn sigprocmask(mask: usize) -> isize {
 #[inline]
 pub fn sigreturn() -> isize {
     unsafe { syscall0(SyscallId::RT_SIGRETURN) }
+}
+
+#[inline]
+pub fn thread_create(entry: usize, arg: usize) -> isize {
+    unsafe { syscall2(SyscallId::THREAD_CREATE, entry, arg) }
+}
+
+#[inline]
+pub fn gettid() -> isize {
+    unsafe { syscall0(SyscallId::GETTID) }
+}
+
+#[inline]
+pub fn waittid(tid: usize) -> isize {
+    loop {
+        match unsafe { syscall1(SyscallId::WAITID, tid) } {
+            -2 => {
+                sched_yield();
+            }
+            exit_code => return exit_code,
+        }
+    }
+}
+
+#[inline]
+pub fn semaphore_create(res_count: usize) -> isize {
+    unsafe { syscall1(SyscallId::SEMAPHORE_CREATE, res_count) }
+}
+
+#[inline]
+pub fn semaphore_up(sem_id: usize) -> isize {
+    unsafe { syscall1(SyscallId::SEMAPHORE_UP, sem_id) }
+}
+
+#[inline]
+pub fn semaphore_down(sem_id: usize) -> isize {
+    unsafe { syscall1(SyscallId::SEMAPHORE_DOWN, sem_id) }
+}
+
+#[inline]
+pub fn mutex_create(blocking: bool) -> isize {
+    unsafe { syscall1(SyscallId::MUTEX_CREATE, blocking as _) }
+}
+
+#[inline]
+pub fn mutex_lock(mutex_id: usize) -> isize {
+    unsafe { syscall1(SyscallId::MUTEX_LOCK, mutex_id) }
+}
+
+#[inline]
+pub fn mutex_unlock(mutex_id: usize) -> isize {
+    unsafe { syscall1(SyscallId::MUTEX_UNLOCK, mutex_id) }
+}
+
+#[inline]
+pub fn condvar_create() -> isize {
+    unsafe { syscall1(SyscallId::CONDVAR_CREATE, 0) }
+}
+
+#[inline]
+pub fn condvar_signal(condvar_id: usize) -> isize {
+    unsafe { syscall1(SyscallId::CONDVAR_SIGNAL, condvar_id) }
+}
+
+#[inline]
+pub fn condvar_wait(condvar_id: usize, mutex_id: usize) -> isize {
+    unsafe { syscall2(SyscallId::CONDVAR_WAIT, condvar_id, mutex_id) }
 }
 
 /// 这个模块包含调用系统调用的最小封装，用户可以直接使用这些函数调用自定义的系统调用。

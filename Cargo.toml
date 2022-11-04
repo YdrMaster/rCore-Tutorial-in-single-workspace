@@ -9,6 +9,7 @@ members = [
     "ch5",
     "ch6",
     "ch7",
+    "ch8",
     "user",
     "linker",
     "console",
@@ -16,9 +17,11 @@ members = [
     "kernel-context",
     "kernel-alloc",
     "kernel-vm",
+    "task-manage",
     "easy-fs",
     "signal-defs",
     "signal",
     "signal-impl",
+    "sync",
 ]
 default-members = ["xtask"]

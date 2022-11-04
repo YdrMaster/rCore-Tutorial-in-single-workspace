@@ -302,5 +302,21 @@
 #define __NR_landlock_add_rule	445
 #define __NR_landlock_restrict_self	446
 
+// 
+#define __NR_thread_create 1000
+//
+#define __NR_mutex_create 1010
+#define __NR_mutex_lock 1011
+#define __NR_mutex_unlock 1012
+//
+#define __NR_semaphore_create 1020
+#define __NR_semaphore_up 1021
+#define __NR_semaphore_down 1022
+//
+#define __NR_condvar_create 1030
+#define __NR_condvar_signal 1031
+#define __NR_condvar_wait 1032
+
+
 // #define __NR_sysriscv __NR_arch_specific_syscall
 // #define __NR_riscv_flush_icache (__NR_sysriscv + 15)

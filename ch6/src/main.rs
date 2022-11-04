@@ -32,15 +32,16 @@ use kernel_vm::{
 };
 use processor::PROCESSOR;
 use rcore_console::log;
+use rcore_task_manage::ProcId;
 use riscv::register::*;
 use sbi_rt::*;
 use syscall::Caller;
 use xmas_elf::ElfFile;
 
 // 定义内核入口。
-linker::boot0!(rust_main; stack = 16 * 4096);
+linker::boot0!(rust_main; stack = 32 * 4096);
 // 物理内存容量 = 16 MiB。
-const MEMORY: usize = 16 << 20;
+const MEMORY: usize = 48 << 20;
 // 传送门所在虚页。
 const PROTAL_TRANSIT: VPN<Sv39> = VPN::MAX;
 // 内核地址空间。
@@ -81,7 +82,7 @@ extern "C" fn rust_main() -> ! {
     if let Some(process) = Process::from_elf(ElfFile::new(initproc.as_slice()).unwrap()) {
         unsafe {
             PROCESSOR.set_manager(ProcManager::new());
-            PROCESSOR.add(process.pid, process);
+            PROCESSOR.add(process.pid, process, ProcId::from_usize(usize::MAX));
         }
     }
     loop {
@@ -96,7 +97,7 @@ extern "C" fn rust_main() -> ! {
                     let args = [ctx.a(0), ctx.a(1), ctx.a(2), ctx.a(3), ctx.a(4), ctx.a(5)];
                     match syscall::handle(Caller { entity: 0, flow: 0 }, id, args) {
                         Ret::Done(ret) => match id {
-                            Id::EXIT => unsafe { PROCESSOR.make_current_exited() },
+                            Id::EXIT => unsafe { PROCESSOR.make_current_exited(ret) },
                             _ => {
                                 let ctx = &mut task.context.context;
                                 *ctx.a_mut(0) = ret as _;
@@ -105,13 +106,13 @@ extern "C" fn rust_main() -> ! {
                         },
                         Ret::Unsupported(_) => {
                             log::info!("id = {id:?}");
-                            unsafe { PROCESSOR.make_current_exited() };
+                            unsafe { PROCESSOR.make_current_exited(-2) };
                         }
                     }
                 }
                 e => {
                     log::error!("unsupported trap: {e:?}");
-                    unsafe { PROCESSOR.make_current_exited() };
+                    unsafe { PROCESSOR.make_current_exited(-3) };
                 }
             }
         } else {
@@ -195,7 +196,6 @@ fn map_portal(space: &AddressSpace<Sv39, Sv39Manager>) {
 mod impls {
     use crate::{
         fs::{read_all, FS},
-        process::TaskId,
         PROCESSOR,
     };
     use alloc::vec::Vec;
@@ -208,6 +208,7 @@ mod impls {
         PageManager,
     };
     use rcore_console::log;
+    use rcore_task_manage::ProcId;
     use spin::Mutex;
     use syscall::*;
     use xmas_elf::ElfFile;
@@ -400,24 +401,8 @@ mod impls {
 
     impl Process for SyscallContext {
         #[inline]
-        fn exit(&self, _caller: Caller, _status: usize) -> isize {
-            let current = unsafe { PROCESSOR.current().unwrap() };
-            if let Some(parent) = unsafe { PROCESSOR.get_task(current.parent) } {
-                let pair = parent
-                    .children
-                    .iter()
-                    .enumerate()
-                    .find(|(_, &id)| id == current.pid);
-                if let Some((idx, _)) = pair {
-                    parent.children.remove(idx);
-                    // log::debug!("parent remove child {}", parent.children.remove(idx));
-                }
-                for (_, &id) in current.children.iter().enumerate() {
-                    // log::warn!("parent insert child {}", id);
-                    parent.children.push(id);
-                }
-            }
-            0
+        fn exit(&self, _caller: Caller, exit_code: usize) -> isize {
+            exit_code as isize
         }
 
         fn fork(&self, _caller: Caller) -> isize {
@@ -427,9 +412,9 @@ mod impls {
             let context = &mut child_proc.context.context;
             *context.a_mut(0) = 0 as _;
             unsafe {
-                PROCESSOR.add(pid, child_proc);
+                PROCESSOR.add(pid, child_proc, current.pid);
             }
-            pid.get_val() as isize
+            pid.get_usize() as isize
         }
 
         fn exec(&self, _caller: Caller, path: usize, count: usize) -> isize {
@@ -459,31 +444,28 @@ mod impls {
                 )
         }
 
-        // 简化的 wait 系统调用，pid == -1，则需要等待所有子进程结束，若当前进程有子进程，则返回 -1，否则返回 0
-        // pid 为具体的某个值，表示需要等待某个子进程结束，因此只需要在 TASK_MANAGER 中查找是否有任务
-        // 简化了进程的状态模型
         fn wait(&self, _caller: Caller, pid: isize, exit_code_ptr: usize) -> isize {
             let current = unsafe { PROCESSOR.current().unwrap() };
             const WRITABLE: VmFlags<Sv39> = VmFlags::build_from_str("W_V");
-            if let Some(mut ptr) = current
-                .address_space
-                .translate(VAddr::new(exit_code_ptr), WRITABLE)
+            if let Some((dead_pid, exit_code)) =
+                unsafe { PROCESSOR.wait(ProcId::from_usize(pid as usize)) }
             {
-                unsafe { *ptr.as_mut() = 333 as i32 };
-            }
-            if pid == -1 {
-                if current.children.is_empty() {
-                    return 0;
-                } else {
-                    return -1;
+                if let Some(mut ptr) = current
+                    .address_space
+                    .translate(VAddr::new(exit_code_ptr), WRITABLE)
+                {
+                    unsafe { *ptr.as_mut() = exit_code };
                 }
+                return dead_pid.get_usize() as _;
             } else {
-                if unsafe { PROCESSOR.get_task(TaskId::from(pid as usize)).is_none() } {
-                    return pid;
-                } else {
-                    return -1;
-                }
+                // 等待的子进程不存在
+                return -1;
             }
+        }
+
+        fn getpid(&self, _caller: Caller) -> isize {
+            let current = unsafe { PROCESSOR.current().unwrap() };
+            current.pid.get_usize() as _
         }
     }
 

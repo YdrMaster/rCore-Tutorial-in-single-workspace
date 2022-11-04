@@ -6,8 +6,4 @@ pub trait Manage<T, I: Copy + Ord> {
     fn delete(&mut self, id: I);
     /// 获取 mut item
     fn get_mut(&mut self, id: I) -> Option<&mut T>;
-    /// 添加 id 进入调度队列
-    fn add(&mut self, id: I);
-    /// 从调度队列中取出 id
-    fn fetch(&mut self) -> Option<I>;
 }

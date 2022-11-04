@@ -1,7 +1,18 @@
 [package]
-name = "task-manage"
-version = "0.1.0"
+name = "rcore-task-manage"
+description = "Manages tasks and maintain relationships between them"
+version = "0.0.0"
 edition = "2021"
-authors = ["zflcs <1491657576@qq.com>"]
+authors = ["zflcs <zhaofangliang@foxmail.com>"]
+repository = "https://github.com/YdrMaster/rCore-Tutorial-in-single-workspace/task-manage"
+documentation = "https://docs.rs/rcore-task-manage"
+license = "WTFPL"
+readme = "README.md"
+keywords = ["rcore", "task-manage"]
+categories = ["no-std"]
 
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[features]
+proc = []
+thread = []
+

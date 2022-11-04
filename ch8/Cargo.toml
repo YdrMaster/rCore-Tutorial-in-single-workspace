@@ -1,10 +1,11 @@
 [package]
-name = "ch5"
+name = "ch8"
 version = "0.0.1"
 edition = "2021"
 authors = ["zflcs <1491657576@qq.com>"]
 
 [dependencies]
+virtio-drivers = { git = "https://github.com/rcore-os/virtio-drivers", rev = "4ee80e5" }
 sbi-rt = { version = "0.0.2", features = ["legacy"] }
 xmas-elf = "0.8.0"
 riscv = "0.9"
@@ -16,7 +17,11 @@ kernel-context = { path = "../kernel-context", features = ["foreign"] }
 kernel-alloc = { path = "../kernel-alloc" }
 kernel-vm = { path = "../kernel-vm" }
 syscall = { path = "../syscall", features = ["kernel"] }
-rcore-task-manage = { path = "../task-manage", features = ["proc"] }
+rcore-task-manage = { path = "../task-manage", features = ["thread"]  }
+easy-fs = { path = "../easy-fs" }
+signal = { path = "../signal" }
+signal-impl = { path = "../signal-impl" }
+sync = { path = "../sync" }
 
 [build-dependencies]
 linker = { path = "../linker" }
