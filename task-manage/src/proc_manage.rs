@@ -3,16 +3,17 @@ use alloc::collections::BTreeMap;
 use super::manager::Manage;
 use super::scheduler::Schedule;
 use super::id::ProcId;
-use super::ProcRelation;
+use super::ProcRel;
 use core::marker::PhantomData;
 
 
 /// ProcManager 数据结构，只管理进程以及进程之间的父子关系
 /// P 表示进程
 #[cfg(feature = "proc")]
+#[doc(cfg(feature = "proc"))]
 pub struct PManager<P, MP: Manage<P, ProcId> + Schedule<ProcId>> {
     // 进程之间父子关系
-    rel_map: BTreeMap<ProcId, ProcRelation>,
+    rel_map: BTreeMap<ProcId, ProcRel>,
     // 进程对象管理和调度
     manager: Option<MP>,
     // 当前正在运行的进程 ID
@@ -78,7 +79,7 @@ impl<P, MP: Manage<P, ProcId> + Schedule<ProcId>> PManager<P, MP> {
         if let Some(parent_relation) = self.rel_map.get_mut(&parent) {
             parent_relation.add_child(id);
         }
-        self.rel_map.insert(id, ProcRelation::new(parent));
+        self.rel_map.insert(id, ProcRel::new(parent));
     }
     /// 当前进程
     pub fn current(&mut self) -> Option<&mut P> {
