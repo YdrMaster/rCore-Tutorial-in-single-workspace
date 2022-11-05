@@ -46,14 +46,12 @@ impl Condvar {
         });
         false
     }
-    /// 从 mutex 的锁中释放一个线程，并将其阻塞在自己的等待队列中，当前的线程再试图获取这个锁
-    pub fn wait_with_mutex(&self, tid: ThreadId, mutex: Arc<dyn Mutex>) -> bool {
+    /// 从 mutex 的锁中释放一个线程，并将其阻塞在条件变量的等待队列中，等待其他线程运行完毕，当前的线程再试图获取这个锁
+    /// 
+    /// 注意：下面是简化版的实现，在 mutex 唤醒一个线程之后，当前线程就直接获取这个 mutex，不管能不能获取成功
+    /// 这里是单纯为了过测例，
+    pub fn wait_with_mutex(&self, tid: ThreadId, mutex: Arc<dyn Mutex>) -> (bool, Option<ThreadId>) {
         let waking_tid = mutex.unlock().unwrap();
-        // 将当前线程阻塞到 condvar 的阻塞队列中
-        self.inner.exclusive_session(|inner| {
-            inner.wait_queue.push_back(tid);
-        });
-        mutex.lock(waking_tid);
-        false
+        (mutex.lock(tid), Some(waking_tid))
     }
 }

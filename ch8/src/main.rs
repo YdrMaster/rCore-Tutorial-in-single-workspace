@@ -802,17 +802,18 @@ mod impls {
         }
 
         fn condvar_wait(&self, _caller: Caller, condvar_id: usize, mutex_id: usize) -> isize {
-            log::debug!("here");
             let current = unsafe { PROCESSOR.current().unwrap() };
             let tid = current.tid;
             let current_proc = unsafe { PROCESSOR.get_current_proc().unwrap() };
             let condvar = Arc::clone(current_proc.condvar_list[condvar_id].as_ref().unwrap());
             let mutex = Arc::clone(current_proc.mutex_list[mutex_id].as_ref().unwrap());
-            if !condvar.wait_with_mutex(tid, mutex) {
-                log::debug!("here {}", -1);
+            let (flag, waking_tid) = condvar.wait_with_mutex(tid, mutex);
+            if let Some(waking_tid) = waking_tid {
+                unsafe { PROCESSOR.re_enque(waking_tid); }
+            }
+            if !flag {
                 -1
             } else {
-                log::debug!("here {}", 0);
                 0
             }
         }
