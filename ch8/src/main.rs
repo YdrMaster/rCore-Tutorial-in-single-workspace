@@ -809,7 +809,9 @@ mod impls {
             let mutex = Arc::clone(current_proc.mutex_list[mutex_id].as_ref().unwrap());
             let (flag, waking_tid) = condvar.wait_with_mutex(tid, mutex);
             if let Some(waking_tid) = waking_tid {
-                unsafe { PROCESSOR.re_enque(waking_tid); }
+                unsafe {
+                    PROCESSOR.re_enque(waking_tid);
+                }
             }
             if !flag {
                 -1
