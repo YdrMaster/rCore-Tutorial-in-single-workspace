@@ -79,5 +79,5 @@ rCore-Tutorial-v3 的教材部分别出心裁地为每一章取了一种古生�
 - [x] [§5](ch5/README.md) by [ZFL](https://github.com/zflcs)
 - [x] [§6](ch6/README.md) by [TKF](https://github.com/tkf2019)
 - [x] [§7](ch7/README.md) by [BHY](https://github.com/scPointer)
-- [ ] §8
+- [x] [§8](ch8/README.md) by [ZFL](https://github.com/zflcs)
 - [ ] §9
