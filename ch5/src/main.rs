@@ -34,7 +34,7 @@ use xmas_elf::ElfFile;
 core::arch::global_asm!(include_str!(env!("APP_ASM")));
 // 定义内核入口。
 linker::boot0!(rust_main; stack = 32 * 4096);
-// 物理内存容量 = 32 MiB。
+// 物理内存容量 = 48 MiB。
 const MEMORY: usize = 48 << 20;
 // 传送门所在虚页。
 const PROTAL_TRANSIT: VPN<Sv39> = VPN::MAX;
