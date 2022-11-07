@@ -3,7 +3,9 @@
 #![feature(naked_functions, asm_const)]
 #![deny(warnings)]
 
-use rcore_console::*;
+#[macro_use]
+extern crate rcore_console;
+
 use sbi_rt::*;
 
 /// Supervisor 汇编入口。
@@ -28,6 +30,21 @@ unsafe extern "C" fn _start() -> ! {
     )
 }
 
+/// 使用 `console` 输出的 Supervisor 裸机程序。
+///
+/// 测试各种日志和输出后关机。
+extern "C" fn rust_main() -> ! {
+    // 初始化 `console`
+    rcore_console::init_console(&Console);
+    // 设置日志级别
+    rcore_console::set_log_level(option_env!("LOG"));
+    // 测试各种打印
+    rcore_console::test_log();
+
+    system_reset(Shutdown, NoReason);
+    unreachable!()
+}
+
 /// 将传给 `console` 的控制台对象。
 ///
 /// 这是一个 Unit struct，它不需要空间。否则需要传一个 static 对象。
@@ -39,26 +56,6 @@ impl rcore_console::Console for Console {
         #[allow(deprecated)]
         legacy::console_putchar(c as _);
     }
-}
-
-/// 使用 `console` 输出的 Supervisor 裸机程序。
-///
-/// 测试各种日志和输出后关机。
-extern "C" fn rust_main() -> ! {
-    // 初始化 console
-    init_console(&Console);
-    // 设置总的日志级别
-    log::set_max_level(log::LevelFilter::Trace);
-
-    println!("[PRINT] Hello, world!");
-    log::trace!("Hello, world!");
-    log::debug!("Hello, world!");
-    log::info!("Hello, world!");
-    log::warn!("Hello, world!");
-    log::error!("Hello, world!");
-
-    system_reset(Shutdown, NoReason);
-    unreachable!()
 }
 
 /// Rust 异常处理函数，以异常方式关机。
