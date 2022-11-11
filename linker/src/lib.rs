@@ -161,7 +161,13 @@ impl KernelLayout {
     /// 清零 .bss 段。
     #[inline]
     pub unsafe fn zero_bss(&self) {
-        core::slice::from_raw_parts_mut(self.sbss as *mut u8, self.ebss - self.sbss).fill(0);
+        let mut ptr = self.sbss as *mut u8;
+        let end = self.ebss as *mut u8;
+        while ptr < end {
+            // **NOTICE** 单核其实无所谓，多核必须 volatile write 其他核才能看见
+            ptr.write_volatile(0);
+            ptr = ptr.offset(1);
+        }
     }
 
     /// 内核区段迭代器。
