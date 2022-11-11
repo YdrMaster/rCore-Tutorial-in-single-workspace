@@ -161,7 +161,7 @@ impl KernelLayout {
     /// 清零 .bss 段。
     #[inline]
     pub unsafe fn zero_bss(&self) {
-        r0::zero_bss::<u64>(self.sbss as _, self.ebss as _);
+        core::slice::from_raw_parts_mut(self.sbss as *mut u8, self.ebss - self.sbss).fill(0);
     }
 
     /// 内核区段迭代器。
