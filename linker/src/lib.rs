@@ -43,7 +43,6 @@ SECTIONS {
     . = 0x80200000;
     __start = .;
     .text : {
-        ENTRY(.)
         *(.text.entry)
         *(.text .text.*)
     }
