@@ -39,10 +39,11 @@ pub use app::{AppIterator, AppMeta};
 /// 链接脚本。
 pub const SCRIPT: &[u8] = b"\
 OUTPUT_ARCH(riscv)
-ENTRY(_start)
 SECTIONS {
     . = 0x80200000;
+    __start = .;
     .text : {
+        ENTRY(.)
         *(.text.entry)
         *(.text .text.*)
     }
@@ -120,7 +121,7 @@ impl KernelLayout {
     #[inline]
     pub fn locate() -> Self {
         extern "C" {
-            fn _start();
+            fn __start();
             fn __rodata();
             fn __data();
             fn __sbss();
@@ -130,7 +131,7 @@ impl KernelLayout {
         }
 
         Self {
-            text: _start as _,
+            text: __start as _,
             rodata: __rodata as _,
             data: __data as _,
             sbss: __sbss as _,

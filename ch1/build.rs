@@ -9,10 +9,10 @@ fn main() {
 
 const LINKER: &[u8] = b"
 OUTPUT_ARCH(riscv)
-ENTRY(_start)
 SECTIONS {
     . = 0x80200000;
     .text : {
+        ENTRY(.)
         *(.text.entry)
         *(.text .text.*)
     }
