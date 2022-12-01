@@ -40,9 +40,8 @@ pub use app::{AppIterator, AppMeta};
 pub const SCRIPT: &[u8] = b"\
 OUTPUT_ARCH(riscv)
 SECTIONS {
-    . = 0x80200000;
-    __start = .;
-    .text : {
+    .text 0x80200000 : {
+        __start = .;
         *(.text.entry)
         *(.text .text.*)
     }
