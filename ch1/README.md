@@ -25,10 +25,8 @@ build.rs 的用法见[文档](https://doc.rust-lang.org/cargo/reference/build-sc
 
 ```ld
 OUTPUT_ARCH(riscv)
-ENTRY(_start)
 SECTIONS {
-    . = 0x80200000;
-    .text : {
+    .text 0x80200000 : {
         *(.text.entry)
         *(.text .text.*)
     }
@@ -48,11 +46,11 @@ SECTIONS {
 }
 ```
 
-1. 为了被引导，它的 `.text` 在最前面。一般是 `.rodata` 在最前面。
-2. 正常情况下，裸机应用程序需要清除自己的 `.bss` 段，所以需要定义全局符号以便动态定位 `.bss`。但这一章的程序并不依赖 `.bss`，所以没有导出符号。
+1. 为了被引导，它的 `.text` 在最前面。一般是 `.rodata` 在最前面。`.text` 的最前面是 `.text.entry`，有且只有一个汇编入口放在这个节，实现引导；
+2. 正常情况下，裸机应用程序需要清除自己的 `.bss` 节，所以需要定义全局符号以便动态定位 `.bss`。但这一章的程序并不依赖 清空的 `.bss`，所以没有导出符号。`.bss` 本身仍然需要，因为栈会放在里面。
 
 ## 工作流程解读
 
 1. SBI 初始化完成后，将固定跳转到 0x8020_0000 地址；
-2. 根据链接脚本，`_start` 函数被放置在这个地址。这是一个裸函数（[`#[naked]`](https://github.com/rust-lang/rust/issues/90957)），编译器不会为它添加任何序言和尾声，因此可以在没有栈的情况下执行。这个函数将栈指针指向预留的栈空间，然后跳转到 `rust_main` 函数；
-3. `rust_main` 函数在一个最简单的循环打印调用 sbi 打印 `Hello, world!` 字符串，然后关机；
+2. 根据链接脚本，汇编入口函数被放置在这个地址。它叫做 `_start`，这个名字是特殊的！GNU LD 及兼容其脚本的链接器会将这个名字认为是默认的入口，否则需要指定。这个函数是一个 rust 裸函数（[`#[naked]`](https://github.com/rust-lang/rust/issues/90957)），编译器不会为它添加任何序言和尾声，因此可以在没有栈的情况下执行。它将栈指针指向预留的栈空间，然后跳转到 `rust_main` 函数；
+3. `rust_main` 函数在一个最简单的循环打印调用 sbi 打印 `Hello, world!` 字符串，然后关机。
