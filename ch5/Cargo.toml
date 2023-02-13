@@ -7,8 +7,8 @@ authors = ["zflcs <1491657576@qq.com>"]
 [dependencies]
 sbi-rt = { version = "0.0.2", features = ["legacy"] }
 xmas-elf = "0.8.0"
-riscv = "0.9"
-spin = "0.9.4"
+riscv = "0.10.1"
+spin = "0.9"
 
 linker = { path = "../linker" }
 rcore-console = { path = "../console" }

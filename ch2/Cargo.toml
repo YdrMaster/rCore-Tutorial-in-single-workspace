@@ -6,7 +6,7 @@ authors = ["YdrMaster <ydrml@hotmail.com>"]
 
 [dependencies]
 sbi-rt = { version = "0.0.2", features = ["legacy"] }
-riscv = "0.9"
+riscv = "0.10.1"
 
 linker = { path = "../linker" }
 rcore-console = { path = "../console" }

@@ -13,4 +13,4 @@ categories = ["no-std"]
 
 [dependencies]
 log = "0.4.17"
-spin = "0.9.4"
+spin = "0.9"

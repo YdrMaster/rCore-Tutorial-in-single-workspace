@@ -7,7 +7,7 @@ authors = ["YdrMaster <ydrml@hotmail.com>"]
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-spin = "0.9.4"
+spin = "0.9"
 bitflags = "1.2.1"
 signal-defs = { path = "../signal-defs" }
 
