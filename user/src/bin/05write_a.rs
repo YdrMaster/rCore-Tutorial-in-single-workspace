@@ -10,7 +10,7 @@ const WIDTH: usize = 10;
 const HEIGHT: usize = 5;
 
 #[no_mangle]
-fn main() -> i32 {
+extern "C" fn main() -> i32 {
     for i in 0..HEIGHT {
         for _ in 0..WIDTH {
             print!("A");

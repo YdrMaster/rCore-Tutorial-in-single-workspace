@@ -9,7 +9,6 @@ use core::marker::PhantomData;
 /// ProcManager 数据结构，只管理进程以及进程之间的父子关系
 /// P 表示进程
 #[cfg(feature = "proc")]
-#[doc(cfg(feature = "proc"))]
 pub struct PManager<P, MP: Manage<P, ProcId> + Schedule<ProcId>> {
     // 进程之间父子关系
     rel_map: BTreeMap<ProcId, ProcRel>,

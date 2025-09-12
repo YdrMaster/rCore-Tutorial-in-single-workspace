@@ -1,8 +1,8 @@
 //! 内核上下文控制。
 
 #![no_std]
-#![feature(naked_functions, asm_const)]
-#![deny(warnings, missing_docs)]
+// #![deny(warnings)]
+#![deny(missing_docs)]
 
 /// 不同地址空间的上下文控制。
 #[cfg(feature = "foreign")]
@@ -179,9 +179,9 @@ fn build_sstatus(supervisor: bool, interrupt: bool) -> usize {
 /// # Safety
 ///
 /// 裸函数。
-#[naked]
+#[unsafe(naked)]
 unsafe extern "C" fn execute_naked() {
-    core::arch::asm!(
+    core::arch::naked_asm!(
         r"  .altmacro
             .macro SAVE n
                 sd x\n, \n*8(sp)
@@ -248,6 +248,5 @@ unsafe extern "C" fn execute_naked() {
         // 返回调度
         "   ret",
         "   .option pop",
-        options(noreturn)
     )
 }

@@ -6,7 +6,7 @@ extern crate user_lib;
 use user_lib::{exec, fork, sched_yield, wait};
 
 #[no_mangle]
-fn main() -> i32 {
+extern "C" fn main() -> i32 {
     if fork() == 0 {
         // exec("user_shell\0", &[core::ptr::null::<u8>()]);
         exec("user_shell");

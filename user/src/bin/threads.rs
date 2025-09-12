@@ -30,7 +30,7 @@ pub fn thread_c() -> isize {
 }
 
 #[no_mangle]
-pub fn main() -> i32 {
+pub extern "C" fn main() -> i32 {
     println!("threads test========");
     let mut v = vec![
         thread_create(thread_a as usize, 0),

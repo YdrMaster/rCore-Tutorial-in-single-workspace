@@ -34,7 +34,7 @@ fn fork_tree(cur: &str) {
 }
 
 #[no_mangle]
-pub fn main() -> i32 {
+pub extern "C" fn main() -> i32 {
     fork_tree("");
     let mut exit_code: i32 = 0;
     for _ in 0..2 {

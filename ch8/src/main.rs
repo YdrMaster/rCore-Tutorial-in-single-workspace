@@ -1,8 +1,6 @@
 #![no_std]
 #![no_main]
-#![feature(naked_functions, asm_const)]
-//#![feature(default_alloc_error_handler)]
-#![deny(warnings)]
+// #![deny(warnings)]
 
 mod fs;
 mod process;

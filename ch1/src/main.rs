@@ -1,12 +1,11 @@
 #![no_std]
 #![no_main]
-#![feature(naked_functions, asm_const)]
 #![deny(warnings)]
 
 /// Supervisor 汇编入口。
 ///
 /// 设置栈并跳转到 Rust。
-#[naked]
+#[unsafe(naked)]
 #[no_mangle]
 #[link_section = ".text.entry"]
 unsafe extern "C" fn _start() -> ! {
@@ -15,13 +14,12 @@ unsafe extern "C" fn _start() -> ! {
     #[link_section = ".bss.uninit"]
     static mut STACK: [u8; STACK_SIZE] = [0u8; STACK_SIZE];
 
-    core::arch::asm!(
+    core::arch::naked_asm!(
         "la sp, {stack} + {stack_size}",
         "j  {main}",
         stack_size = const STACK_SIZE,
         stack      =   sym STACK,
         main       =   sym rust_main,
-        options(noreturn),
     )
 }
 

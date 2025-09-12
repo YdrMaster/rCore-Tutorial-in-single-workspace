@@ -25,3 +25,4 @@ members = [
     "sync",
 ]
 default-members = ["xtask"]
+resolver = "2"

@@ -174,7 +174,7 @@ fn run(f: fn()) -> bool {
 }
 
 #[no_mangle]
-pub fn main() -> i32 {
+pub extern "C" fn main() -> i32 {
     let tests: [(fn(), &str); 8] = [
         (user_sig_test_failsignum, "user_sig_test_failsignum"),
         (user_sig_test_kill, "user_sig_test_kill"),

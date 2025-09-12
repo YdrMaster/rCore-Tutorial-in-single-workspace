@@ -28,7 +28,7 @@ unsafe fn second() -> isize {
 }
 
 #[no_mangle]
-pub fn main() -> i32 {
+pub extern "C" fn main() -> i32 {
     // create semaphores
     assert_eq!(semaphore_create(0) as usize, SEM_SYNC);
     // create threads

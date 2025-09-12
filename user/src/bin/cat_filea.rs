@@ -8,7 +8,7 @@ extern crate alloc;
 use user_lib::{close, open, read, OpenFlags};
 
 #[no_mangle]
-pub fn main() -> i32 {
+pub extern "C" fn main() -> i32 {
     let fd = open("filea\0", OpenFlags::RDONLY);
     if fd == -1 {
         panic!("Error occured when opening file");

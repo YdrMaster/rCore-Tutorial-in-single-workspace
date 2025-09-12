@@ -29,7 +29,7 @@ unsafe fn f() -> isize {
 }
 
 #[no_mangle]
-pub fn main() -> i32 {
+pub extern "C" fn main() -> i32 {
     let mut start_time: TimeSpec = TimeSpec::ZERO;
     let mut end_time: TimeSpec = TimeSpec::ZERO;
     clock_gettime(ClockId::CLOCK_MONOTONIC, &mut start_time as *mut _ as _);

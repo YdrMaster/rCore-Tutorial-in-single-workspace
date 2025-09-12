@@ -3,7 +3,6 @@ use alloc::vec::Vec;
 
 /// 进程之间的关系，通过进程的 Id 来查询这个关系
 #[cfg(feature = "proc")]
-#[doc(cfg(feature = "proc"))]
 pub struct ProcRel {
     /// 父进程 Id
     pub parent: ProcId,

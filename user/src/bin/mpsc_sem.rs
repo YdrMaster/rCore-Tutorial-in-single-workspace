@@ -49,7 +49,7 @@ unsafe fn consumer() -> isize {
 }
 
 #[no_mangle]
-pub fn main() -> i32 {
+pub extern "C" fn main() -> i32 {
     // create semaphores
     assert_eq!(semaphore_create(1) as usize, SEM_MUTEX);
     assert_eq!(semaphore_create(BUFFER_SIZE) as usize, SEM_EMPTY);

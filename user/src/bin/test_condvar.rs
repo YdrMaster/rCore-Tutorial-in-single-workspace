@@ -41,7 +41,7 @@ unsafe fn second() -> isize {
 }
 
 #[no_mangle]
-pub fn main() -> i32 {
+pub extern "C" fn main() -> i32 {
     // create condvar & mutex
     assert_eq!(condvar_create() as usize, CONDVAR_ID);
     assert_eq!(mutex_create(true) as usize, MUTEX_ID);

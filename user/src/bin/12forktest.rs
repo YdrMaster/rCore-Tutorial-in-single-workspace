@@ -9,7 +9,7 @@ use user_lib::{exit, fork, wait};
 const MAX_CHILD: usize = 30;
 
 #[no_mangle]
-pub fn main() -> i32 {
+pub extern "C" fn main() -> i32 {
     for i in 0..MAX_CHILD {
         let pid = fork();
         if pid == 0 {

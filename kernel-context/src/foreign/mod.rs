@@ -185,9 +185,9 @@ impl PortalText {
 
 /// 切换地址空间然后 sret。
 /// 地址空间恢复后一切都会恢复原状。
-#[naked]
+#[unsafe(naked)]
 unsafe extern "C" fn foreign_execute(ctx: *mut PortalCache) {
-    core::arch::asm!(
+    core::arch::naked_asm!(
         // 位置无关加载
         "   .option push
             .option nopic
@@ -250,6 +250,5 @@ unsafe extern "C" fn foreign_execute(ctx: *mut PortalCache) {
         // 离开异界传送门直接跳到正常上下文的 stvec
         "   jr    a0",
         "   .option pop",
-        options(noreturn)
     )
 }

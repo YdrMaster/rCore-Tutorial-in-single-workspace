@@ -5,7 +5,7 @@
 extern crate user_lib;
 
 #[no_mangle]
-fn main() -> i32 {
+extern "C" fn main() -> i32 {
     println!("Hello, world!");
     0
 }

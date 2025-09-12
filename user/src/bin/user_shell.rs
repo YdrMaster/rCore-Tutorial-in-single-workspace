@@ -16,7 +16,7 @@ use alloc::string::String;
 use user_lib::{exec, fork, getchar, waitpid};
 
 #[no_mangle]
-pub fn main() -> i32 {
+pub extern "C" fn main() -> i32 {
     println!("Rust user shell");
     let mut line: String = String::new(); // 记录着当前输入的命令
     print!(">> ");

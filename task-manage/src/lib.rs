@@ -1,7 +1,6 @@
 //! 任务管理 lib
 
 #![no_std]
-#![feature(doc_cfg)]
 #![deny(warnings, missing_docs)]
 
 extern crate alloc;

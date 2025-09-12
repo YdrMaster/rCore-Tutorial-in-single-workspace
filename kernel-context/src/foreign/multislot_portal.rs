@@ -31,7 +31,7 @@ impl MultislotPortal {
         // 拷贝代码
         PORTAL_TEXT.copy_to(transit + sizeof!(Self));
         // 填写元数据
-        let mut ans = &mut *(transit as *mut Self);
+        let ans = &mut *(transit as *mut Self);
         ans.slot_count = slots;
         ans.text_size = PORTAL_TEXT.aligned_size();
         ans

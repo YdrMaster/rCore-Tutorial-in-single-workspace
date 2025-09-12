@@ -15,7 +15,7 @@ fn func() {
 }
 
 #[no_mangle]
-pub fn main() -> i32 {
+pub extern "C" fn main() -> i32 {
     println!("sig_ctrlc starting....  Press 'ctrl-c' or 'ENTER'  will quit.");
 
     let mut new = SignalAction::default();

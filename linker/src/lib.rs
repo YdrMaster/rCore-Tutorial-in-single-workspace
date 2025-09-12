@@ -74,18 +74,17 @@ SECTIONS {
 #[macro_export]
 macro_rules! boot0 {
     ($entry:ident; stack = $stack:expr) => {
-        #[naked]
+        #[unsafe(naked)]
         #[no_mangle]
         #[link_section = ".text.entry"]
         unsafe extern "C" fn _start() -> ! {
             #[link_section = ".boot.stack"]
             static mut STACK: [u8; $stack] = [0u8; $stack];
 
-            core::arch::asm!(
+            core::arch::naked_asm!(
                 "la sp, __end",
                 "j  {main}",
                 main = sym rust_main,
-                options(noreturn),
             )
         }
     };
@@ -171,7 +170,7 @@ impl KernelLayout {
 
     /// 内核区段迭代器。
     #[inline]
-    pub fn iter(&self) -> KernelRegionIterator {
+    pub fn iter(&self) -> KernelRegionIterator<'_> {
         KernelRegionIterator {
             layout: self,
             next: Some(KernelRegionTitle::Text),

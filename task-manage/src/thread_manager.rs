@@ -10,7 +10,6 @@ use super::ProcThreadRel;
 use core::marker::PhantomData;
 
 #[cfg(feature = "thread")]
-#[doc(cfg(feature = "thread"))]
 /// PThreadManager 数据结构，只管理进程以及进程之间的父子关系
 /// P 表示进程, T 表示线程
 pub struct PThreadManager<P, T, MT: Manage<T, ThreadId> + Schedule<ThreadId>, MP: Manage<P, ProcId>>

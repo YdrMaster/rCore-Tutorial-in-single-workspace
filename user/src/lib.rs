@@ -1,7 +1,4 @@
 #![no_std]
-#![feature(linkage)]
-#![feature(panic_info_message)]
-#![feature(alloc_error_handler)]
 
 mod heap;
 
@@ -19,19 +16,18 @@ pub extern "C" fn _start() -> ! {
     rcore_console::init_console(&Console);
     rcore_console::set_log_level(option_env!("LOG"));
     heap::init();
-    exit(main());
-    unreachable!()
-}
 
-#[linkage = "weak"]
-#[no_mangle]
-fn main() -> i32 {
-    panic!("Cannot find main!");
+    extern "C" {
+        fn main() -> i32;
+    }
+
+    exit(unsafe { main() });
+    unreachable!()
 }
 
 #[panic_handler]
 fn panic_handler(panic_info: &core::panic::PanicInfo) -> ! {
-    let err = panic_info.message().unwrap();
+    let err = panic_info.message();
     if let Some(location) = panic_info.location() {
         log::error!("Panicked at {}:{}, {err}", location.file(), location.line());
     } else {
@@ -39,11 +35,6 @@ fn panic_handler(panic_info: &core::panic::PanicInfo) -> ! {
     }
     exit(1);
     unreachable!()
-}
-
-#[alloc_error_handler]
-fn alloc_error_handler(layout: Layout) -> ! {
-    panic!("Failed to alloc {layout:?}")
 }
 
 pub fn getchar() -> u8 {

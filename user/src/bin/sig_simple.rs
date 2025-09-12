@@ -11,7 +11,7 @@ fn func() {
 }
 
 #[no_mangle]
-pub fn main() -> i32 {
+pub extern "C" fn main() -> i32 {
     let mut new = SignalAction::default();
     let old = SignalAction::default();
     new.handler = func as usize;
