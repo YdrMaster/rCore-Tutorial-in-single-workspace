@@ -129,11 +129,15 @@ impl LocalContext {
     /// # Safety
     ///
     /// 将修改 `sscratch`、`sepc`、`sstatus` 和 `stvec`。
-    #[inline]
+    #[inline(never)]
     pub unsafe fn execute(&mut self) -> usize {
         let mut sstatus = build_sstatus(self.supervisor, self.interrupt);
+        // 保存 self 指针和 sepc，避免 release 模式下 csrrw 破坏寄存器后的问题
+        let ctx_ptr = self as *mut Self;
+        let mut sepc = self.sepc;
+        let old_sscratch: usize;
         core::arch::asm!(
-            "   csrrw {sscratch}, sscratch, {sscratch}
+            "   csrrw {old_ss}, sscratch, {ctx}
                 csrw  sepc    , {sepc}
                 csrw  sstatus , {sstatus}
                 addi  sp, sp, -8
@@ -141,15 +145,18 @@ impl LocalContext {
                 call  {execute_naked}
                 ld    ra, (sp)
                 addi  sp, sp,  8
-                csrw  sscratch, {sscratch}
+                csrw  sscratch, {old_ss}
                 csrr  {sepc}   , sepc
                 csrr  {sstatus}, sstatus
             ",
-            sscratch      = in       (reg) self,
-            sepc          = inlateout(reg) self.sepc,
+            ctx           = in       (reg) ctx_ptr,
+            old_ss        = out      (reg) old_sscratch,
+            sepc          = inlateout(reg) sepc,
             sstatus       = inlateout(reg) sstatus,
             execute_naked = sym execute_naked,
         );
+        let _ = old_sscratch; // suppress unused warning
+        (*ctx_ptr).sepc = sepc;
         sstatus
     }
 }

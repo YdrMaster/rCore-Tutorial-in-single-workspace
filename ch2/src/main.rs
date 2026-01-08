@@ -33,10 +33,10 @@ extern "C" fn rust_main() -> ! {
         log::info!("load app{i} to {app_base:#x}");
         // 初始化上下文
         let mut ctx = LocalContext::user(app_base);
-        // 设置用户栈
-        let mut user_stack = [0usize; 256];
-        *ctx.sp_mut() = user_stack.as_mut_ptr() as usize + core::mem::size_of_val(&user_stack);
-        // 执行应用程序
+        // 设置用户栈（使用 MaybeUninit 避免 release 模式下零初始化的问题）
+        let mut user_stack: core::mem::MaybeUninit<[usize; 256]> = core::mem::MaybeUninit::uninit();
+        let user_stack_ptr = user_stack.as_mut_ptr() as *mut usize;
+        *ctx.sp_mut() = unsafe { user_stack_ptr.add(256) } as usize;
         loop {
             unsafe { ctx.execute() };
 
@@ -56,6 +56,8 @@ extern "C" fn rust_main() -> ! {
             unsafe { core::arch::asm!("fence.i") };
             break;
         }
+        // 防止 user_stack 被优化
+        let _ = core::hint::black_box(&user_stack);
         println!();
     }
 
